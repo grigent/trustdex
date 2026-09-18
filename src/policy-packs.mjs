@@ -3,7 +3,9 @@ const BASE_SIGNALS = {
   'secret-env': 'ask',
   'wildcard-tool-scope': 'ask',
   'sensitive-path-instructions': 'ask',
-  'shell-instructions': 'ask'
+  'shell-instructions': 'ask',
+  'install-instructions': 'ask',
+  'missing-version': 'ask'
 };
 
 export const POLICY_PACKS = Object.freeze({
@@ -11,6 +13,7 @@ export const POLICY_PACKS = Object.freeze({
     version: 1,
     unknownAction: 'block',
     localAction: 'ask',
+    verifiedPublisherAction: 'allow',
     sensitiveAction: 'ask',
     unpinnedAction: 'block',
     shellAction: 'block',
@@ -23,6 +26,7 @@ export const POLICY_PACKS = Object.freeze({
     version: 1,
     unknownAction: 'block',
     localAction: 'ask',
+    verifiedPublisherAction: 'allow',
     sensitiveAction: 'ask',
     unpinnedAction: 'ask',
     shellAction: 'block',
@@ -30,12 +34,13 @@ export const POLICY_PACKS = Object.freeze({
     trustedRepositories: [],
     allowedRemoteHosts: [],
     signalActions: BASE_SIGNALS,
-    note: 'Add only sources whose publisher or provenance you have independently verified.'
+    note: 'ALLOW verified provenance assertions, ASK for local extensions, and BLOCK unknown third-party sources by default.'
   }),
   development: Object.freeze({
     version: 1,
     unknownAction: 'ask',
     localAction: 'ask',
+    verifiedPublisherAction: 'allow',
     sensitiveAction: 'ask',
     unpinnedAction: 'ask',
     shellAction: 'ask',
