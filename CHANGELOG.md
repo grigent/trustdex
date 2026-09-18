@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.1.0 - Unreleased
+## 0.2.0 - Unreleased
+
+Trust and provenance gate:
+
+- built-in `strict`, `official-first`, and `development` policy packs
+- explicit provenance trust store with evidence metadata
+- runtime MCP gate that outputs only policy-approved servers
+- Agent Skill and plugin manifest inspection
+- snapshot schema v2 with provenance drift detection
+- Ed25519-signed trust records
+- GitHub Action support
+- expanded security tests and documentation
+
+## 0.1.0
 
 Initial working prototype:
 
