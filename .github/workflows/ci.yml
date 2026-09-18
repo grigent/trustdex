@@ -14,6 +14,7 @@ jobs:
     strategy:
       matrix:
         node-version: [20, 22]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,14 +29,19 @@ jobs:
         shell: bash
         run: |
           set +e
-          node ./bin/trustdex.mjs inspect ./examples/mcp.json             --pack strict             --policy ./examples/trustdex.policy.json
+          node ./bin/trustdex.mjs inspect ./examples/mcp.json \
+            --pack strict \
+            --policy ./examples/trustdex.policy.json
           code=$?
           test "$code" -eq 2
 
       - name: Verify gate removes blocked tool
         shell: bash
         run: |
-          node ./bin/trustdex.mjs gate ./examples/mcp.json             --pack strict             --policy ./examples/trustdex.policy.json             --out .trustdex/gated.json
+          node ./bin/trustdex.mjs gate ./examples/mcp.json \
+            --pack strict \
+            --policy ./examples/trustdex.policy.json \
+            --out .trustdex/gated.json
           node -e '
             const fs = require("fs");
             const value = JSON.parse(fs.readFileSync(".trustdex/gated.json", "utf8"));
@@ -43,10 +49,43 @@ jobs:
             if (names.includes("unknown-calendar")) process.exit(1);
           '
 
+      - name: Verify Codex config gate
+        shell: bash
+        run: |
+          node ./bin/trustdex.mjs inspect-codex ./examples/codex.config.toml \
+            --pack development || test "$?" -eq 1
+          node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
+            --pack strict \
+            --out .trustdex/codex-gated.toml
+          grep -q '\[features\]' .trustdex/codex-gated.toml
+          if grep -q '\[mcp_servers.remote-example\]' .trustdex/codex-gated.toml; then
+            exit 1
+          fi
+
       - name: Verify signed trust record round trip
         shell: bash
         run: |
-          node ./bin/trustdex.mjs snapshot ./examples/mcp.json             --pack strict             --policy ./examples/trustdex.policy.json             --out .trustdex/snapshot.json
-          node ./bin/trustdex.mjs keygen             --private .trustdex/private.pem             --public .trustdex/public.pem
-          node ./bin/trustdex.mjs sign .trustdex/snapshot.json             --private .trustdex/private.pem             --out .trustdex/record.json
-          node ./bin/trustdex.mjs verify .trustdex/record.json             --public .trustdex/public.pem             --snapshot .trustdex/snapshot.json
+          node ./bin/trustdex.mjs snapshot ./examples/mcp.json \
+            --pack strict \
+            --policy ./examples/trustdex.policy.json \
+            --out .trustdex/snapshot.json
+          node ./bin/trustdex.mjs keygen \
+            --private .trustdex/private.pem \
+            --public .trustdex/public.pem
+          node ./bin/trustdex.mjs sign .trustdex/snapshot.json \
+            --private .trustdex/private.pem \
+            --out .trustdex/record.json
+          node ./bin/trustdex.mjs verify .trustdex/record.json \
+            --public .trustdex/public.pem \
+            --snapshot .trustdex/snapshot.json
+
+      - name: Verify automatic re-review workflow
+        shell: bash
+        run: |
+          node ./bin/trustdex.mjs approve ./examples/mcp.json \
+            --pack development \
+            --private .trustdex/private.pem \
+            --dir .trustdex/review
+          node ./bin/trustdex.mjs recheck ./examples/mcp.json \
+            --review-dir .trustdex/review \
+            --public .trustdex/public.pem
