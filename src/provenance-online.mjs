@@ -62,6 +62,84 @@ function normalizeNpmPackage(value) {
   return name;
 }
 
+export async function inspectGitHubReleaseSignature(repository, options = {}) {
+  const slug = normalizeRepoSlug(repository);
+  const repoUrl = `https://api.github.com/repos/${slug}`;
+  const repoData = await fetchJson(repoUrl, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'trustdex'
+    }
+  }, options.fetchImpl);
+
+  if (!repoData?.full_name || String(repoData.full_name).toLowerCase() !== slug.toLowerCase()) {
+    throw new Error('GitHub API response did not match the requested repository.');
+  }
+
+  const release = await fetchJson(`${repoUrl}/releases/latest`, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'trustdex'
+    }
+  }, options.fetchImpl);
+
+  if (!release?.tag_name) throw new Error('Latest GitHub release does not expose a tag name.');
+
+  const ref = await fetchJson(
+    `${repoUrl}/git/ref/tags/${encodeURIComponent(release.tag_name)}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'trustdex'
+      }
+    },
+    options.fetchImpl
+  );
+
+  const objectType = ref?.object?.type;
+  const objectSha = ref?.object?.sha;
+  if (!objectType || !objectSha) throw new Error('GitHub tag reference is incomplete.');
+
+  let verification = null;
+  if (objectType === 'tag') {
+    const tag = await fetchJson(`${repoUrl}/git/tags/${objectSha}`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'trustdex'
+      }
+    }, options.fetchImpl);
+    verification = tag?.verification || null;
+  } else if (objectType === 'commit') {
+    const commit = await fetchJson(`${repoUrl}/commits/${objectSha}`, {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'trustdex'
+      }
+    }, options.fetchImpl);
+    verification = commit?.commit?.verification || commit?.verification || null;
+  } else {
+    throw new Error(`Unsupported GitHub tag object type: ${objectType}`);
+  }
+
+  return {
+    adapter: 'github-release',
+    type: 'repository',
+    subject: repoData.full_name,
+    publisherHint: repoData.owner?.login || null,
+    observedAt: new Date().toISOString(),
+    evidence: {
+      kind: 'github-release-signature',
+      reference: release.html_url || `https://github.com/${repoData.full_name}/releases/tag/${release.tag_name}`,
+      tag: release.tag_name,
+      objectType,
+      objectSha,
+      signatureVerified: Boolean(verification?.verified),
+      signatureReason: verification?.reason || null,
+      signer: verification?.signer?.login || null
+    }
+  };
+}
+
 export async function inspectNpmPackage(packageName, options = {}) {
   const name = normalizeNpmPackage(packageName);
   const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
@@ -180,6 +258,10 @@ export function provenanceObservationToClaim(observation, publisher) {
   if (!['package', 'remote', 'repository'].includes(observation.type)) {
     throw new Error('This observation does not map to a single trustable source. Review it manually instead.');
   }
+  if (observation.adapter === 'github-release' && !observation.evidence?.signatureVerified) {
+    throw new Error('Refusing to trust a GitHub release without a verified signature.');
+  }
+
   const publisherName = String(publisher || '').trim();
   if (!publisherName) throw new Error('A publisher name is required for explicit approval.');
 
