@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { sha256Json } from './canonical.mjs';
 
 const SECRET_KEY_RE = /(token|secret|password|passwd|api[_-]?key|credential|auth)/i;
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'cmd', 'cmd.exe', 'powershell', 'pwsh']);
@@ -49,6 +50,7 @@ function normalizeServer(name, server = {}) {
   const command = String(server.command || '');
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
   const env = server.env && typeof server.env === 'object' ? server.env : {};
+  const envKeys = Object.keys(env).sort();
   const packageSpec = firstPackageArg(command, args);
   const remoteHost = extractRemoteHost(server);
   const signals = new Set();
@@ -58,14 +60,22 @@ function normalizeServer(name, server = {}) {
   if (RUNNERS.has(basename(command))) signals.add('install-on-run');
   if (packageSpec && !isPinnedPackage(packageSpec)) signals.add('unbounded-version');
   if (args.some(looksLikePath)) signals.add('filesystem-path');
-  if (Object.keys(env).some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
+  if (envKeys.some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
 
   let source = { type: 'unknown' };
   if (remoteHost) source = { type: 'remote', host: remoteHost, url: String(server.url || server.endpoint) };
   else if (packageSpec) source = { type: 'package', runner: basename(command), package: packageSpec, pinned: isPinnedPackage(packageSpec) };
   else if (command) source = { type: 'local', command };
 
-  return { name, source, signals: [...signals].sort(), envKeys: Object.keys(env).sort() };
+  const fingerprint = sha256Json({
+    command,
+    args,
+    url: server.url || null,
+    endpoint: server.endpoint || null,
+    envKeys
+  });
+
+  return { name, source, fingerprint, signals: [...signals].sort(), envKeys };
 }
 
 export function inspectMcpConfig(config) {
