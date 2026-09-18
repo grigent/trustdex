@@ -4,6 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
+import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
@@ -36,9 +37,13 @@ Usage:
 
   trustdex inspect-skill <SKILL.md> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-plugin <plugin.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex inspect-codex <config.toml> [--pack ...] [--policy policy.json]
+      [--trust-store trust-store.json] [--json]
 
   trustdex gate <mcp.json> --out gated.json [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--include-ask] [--json]
+  trustdex gate-codex <config.toml> --out gated.toml [--pack ...] [--policy policy.json]
+      [--trust-store trust-store.json] [--include-ask]
 
   trustdex provenance github <owner/repo> [--json]
   trustdex provenance github-release <owner/repo> [--json]
@@ -149,6 +154,22 @@ async function evaluateMcp(configPath, args) {
   };
 }
 
+async function evaluateCodex(configPath, args) {
+  const text = await fs.readFile(configPath, 'utf8');
+  const config = parseCodexMcpToml(text);
+  const inspected = inspectMcpConfig(config);
+  const store = await loadTrustStore(args);
+  const withProvenance = store ? attachProvenanceAll(inspected, store) : inspected;
+  const policy = await loadPolicy(args);
+  return {
+    text,
+    config,
+    policy,
+    store,
+    results: evaluateAll(withProvenance, policy)
+  };
+}
+
 async function inspectSingle(item, args) {
   const results = evaluateAll([item], await loadPolicy(args));
   printResults(results, hasFlag(args, '--json'));
@@ -220,6 +241,33 @@ async function main() {
     const pluginPath = args[1];
     if (!pluginPath) throw new Error('inspect-plugin requires a path to plugin.json.');
     await inspectSingle(inspectPluginManifest(await readJson(pluginPath), pluginPath), args);
+    return;
+  }
+
+  if (command === 'inspect-codex') {
+    const configPath = args[1];
+    if (!configPath) throw new Error('inspect-codex requires a path to Codex config.toml.');
+    const { results } = await evaluateCodex(configPath, args);
+    printResults(results, hasFlag(args, '--json'));
+    setInspectExitCode(results);
+    return;
+  }
+
+  if (command === 'gate-codex') {
+    const configPath = args[1];
+    const out = getFlag(args, '--out');
+    if (!configPath || !out) throw new Error('gate-codex requires <config.toml> and --out <gated.toml>.');
+    const { text, results } = await evaluateCodex(configPath, args);
+    const gated = gateCodexToml(text, results, { includeAsk: hasFlag(args, '--include-ask') });
+    await writeFileSafe(out, gated);
+    console.log(`Wrote ${out}`);
+    const allowed = results.filter((result) => result.action === 'allow').map((result) => result.name);
+    const review = results.filter((result) => result.action === 'ask').map((result) => result.name);
+    const blocked = results.filter((result) => result.action === 'block').map((result) => result.name);
+    console.log(`Allowed: ${allowed.length ? allowed.join(', ') : 'none'}`);
+    if (review.length) console.log(`Needs review: ${review.join(', ')}`);
+    if (blocked.length) console.log(`Blocked: ${blocked.join(', ')}`);
+    if (review.length && !hasFlag(args, '--include-ask')) process.exitCode = 1;
     return;
   }
 
