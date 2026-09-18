@@ -2,18 +2,19 @@ import { sha256Json } from './canonical.mjs';
 
 export function createSnapshot(results) {
   const normalized = results
-    .map(({ name, kind = 'mcp', source, provenance = { status: 'unknown' }, signals = [], action }) => ({
+    .map(({ name, kind = 'mcp', source, provenance = { status: 'unknown' }, fingerprint = null, signals = [], action }) => ({
       name,
       kind,
       source,
       provenance,
+      fingerprint,
       signals: [...signals].sort(),
       action
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     createdAt: new Date().toISOString(),
     digest: sha256Json(normalized),
     servers: normalized
@@ -54,6 +55,15 @@ export function diffSnapshots(before, after) {
         name,
         from: previous.provenance || { status: 'unknown' },
         to: current.provenance || { status: 'unknown' }
+      });
+    }
+
+    if ((previous.fingerprint || null) !== (current.fingerprint || null)) {
+      changes.push({
+        type: 'fingerprint-changed',
+        name,
+        from: previous.fingerprint || null,
+        to: current.fingerprint || null
       });
     }
   }
