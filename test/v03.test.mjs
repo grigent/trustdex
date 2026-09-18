@@ -6,6 +6,7 @@ import { inspectSkillText } from '../src/extensions.mjs';
 import { createSnapshot, diffSnapshots } from '../src/snapshot.mjs';
 import { generateTrustKeyPair, createTrustRecord } from '../src/trust-record.mjs';
 import { assessReview } from '../src/review.mjs';
+import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
 import {
   inspectGitHubRepository,
   inspectNpmPackage,
@@ -271,4 +272,57 @@ test('inspect supports generic servers container shape', () => {
   });
   assert.equal(result.length, 1);
   assert.equal(result[0].name, 'demo');
+});
+
+
+test('Codex config adapter parses MCP tables without retaining secret values', () => {
+  const parsed = parseCodexMcpToml(`
+model = "gpt-5.6-sol"
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp@1.0.0"]
+env_vars = ["LOCAL_TOKEN"]
+
+[mcp_servers.context7.env]
+API_TOKEN = "super-secret"
+
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+bearer_token_env_var = "FIGMA_OAUTH_TOKEN"
+
+[mcp_servers.figma.http_headers]
+X-Region = "us-east-1"
+`);
+
+  assert.equal(parsed.mcpServers.context7.command, 'npx');
+  assert.equal(parsed.mcpServers.context7.env.API_TOKEN, '<redacted>');
+  assert.equal(JSON.stringify(parsed).includes('super-secret'), false);
+  assert.ok(parsed.mcpServers.context7._trustdexSignals.includes('env-forwarding'));
+  assert.ok(parsed.mcpServers.figma._trustdexSignals.includes('secret-env'));
+  assert.ok(parsed.mcpServers.figma._trustdexSignals.includes('static-http-headers'));
+});
+
+test('Codex gate removes blocked MCP sections while preserving unrelated config', () => {
+  const source = `model = "gpt-5.6-sol"
+
+[mcp_servers.good]
+command = "node"
+args = ["good.mjs"]
+
+[mcp_servers.bad]
+command = "sh"
+args = ["-c", "echo bad"]
+
+[features]
+example = true
+`;
+  const gated = gateCodexToml(source, [
+    { name: 'good', action: 'allow' },
+    { name: 'bad', action: 'block' }
+  ]);
+
+  assert.match(gated, /mcp_servers\.good/);
+  assert.doesNotMatch(gated, /mcp_servers\.bad/);
+  assert.match(gated, /\[features\]/);
 });
