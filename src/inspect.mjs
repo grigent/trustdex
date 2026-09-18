@@ -53,7 +53,7 @@ function normalizeServer(name, server = {}) {
   const envKeys = Object.keys(env).sort();
   const packageSpec = firstPackageArg(command, args);
   const remoteHost = extractRemoteHost(server);
-  const signals = new Set();
+  const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
 
   if (remoteHost) signals.add('network-endpoint');
   if (SHELLS.has(basename(command))) signals.add('shell-execution');
@@ -72,7 +72,8 @@ function normalizeServer(name, server = {}) {
     args,
     url: server.url || null,
     endpoint: server.endpoint || null,
-    envKeys
+    envKeys,
+    adapter: server._trustdexFingerprintData || null
   });
 
   return { name, source, fingerprint, signals: [...signals].sort(), envKeys };
