@@ -7,16 +7,21 @@ TrustDex is a security-sensitive, local-first CLI. Changes should prefer small, 
 - Node.js 20+ only; prefer built-in Node modules.
 - Do not add telemetry or network calls without an explicit design discussion.
 - Never print secret values. Environment variable names may be reported; values must not be.
-- Treat ALLOW as a high-confidence decision. When evidence is incomplete, prefer ASK or BLOCK.
+- Treat ALLOW as a high-confidence policy decision. When evidence is incomplete, prefer ASK or BLOCK.
+- Never infer an "official" publisher from a name, logo, stars, popularity, or repository description.
+- Provenance claims must include explicit evidence metadata and must state what "verified" means.
+- A provenance assertion must never override a blocking capability signal.
 - Security claims must describe exactly what is checked; do not imply that static inspection proves a tool is safe.
-- Add tests for every new trust signal or policy rule.
+- Add tests for every new trust signal, policy rule, provenance adapter, and trust-record change.
 
 ## Before opening a PR
 
 ```bash
 npm test
 npm run check
-node ./bin/trustdex.mjs inspect ./examples/mcp.json --policy ./examples/trustdex.policy.json
+node ./bin/trustdex.mjs inspect ./examples/mcp.json \
+  --pack strict \
+  --policy ./examples/trustdex.policy.json
 ```
 
 The example intentionally contains an unknown server, so the final command exits non-zero.
