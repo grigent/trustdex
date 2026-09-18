@@ -8,7 +8,8 @@
   },
   "scripts": {
     "test": "node --test",
-    "check": "node --check bin/trustdex.mjs && node --check src/canonical.mjs && node --check src/codex-config.mjs && node --check src/extensions.mjs && node --check src/gate.mjs && node --check src/inspect.mjs && node --check src/policy.mjs && node --check src/policy-packs.mjs && node --check src/provenance.mjs && node --check src/provenance-online.mjs && node --check src/review.mjs && node --check src/snapshot.mjs && node --check src/trust-record.mjs"
+    "check": "node --check bin/trustdex.mjs && node --check src/canonical.mjs && node --check src/codex-config.mjs && node --check src/extensions.mjs && node --check src/gate.mjs && node --check src/inspect.mjs && node --check src/policy.mjs && node --check src/policy-packs.mjs && node --check src/provenance.mjs && node --check src/provenance-online.mjs && node --check src/review.mjs && node --check src/snapshot.mjs && node --check src/trust-record.mjs",
+    "prepublishOnly": "npm test && npm run check"
   },
   "engines": {
     "node": ">=20"
@@ -39,5 +40,8 @@
     "README.md",
     "SECURITY.md",
     "LICENSE"
-  ]
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
 }
