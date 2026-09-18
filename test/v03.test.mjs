@@ -9,6 +9,8 @@ import { assessReview } from '../src/review.mjs';
 import {
   inspectGitHubRepository,
   inspectNpmPackage,
+  inspectGitHubReleaseSignature,
+  inspectMcpRegistryServer,
   provenanceObservationToClaim,
   upsertTrustStoreClaim
 } from '../src/provenance-online.mjs';
@@ -158,4 +160,115 @@ test('provenance adapter rejects mismatched GitHub API response', async () => {
     }),
     /did not match/
   );
+});
+
+
+test('MCP Registry adapter maps a single package to package provenance', async () => {
+  const observation = await inspectMcpRegistryServer('io.github.example/demo', {
+    fetchImpl: async (url) => {
+      assert.equal(
+        url,
+        'https://registry.modelcontextprotocol.io/v0.1/servers/io.github.example%2Fdemo/versions/latest'
+      );
+      return response({
+        server: {
+          name: 'io.github.example/demo',
+          version: '1.2.3',
+          repository: {
+            url: 'https://github.com/example/demo',
+            source: 'github'
+          },
+          packages: [{
+            registryType: 'npm',
+            identifier: '@example/demo',
+            version: '1.2.3',
+            fileSha256: 'a'.repeat(64)
+          }]
+        }
+      });
+    }
+  });
+
+  assert.equal(observation.adapter, 'mcp');
+  assert.equal(observation.type, 'package');
+  assert.equal(observation.subject, '@example/demo');
+  assert.equal(observation.evidence.kind, 'mcp-official-registry');
+});
+
+test('GitHub release provenance accepts verified signed tag evidence', async () => {
+  const calls = [];
+  const fetchImpl = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/repos/example/demo')) {
+      return response({
+        full_name: 'example/demo',
+        owner: { login: 'example' }
+      });
+    }
+    if (url.endsWith('/releases/latest')) {
+      return response({
+        tag_name: 'v1.0.0',
+        html_url: 'https://github.com/example/demo/releases/tag/v1.0.0'
+      });
+    }
+    if (url.includes('/git/ref/tags/')) {
+      return response({ object: { type: 'tag', sha: 'abc123' } });
+    }
+    if (url.endsWith('/git/tags/abc123')) {
+      return response({
+        verification: {
+          verified: true,
+          reason: 'valid',
+          signer: { login: 'example' }
+        }
+      });
+    }
+    return response({}, 404);
+  };
+
+  const observation = await inspectGitHubReleaseSignature('example/demo', { fetchImpl });
+  assert.equal(observation.evidence.signatureVerified, true);
+  assert.equal(observation.evidence.tag, 'v1.0.0');
+  const claim = provenanceObservationToClaim(observation, 'Example Publisher');
+  assert.equal(claim.type, 'repository');
+  assert.equal(claim.status, 'verified');
+  assert.ok(calls.length >= 4);
+});
+
+test('GitHub release provenance refuses unsigned release as trust claim', async () => {
+  const fetchImpl = async (url) => {
+    if (url.endsWith('/repos/example/demo')) {
+      return response({
+        full_name: 'example/demo',
+        owner: { login: 'example' }
+      });
+    }
+    if (url.endsWith('/releases/latest')) {
+      return response({ tag_name: 'v1.0.0' });
+    }
+    if (url.includes('/git/ref/tags/')) {
+      return response({ object: { type: 'commit', sha: 'deadbeef' } });
+    }
+    if (url.endsWith('/commits/deadbeef')) {
+      return response({ commit: { verification: { verified: false, reason: 'unsigned' } } });
+    }
+    return response({}, 404);
+  };
+
+  const observation = await inspectGitHubReleaseSignature('example/demo', { fetchImpl });
+  assert.equal(observation.evidence.signatureVerified, false);
+  assert.throws(
+    () => provenanceObservationToClaim(observation, 'Example Publisher'),
+    /without a verified signature/
+  );
+});
+
+test('inspect supports generic servers container shape', () => {
+  const result = inspectMcpConfig({
+    servers: {
+      demo: { command: 'node', args: ['server.mjs'] }
+    }
+  });
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, 'demo');
 });
