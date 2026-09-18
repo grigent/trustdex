@@ -1,23 +1,21 @@
-import crypto from 'node:crypto';
-
-function stableJson(value) {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
-  }
-  return JSON.stringify(value);
-}
+import { sha256Json } from './canonical.mjs';
 
 export function createSnapshot(results) {
   const normalized = results
-    .map(({ name, source, signals, action }) => ({ name, source, signals: [...signals].sort(), action }))
+    .map(({ name, kind = 'mcp', source, provenance = { status: 'unknown' }, signals = [], action }) => ({
+      name,
+      kind,
+      source,
+      provenance,
+      signals: [...signals].sort(),
+      action
+    }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  const digest = crypto.createHash('sha256').update(stableJson(normalized)).digest('hex');
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: new Date().toISOString(),
-    digest,
+    digest: sha256Json(normalized),
     servers: normalized
   };
 }
@@ -34,8 +32,13 @@ export function diffSnapshots(before, after) {
       continue;
     }
 
-    const addedSignals = current.signals.filter((signal) => !previous.signals.includes(signal));
+    const previousSignals = previous.signals || [];
+    const currentSignals = current.signals || [];
+    const addedSignals = currentSignals.filter((signal) => !previousSignals.includes(signal));
+    const removedSignals = previousSignals.filter((signal) => !currentSignals.includes(signal));
+
     if (addedSignals.length) changes.push({ type: 'signals-added', name, signals: addedSignals });
+    if (removedSignals.length) changes.push({ type: 'signals-removed', name, signals: removedSignals });
 
     if (previous.action !== current.action) {
       changes.push({ type: 'decision-changed', name, from: previous.action, to: current.action });
@@ -43,6 +46,15 @@ export function diffSnapshots(before, after) {
 
     if (JSON.stringify(previous.source) !== JSON.stringify(current.source)) {
       changes.push({ type: 'source-changed', name, from: previous.source, to: current.source });
+    }
+
+    if (JSON.stringify(previous.provenance || {}) !== JSON.stringify(current.provenance || {})) {
+      changes.push({
+        type: 'provenance-changed',
+        name,
+        from: previous.provenance || { status: 'unknown' },
+        to: current.provenance || { status: 'unknown' }
+      });
     }
   }
 
