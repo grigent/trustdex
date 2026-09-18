@@ -1,18 +1,27 @@
 {
   "name": "trustdex",
-  "version": "0.1.0",
-  "description": "A local-first trust policy layer for AI agent tools, MCP servers, skills, and plugins.",
+  "version": "0.2.0",
+  "description": "A local-first trust policy and provenance gate for AI agent tools, MCP servers, skills, and plugins.",
   "type": "module",
   "bin": { "trustdex": "./bin/trustdex.mjs" },
   "scripts": {
     "test": "node --test",
-    "check": "node --check bin/trustdex.mjs && node --check src/inspect.mjs && node --check src/policy.mjs && node --check src/snapshot.mjs"
+    "check": "node --check bin/trustdex.mjs && node --check src/canonical.mjs && node --check src/extensions.mjs && node --check src/gate.mjs && node --check src/inspect.mjs && node --check src/policy.mjs && node --check src/policy-packs.mjs && node --check src/provenance.mjs && node --check src/snapshot.mjs && node --check src/trust-record.mjs"
   },
   "engines": { "node": ">=20" },
-  "keywords": ["ai-agents","mcp","security","supply-chain","codex","agent-skills","trust-policy"],
+  "keywords": [
+    "ai-agents",
+    "mcp",
+    "security",
+    "supply-chain",
+    "codex",
+    "agent-skills",
+    "trust-policy",
+    "provenance"
+  ],
   "license": "MIT",
   "repository": { "type": "git", "url": "https://github.com/grigent/trustdex.git" },
   "bugs": { "url": "https://github.com/grigent/trustdex/issues" },
   "homepage": "https://github.com/grigent/trustdex#readme",
-  "files": ["bin","src","README.md","LICENSE"]
+  "files": ["bin", "src", "docs", "README.md", "SECURITY.md", "LICENSE"]
 }

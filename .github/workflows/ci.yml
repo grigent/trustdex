@@ -16,15 +16,37 @@ jobs:
         node-version: [20, 22]
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
+
       - run: npm test
       - run: npm run check
+
       - name: Verify strict example blocks unknown tool
         shell: bash
         run: |
           set +e
-          node ./bin/trustdex.mjs inspect ./examples/mcp.json --policy ./examples/trustdex.policy.json
+          node ./bin/trustdex.mjs inspect ./examples/mcp.json             --pack strict             --policy ./examples/trustdex.policy.json
           code=$?
           test "$code" -eq 2
+
+      - name: Verify gate removes blocked tool
+        shell: bash
+        run: |
+          node ./bin/trustdex.mjs gate ./examples/mcp.json             --pack strict             --policy ./examples/trustdex.policy.json             --out .trustdex/gated.json
+          node -e '
+            const fs = require("fs");
+            const value = JSON.parse(fs.readFileSync(".trustdex/gated.json", "utf8"));
+            const names = Object.keys(value.mcpServers || value);
+            if (names.includes("unknown-calendar")) process.exit(1);
+          '
+
+      - name: Verify signed trust record round trip
+        shell: bash
+        run: |
+          node ./bin/trustdex.mjs snapshot ./examples/mcp.json             --pack strict             --policy ./examples/trustdex.policy.json             --out .trustdex/snapshot.json
+          node ./bin/trustdex.mjs keygen             --private .trustdex/private.pem             --public .trustdex/public.pem
+          node ./bin/trustdex.mjs sign .trustdex/snapshot.json             --private .trustdex/private.pem             --out .trustdex/record.json
+          node ./bin/trustdex.mjs verify .trustdex/record.json             --public .trustdex/public.pem             --snapshot .trustdex/snapshot.json

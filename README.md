@@ -1,6 +1,6 @@
 # TrustDex
 
-**A local-first trust policy layer for AI agent tools.**
+**A local-first trust and provenance gate for AI agent tools.**
 
 TrustDex helps decide which MCP servers, skills, and plugins an AI agent should be allowed to use. Instead of treating every discovered extension as trusted, TrustDex evaluates observable evidence and returns one of three outcomes:
 
@@ -8,13 +8,13 @@ TrustDex helps decide which MCP servers, skills, and plugins an AI agent should 
 - **ASK** - needs human review
 - **BLOCK** - not trusted under the current policy
 
-> TrustDex is an early open-source project. It is not a malware scanner, sandbox, or security certification service. An ALLOW result only means the inspected evidence matched your policy.
+> TrustDex is security-related infrastructure, not a malware scanner, sandbox, or certification service. An ALLOW result only means the inspected evidence matched your policy.
 
 ## Why TrustDex?
 
 AI agents increasingly rely on third-party MCP servers, skills, and plugins that may receive credentials, access files, connect to remote services, or execute local programs. A package being installable does not mean it should automatically become available to an agent.
 
-TrustDex adds a small decision layer **before tool exposure**:
+TrustDex adds a decision layer **before tool exposure**:
 
 ```text
 User request
@@ -23,24 +23,27 @@ User request
 AI agent / Codex
     |
     v
-TrustDex policy gate
+TrustDex policy + provenance gate
     |-- ALLOW -> tool may be exposed
     |-- ASK   -> require human review
     `-- BLOCK -> keep tool unavailable
 ```
 
-The long-term goal is to make extension trust explicit, reviewable, and portable across agent runtimes.
+TrustDex deliberately does not infer "official" status from names, stars, or branding. Provenance must come from explicit, reviewable evidence.
 
-## v0.1 prototype
+## What v0.2 can do
 
-The first prototype focuses on MCP configuration files and trust-relevant drift. It can:
-
-- inspect MCP server entries locally without uploading the config
+- inspect MCP server entries locally without uploading configuration
 - distinguish package, remote, local, and unknown sources
-- flag observable signals such as unpinned versions, install-on-run launchers, shell execution, filesystem-looking arguments, secret-like environment variable names, and remote endpoints
-- apply a local JSON policy and return ALLOW, ASK, or BLOCK
-- create snapshots of reviewed state
-- detect source, decision, and signal changes after updates
+- detect trust-relevant signals such as floating versions, install-on-run launchers, shell execution, filesystem-looking arguments, secret-like environment variable names, and remote endpoints
+- inspect `SKILL.md` files and plugin manifests for trust-relevant metadata/instructions
+- apply built-in `strict`, `official-first`, and `development` policy packs
+- attach explicit publisher/provenance assertions from a local trust store
+- output **ALLOW / ASK / BLOCK** decisions
+- generate a filtered MCP config containing only policy-approved tools
+- create snapshots and detect source, provenance, decision, and capability drift
+- create Ed25519-signed trust records for reviewed snapshots
+- run as a GitHub Action in CI
 
 ## Quick start
 
@@ -50,71 +53,178 @@ Requires Node.js 20+.
 git clone https://github.com/grigent/trustdex.git
 cd trustdex
 npm test
+npm run check
 
 node ./bin/trustdex.mjs inspect ./examples/mcp.json \
+  --pack strict \
   --policy ./examples/trustdex.policy.json
 ```
 
-Exit codes:
+The example intentionally includes an unknown server, so a strict inspection exits non-zero.
+
+Exit codes for inspection:
 
 - `0` - all entries allowed
 - `1` - at least one entry needs review
 - `2` - at least one entry is blocked, or the command failed
 
-## Policy example
+## Built-in policy packs
+
+```bash
+node ./bin/trustdex.mjs policy strict
+node ./bin/trustdex.mjs policy official-first
+node ./bin/trustdex.mjs policy development
+```
+
+`official-first` does **not** maintain a hard-coded list of supposedly official vendors. It allows sources only when they have explicit provenance evidence in your trust store (or when you explicitly allowlist them), while unknown third-party sources remain blocked by default.
+
+See [Trust store and provenance](docs/TRUST_STORE.md).
+
+## Filter tools before agent use
+
+```bash
+node ./bin/trustdex.mjs gate ./examples/mcp.json \
+  --pack official-first \
+  --out .trustdex/gated-mcp.json
+```
+
+By default, only `ALLOW` entries are written to the gated configuration. `ASK` entries stay out until reviewed.
+
+This is the core TrustDex boundary: the agent receives the filtered configuration instead of the unreviewed source configuration.
+
+## Inspect skills and plugins
+
+```bash
+node ./bin/trustdex.mjs inspect-skill ./path/to/SKILL.md --pack strict
+node ./bin/trustdex.mjs inspect-plugin ./path/to/plugin.json --pack strict
+```
+
+These checks surface observable trust signals. They do not prove that the extension is safe.
+
+## Provenance trust store
+
+Example:
 
 ```json
 {
   "version": 1,
-  "unknownAction": "block",
-  "localAction": "ask",
-  "sensitiveAction": "ask",
-  "unpinnedAction": "ask",
-  "shellAction": "block",
-  "trustedPackages": ["@modelcontextprotocol/server-filesystem"],
-  "allowedRemoteHosts": ["mcp.example.com"]
+  "claims": [
+    {
+      "type": "package",
+      "subject": "example-mcp-server",
+      "publisher": "Example Publisher",
+      "status": "verified",
+      "evidence": {
+        "kind": "manual-review",
+        "reference": "https://example.invalid/security-review"
+      }
+    }
+  ]
 }
 ```
 
-Trust is deliberately explicit. A familiar package name is not considered "official" by name alone. Publisher verification and registry-backed provenance are roadmap items and must rely on verifiable evidence.
+Then:
 
-## Capability drift
+```bash
+node ./bin/trustdex.mjs inspect ./mcp.json \
+  --pack official-first \
+  --trust-store ./trust-store.json
+```
+
+Here, `verified` means verified according to the evidence maintained in that trust store. It does not mean OpenAI, TrustDex, GitHub, npm, or another platform certified the extension.
+
+## Capability and provenance drift
+
+Save a baseline:
 
 ```bash
 node ./bin/trustdex.mjs snapshot ./examples/mcp.json \
-  --policy ./examples/trustdex.policy.json \
+  --pack strict \
   --out .trustdex/baseline.json
+```
 
+Save another snapshot after an update and compare them:
+
+```bash
 node ./bin/trustdex.mjs diff .trustdex/baseline.json .trustdex/current.json
 ```
+
+TrustDex reports newly added signals, source changes, provenance changes, and decision changes.
+
+## Signed trust records
+
+Generate a local signing key:
+
+```bash
+node ./bin/trustdex.mjs keygen \
+  --private .trustdex/trustdex-private.pem \
+  --public .trustdex/trustdex-public.pem
+```
+
+Sign a reviewed snapshot:
+
+```bash
+node ./bin/trustdex.mjs sign .trustdex/baseline.json \
+  --private .trustdex/trustdex-private.pem \
+  --out .trustdex/trust-record.json
+```
+
+Verify it later:
+
+```bash
+node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
+  --public .trustdex/trustdex-public.pem \
+  --snapshot .trustdex/baseline.json
+```
+
+The private key should never be committed.
+
+## GitHub Action
+
+```yaml
+- uses: actions/checkout@v4
+
+- uses: grigent/trustdex@main
+  with:
+    config: ./mcp.json
+    pack: official-first
+    trust-store: ./trust-store.json
+    output: .trustdex/gated-mcp.json
+```
+
+For production CI, pin the action to a reviewed commit SHA rather than a moving branch.
 
 ## Principles
 
 1. **Local first.** Private agent configuration should not need to leave the machine.
 2. **No blind trust.** Missing provenance should result in review or denial, not a guessed ALLOW.
 3. **No secret values in output.** Environment variable names may be reported; values are not.
-4. **Drift matters.** An approval for one version should not silently carry over after trust-relevant changes.
+4. **Drift matters.** Approval should not silently survive trust-relevant changes.
 5. **Simple outcomes.** ALLOW / ASK / BLOCK instead of an opaque risk score.
-6. **Vendor neutral.** The policy model should work across Codex and other agent runtimes.
+6. **Evidence over branding.** "Official" is not inferred from a familiar name.
+7. **Vendor neutral.** The policy model should work across Codex and other agent runtimes.
 
 ## Roadmap
 
-- [x] MCP config inspection prototype
+- [x] MCP config inspection
 - [x] local ALLOW / ASK / BLOCK policy
+- [x] policy packs
+- [x] filtered runtime MCP gate
 - [x] snapshot and drift detection
-- [ ] signed trust records bound to source digest / commit SHA
-- [ ] verifiable publisher and repository provenance adapters
-- [ ] MCP Registry metadata adapter
-- [ ] Agent Plugin / Skill manifest inspection
-- [ ] GitHub Action with PR annotations
-- [ ] policy packs such as `strict`, `official-first`, and `development`
-- [ ] runtime adapter that exposes only policy-approved tools to supported agents
+- [x] signed trust records
+- [x] explicit provenance trust store
+- [x] Agent Skill and plugin manifest inspection
+- [x] GitHub Action
+- [ ] registry-backed provenance adapters with documented evidence semantics
+- [ ] repository ownership / signed release verification
+- [ ] safer automatic re-review workflow when upstream capabilities change
+- [ ] adapters for additional agent runtimes
 
 ## Security
 
 TrustDex does **not** prove that third-party code is safe and does not replace sandboxing, dependency scanning, code review, or least-privilege credentials.
 
-See [SECURITY.md](SECURITY.md) and [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md).
+See [SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), and [docs/TRUST_STORE.md](docs/TRUST_STORE.md).
 
 ## Contributing
 

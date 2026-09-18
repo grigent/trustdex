@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "claims": [
+    {
+      "type": "package",
+      "subject": "example-mcp-server",
+      "publisher": "Example Publisher",
+      "status": "verified",
+      "evidence": {
+        "kind": "manual-review",
+        "reference": "https://example.invalid/security-review",
+        "checkedAt": "2026-09-19T00:00:00Z"
+      }
+    }
+  ]
+}
