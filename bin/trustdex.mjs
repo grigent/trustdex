@@ -11,6 +11,7 @@ import { parseTrustStore, attachProvenanceAll } from '../src/provenance.mjs';
 import {
   inspectGitHubRepository,
   inspectNpmPackage,
+  inspectGitHubReleaseSignature,
   inspectMcpRegistryServer,
   provenanceObservationToClaim,
   upsertTrustStoreClaim
@@ -40,9 +41,11 @@ Usage:
       [--trust-store trust-store.json] [--include-ask] [--json]
 
   trustdex provenance github <owner/repo> [--json]
+  trustdex provenance github-release <owner/repo> [--json]
   trustdex provenance npm <package> [--json]
   trustdex provenance mcp <namespace/server> [--json]
   trustdex trust-source github <owner/repo> --publisher <name> --out trust-store.json
+  trustdex trust-source github-release <owner/repo> --publisher <name> --out trust-store.json
   trustdex trust-source npm <package> --publisher <name> --out trust-store.json
   trustdex trust-source mcp <namespace/server> --publisher <name> --out trust-store.json
 
@@ -165,9 +168,10 @@ function printObservation(observation, asJson) {
 
 async function lookupProvenance(adapter, subject) {
   if (adapter === 'github') return inspectGitHubRepository(subject);
+  if (adapter === 'github-release') return inspectGitHubReleaseSignature(subject);
   if (adapter === 'npm') return inspectNpmPackage(subject);
   if (adapter === 'mcp') return inspectMcpRegistryServer(subject);
-  throw new Error('provenance adapter must be "github", "npm", or "mcp".');
+  throw new Error('provenance adapter must be "github", "github-release", "npm", or "mcp".');
 }
 
 function printChanges(changes) {
@@ -222,7 +226,7 @@ async function main() {
   if (command === 'provenance') {
     const adapter = args[1];
     const subject = args[2];
-    if (!adapter || !subject) throw new Error('provenance requires <github|npm|mcp> <subject>.');
+    if (!adapter || !subject) throw new Error('provenance requires <github|github-release|npm|mcp> <subject>.');
     printObservation(await lookupProvenance(adapter, subject), hasFlag(args, '--json'));
     return;
   }
@@ -233,7 +237,7 @@ async function main() {
     const publisher = getFlag(args, '--publisher');
     const out = getFlag(args, '--out');
     if (!adapter || !subject || !publisher || !out) {
-      throw new Error('trust-source requires <github|npm|mcp> <subject>, --publisher <name>, and --out <trust-store.json>.');
+      throw new Error('trust-source requires <github|github-release|npm|mcp> <subject>, --publisher <name>, and --out <trust-store.json>.');
     }
 
     const observation = await lookupProvenance(adapter, subject);
