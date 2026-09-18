@@ -79,9 +79,13 @@ function normalizeServer(name, server = {}) {
 }
 
 export function inspectMcpConfig(config) {
-  const servers = config?.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : config;
+  const servers = config?.mcpServers && typeof config.mcpServers === 'object'
+    ? config.mcpServers
+    : config?.servers && typeof config.servers === 'object'
+      ? config.servers
+      : config;
   if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
-    throw new Error('Expected an MCP configuration object or an object containing mcpServers.');
+    throw new Error('Expected an MCP configuration object, or an object containing mcpServers/servers.');
   }
   return Object.entries(servers)
     .filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value))
