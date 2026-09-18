@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "unknownAction": "block",
+  "localAction": "ask",
+  "sensitiveAction": "ask",
+  "unpinnedAction": "ask",
+  "shellAction": "block",
+  "trustedPackages": [
+    "@modelcontextprotocol/server-filesystem"
+  ],
+  "allowedRemoteHosts": [
+    "mcp.example.com"
+  ]
+}
