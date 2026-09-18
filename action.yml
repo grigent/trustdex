@@ -1,0 +1,53 @@
+name: TrustDex Gate
+description: Filter an MCP configuration through a TrustDex policy before agent use.
+
+inputs:
+  config:
+    description: Path to the MCP JSON configuration in the checked-out repository.
+    required: true
+  output:
+    description: Path for the filtered MCP configuration.
+    required: false
+    default: .trustdex/gated-mcp.json
+  pack:
+    description: Built-in policy pack (strict, official-first, development).
+    required: false
+    default: strict
+  policy:
+    description: Optional policy JSON overlay.
+    required: false
+    default: ''
+  trust-store:
+    description: Optional provenance trust store JSON.
+    required: false
+    default: ''
+  include-ask:
+    description: Expose ASK entries too. Use only when a separate approval layer exists.
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Run TrustDex gate
+      shell: bash
+      env:
+        TRUSTDEX_CONFIG: ${{ inputs.config }}
+        TRUSTDEX_OUTPUT: ${{ inputs.output }}
+        TRUSTDEX_PACK: ${{ inputs.pack }}
+        TRUSTDEX_POLICY: ${{ inputs.policy }}
+        TRUSTDEX_STORE: ${{ inputs.trust-store }}
+        TRUSTDEX_INCLUDE_ASK: ${{ inputs.include-ask }}
+      run: |
+        set -euo pipefail
+        args=(gate "$TRUSTDEX_CONFIG" --out "$TRUSTDEX_OUTPUT" --pack "$TRUSTDEX_PACK")
+        if [[ -n "$TRUSTDEX_POLICY" ]]; then
+          args+=(--policy "$TRUSTDEX_POLICY")
+        fi
+        if [[ -n "$TRUSTDEX_STORE" ]]; then
+          args+=(--trust-store "$TRUSTDEX_STORE")
+        fi
+        if [[ "$TRUSTDEX_INCLUDE_ASK" == "true" ]]; then
+          args+=(--include-ask)
+        fi
+        node "$GITHUB_ACTION_PATH/bin/trustdex.mjs" "${args[@]}"
