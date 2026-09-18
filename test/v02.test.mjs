@@ -5,6 +5,8 @@ import { getPolicyPack } from '../src/policy-packs.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { createSnapshot } from '../src/snapshot.mjs';
+import { parseTrustStore, attachProvenanceAll } from '../src/provenance.mjs';
+import { evaluateAll } from '../src/policy.mjs';
 
 test('strict policy blocks floating versions', () => {
   const policy = getPolicyPack('strict');
@@ -64,4 +66,52 @@ test('plugin inspection flags missing version and remote references', () => {
   });
   assert.ok(result.signals.includes('missing-version'));
   assert.ok(result.signals.includes('network-reference'));
+});
+
+
+test('verified provenance assertion can allow a pinned package', () => {
+  const store = parseTrustStore({
+    version: 1,
+    claims: [{
+      type: 'package',
+      subject: 'demo-server',
+      publisher: 'Example Publisher',
+      status: 'verified',
+      evidence: {
+        kind: 'manual-review',
+        reference: 'https://example.invalid/evidence'
+      }
+    }]
+  });
+  const items = attachProvenanceAll([{
+    name: 'demo',
+    source: { type: 'package', package: 'demo-server@1.2.3', pinned: true },
+    signals: []
+  }], store);
+  const [result] = evaluateAll(items, getPolicyPack('official-first'));
+  assert.equal(result.action, 'allow');
+  assert.equal(result.provenance.publisher, 'Example Publisher');
+});
+
+test('verified provenance does not override a blocking signal', () => {
+  const store = parseTrustStore({
+    version: 1,
+    claims: [{
+      type: 'package',
+      subject: 'demo-server',
+      publisher: 'Example Publisher',
+      status: 'verified',
+      evidence: {
+        kind: 'manual-review',
+        reference: 'https://example.invalid/evidence'
+      }
+    }]
+  });
+  const items = attachProvenanceAll([{
+    name: 'demo',
+    source: { type: 'package', package: 'demo-server@1.2.3', pinned: true },
+    signals: ['shell-execution']
+  }], store);
+  const [result] = evaluateAll(items, getPolicyPack('official-first'));
+  assert.equal(result.action, 'block');
 });
