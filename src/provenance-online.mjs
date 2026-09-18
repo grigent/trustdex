@@ -102,9 +102,83 @@ export async function inspectNpmPackage(packageName, options = {}) {
   };
 }
 
+function normalizeMcpServerName(value) {
+  const name = String(value || '').trim();
+  if (!name || !name.includes('/') || /\s/.test(name)) {
+    throw new Error('MCP Registry server name must be a namespace-qualified name such as io.github.user/server.');
+  }
+  return name;
+}
+
+export async function inspectMcpRegistryServer(serverName, options = {}) {
+  const name = normalizeMcpServerName(serverName);
+  const baseUrl = options.baseUrl || 'https://registry.modelcontextprotocol.io';
+  if (!/^https:\/\//i.test(baseUrl)) throw new Error('MCP Registry base URL must use HTTPS.');
+  const url = `${baseUrl.replace(/\/$/, '')}/v0.1/servers/${encodeURIComponent(name)}/versions/latest`;
+  const data = await fetchJson(url, {
+    headers: {
+      Accept: 'application/json',
+      'User-Agent': 'trustdex'
+    }
+  }, options.fetchImpl);
+
+  const server = data?.server || data;
+  if (!server?.name || server.name !== name) {
+    throw new Error('MCP Registry response did not match the requested server.');
+  }
+
+  const packages = Array.isArray(server.packages) ? server.packages : [];
+  const remotes = Array.isArray(server.remotes) ? server.remotes : [];
+  let type = 'registry';
+  let subject = server.name;
+
+  if (packages.length === 1 && packages[0]?.identifier) {
+    type = 'package';
+    subject = String(packages[0].identifier);
+  } else if (packages.length === 0 && remotes.length === 1 && remotes[0]?.url) {
+    try {
+      type = 'remote';
+      subject = new URL(remotes[0].url).hostname.toLowerCase();
+    } catch {
+      type = 'registry';
+      subject = server.name;
+    }
+  }
+
+  return {
+    adapter: 'mcp',
+    type,
+    subject,
+    registryName: server.name,
+    publisherHint: null,
+    observedAt: new Date().toISOString(),
+    evidence: {
+      kind: 'mcp-official-registry',
+      reference: url,
+      serverName: server.name,
+      version: server.version || null,
+      repository: server.repository?.url || null,
+      repositorySource: server.repository?.source || null,
+      packages: packages.map((pkg) => ({
+        registryType: pkg?.registryType || null,
+        identifier: pkg?.identifier || null,
+        version: pkg?.version || null,
+        fileSha256: pkg?.fileSha256 || null
+      })),
+      remotes: remotes.map((remote) => ({
+        type: remote?.type || null,
+        url: remote?.url || null
+      }))
+    }
+  };
+}
+
 export function provenanceObservationToClaim(observation, publisher) {
   if (!observation?.type || !observation?.subject || !observation?.evidence) {
     throw new Error('Invalid provenance observation.');
+  }
+  if (!['package', 'remote', 'repository'].includes(observation.type)) {
+    throw new Error('This observation does not map to a single trustable source. Review it manually instead.');
   }
   const publisherName = String(publisher || '').trim();
   if (!publisherName) throw new Error('A publisher name is required for explicit approval.');
