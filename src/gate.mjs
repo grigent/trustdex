@@ -1,9 +1,17 @@
 export function gateMcpConfig(config, results, options = {}) {
-  const servers = config?.mcpServers && typeof config.mcpServers === 'object'
-    ? config.mcpServers
-    : config;
+  let containerKey = null;
+  let servers = config;
+
+  if (config?.mcpServers && typeof config.mcpServers === 'object') {
+    containerKey = 'mcpServers';
+    servers = config.mcpServers;
+  } else if (config?.servers && typeof config.servers === 'object') {
+    containerKey = 'servers';
+    servers = config.servers;
+  }
+
   if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
-    throw new Error('Expected an MCP configuration object or an object containing mcpServers.');
+    throw new Error('Expected an MCP configuration object, or an object containing mcpServers/servers.');
   }
 
   const includeAsk = Boolean(options.includeAsk);
@@ -17,9 +25,7 @@ export function gateMcpConfig(config, results, options = {}) {
     }
   }
 
-  const output = config?.mcpServers && typeof config.mcpServers === 'object'
-    ? { ...config, mcpServers: allowed }
-    : allowed;
+  const output = containerKey ? { ...config, [containerKey]: allowed } : allowed;
 
   return {
     config: output,

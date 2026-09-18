@@ -31,7 +31,7 @@ TrustDex policy + provenance gate
 
 TrustDex deliberately does not infer "official" status from names, stars, or branding. Provenance must come from explicit, reviewable evidence.
 
-## What v0.2 can do
+## What v0.3 can do
 
 - inspect MCP server entries locally without uploading configuration
 - distinguish package, remote, local, and unknown sources
@@ -44,6 +44,11 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - create snapshots and detect source, provenance, decision, and capability drift
 - create Ed25519-signed trust records for reviewed snapshots
 - run as a GitHub Action in CI
+- fingerprint MCP entries, skills, and plugin manifests without storing secret values
+- inspect and filter Codex `config.toml` MCP sections
+- perform explicit provenance lookups against GitHub, npm, and the official MCP Registry
+- verify whether the latest GitHub release tag/commit has a GitHub-verified signature
+- create signed review bundles and automatically require re-review when trust-relevant state drifts
 
 ## Quick start
 
@@ -101,6 +106,41 @@ node ./bin/trustdex.mjs inspect-plugin ./path/to/plugin.json --pack strict
 
 These checks surface observable trust signals. They do not prove that the extension is safe.
 
+## Codex config.toml
+
+Current Codex clients store MCP configuration under `[mcp_servers.<name>]` tables in `config.toml`. TrustDex has a focused adapter for those MCP sections:
+
+```bash
+node ./bin/trustdex.mjs inspect-codex ./examples/codex.config.toml --pack strict
+
+node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
+  --pack strict \
+  --out .trustdex/gated-codex.toml
+```
+
+The gate removes non-approved MCP sections while preserving unrelated TOML sections. TrustDex intentionally parses only the MCP-related TOML constructs it needs; unsupported MCP syntax fails rather than being silently trusted.
+
+## Online provenance observations
+
+Normal inspection remains local-only. These commands perform an explicit network lookup only when invoked:
+
+```bash
+node ./bin/trustdex.mjs provenance github modelcontextprotocol/servers
+node ./bin/trustdex.mjs provenance github-release owner/repository
+node ./bin/trustdex.mjs provenance npm @scope/package
+node ./bin/trustdex.mjs provenance mcp io.github.user/server
+```
+
+A lookup is **evidence, not trust**. To turn evidence into a local trust-store claim, the user must explicitly name the publisher:
+
+```bash
+node ./bin/trustdex.mjs trust-source mcp io.github.user/server \
+  --publisher "Example Publisher" \
+  --out ./trust-store.json
+```
+
+For `github-release`, TrustDex refuses to create a trust claim unless GitHub reports the release tag or target commit signature as verified.
+
 ## Provenance trust store
 
 Example:
@@ -149,7 +189,30 @@ Save another snapshot after an update and compare them:
 node ./bin/trustdex.mjs diff .trustdex/baseline.json .trustdex/current.json
 ```
 
-TrustDex reports newly added signals, source changes, provenance changes, and decision changes.
+TrustDex reports newly added signals, source changes, provenance changes, decision changes, and content/configuration fingerprint changes.
+
+For a review workflow, generate a signing key once and approve a non-blocked configuration:
+
+```bash
+node ./bin/trustdex.mjs keygen \
+  --private .trustdex/private.pem \
+  --public .trustdex/public.pem
+
+node ./bin/trustdex.mjs approve ./examples/mcp.json \
+  --private .trustdex/private.pem \
+  --dir .trustdex/review \
+  --pack development
+```
+
+Later, re-evaluate the current configuration against that signed review:
+
+```bash
+node ./bin/trustdex.mjs recheck ./examples/mcp.json \
+  --review-dir .trustdex/review \
+  --public .trustdex/public.pem
+```
+
+The result is `APPROVED`, `NEEDS_REVIEW`, or `INVALID`. A fingerprint, source, provenance, signal, or policy-relevant change invalidates the previous state match.
 
 ## Signed trust records
 
@@ -215,10 +278,13 @@ For production CI, pin the action to a reviewed commit SHA rather than a moving 
 - [x] explicit provenance trust store
 - [x] Agent Skill and plugin manifest inspection
 - [x] GitHub Action
-- [ ] registry-backed provenance adapters with documented evidence semantics
-- [ ] repository ownership / signed release verification
-- [ ] safer automatic re-review workflow when upstream capabilities change
-- [ ] adapters for additional agent runtimes
+- [x] GitHub and npm provenance adapters
+- [x] official MCP Registry provenance adapter
+- [x] GitHub repository identity observation and signed-release verification
+- [x] safer signed-review recheck workflow when trust-relevant state changes
+- [x] Codex `config.toml` MCP adapter
+- [ ] additional registry ecosystems and agent-runtime adapters
+- [ ] package-file integrity download verification where registries expose immutable hashes
 
 ## Security
 

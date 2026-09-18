@@ -5,7 +5,12 @@ const BASE_SIGNALS = {
   'sensitive-path-instructions': 'ask',
   'shell-instructions': 'ask',
   'install-instructions': 'ask',
-  'missing-version': 'ask'
+  'missing-version': 'ask',
+  'header-helper-command': 'block',
+  'static-http-headers': 'ask',
+  'env-http-headers': 'ask',
+  'env-forwarding': 'ask',
+  'auto-approve-tools': 'ask'
 };
 
 export const POLICY_PACKS = Object.freeze({

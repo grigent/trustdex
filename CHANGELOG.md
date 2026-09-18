@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.2.0 - Unreleased
+## 0.3.0 - Unreleased
+
+Reviewable provenance and Codex integration:
+
+- trust-relevant fingerprints for MCP config, skills, and plugin manifests
+- signed approval bundles with automatic `APPROVED` / `NEEDS_REVIEW` rechecks
+- explicit GitHub repository and npm registry provenance lookups
+- official MCP Registry v0.1 provenance lookup
+- GitHub latest-release signature verification
+- focused Codex `config.toml` MCP parser and section gate
+- support for both `mcpServers` and `servers` JSON container shapes
+- additional tests for identity mismatch, signature state, fingerprint drift, and Codex gating
+
+## 0.2.0
 
 Trust and provenance gate:
 

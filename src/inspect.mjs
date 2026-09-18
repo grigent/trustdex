@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { sha256Json } from './canonical.mjs';
 
 const SECRET_KEY_RE = /(token|secret|password|passwd|api[_-]?key|credential|auth)/i;
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'cmd', 'cmd.exe', 'powershell', 'pwsh']);
@@ -49,29 +50,43 @@ function normalizeServer(name, server = {}) {
   const command = String(server.command || '');
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
   const env = server.env && typeof server.env === 'object' ? server.env : {};
+  const envKeys = Object.keys(env).sort();
   const packageSpec = firstPackageArg(command, args);
   const remoteHost = extractRemoteHost(server);
-  const signals = new Set();
+  const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
 
   if (remoteHost) signals.add('network-endpoint');
   if (SHELLS.has(basename(command))) signals.add('shell-execution');
   if (RUNNERS.has(basename(command))) signals.add('install-on-run');
   if (packageSpec && !isPinnedPackage(packageSpec)) signals.add('unbounded-version');
   if (args.some(looksLikePath)) signals.add('filesystem-path');
-  if (Object.keys(env).some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
+  if (envKeys.some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
 
   let source = { type: 'unknown' };
   if (remoteHost) source = { type: 'remote', host: remoteHost, url: String(server.url || server.endpoint) };
   else if (packageSpec) source = { type: 'package', runner: basename(command), package: packageSpec, pinned: isPinnedPackage(packageSpec) };
   else if (command) source = { type: 'local', command };
 
-  return { name, source, signals: [...signals].sort(), envKeys: Object.keys(env).sort() };
+  const fingerprint = sha256Json({
+    command,
+    args,
+    url: server.url || null,
+    endpoint: server.endpoint || null,
+    envKeys,
+    adapter: server._trustdexFingerprintData || null
+  });
+
+  return { name, source, fingerprint, signals: [...signals].sort(), envKeys };
 }
 
 export function inspectMcpConfig(config) {
-  const servers = config?.mcpServers && typeof config.mcpServers === 'object' ? config.mcpServers : config;
+  const servers = config?.mcpServers && typeof config.mcpServers === 'object'
+    ? config.mcpServers
+    : config?.servers && typeof config.servers === 'object'
+      ? config.servers
+      : config;
   if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
-    throw new Error('Expected an MCP configuration object or an object containing mcpServers.');
+    throw new Error('Expected an MCP configuration object, or an object containing mcpServers/servers.');
   }
   return Object.entries(servers)
     .filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value))
