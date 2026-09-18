@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem@1.2.3",
+        "./workspace"
+      ]
+    },
+    "unknown-calendar": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "calendar-helper@latest"
+      ],
+      "env": {
+        "CALENDAR_API_TOKEN": "${CALENDAR_API_TOKEN}"
+      }
+    }
+  }
+}
