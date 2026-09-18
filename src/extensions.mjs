@@ -1,3 +1,5 @@
+import { sha256Json, sha256Text } from './canonical.mjs';
+
 const URL_RE = /https?:\/\/[^\s)>'"]+/gi;
 const SENSITIVE_PATH_RE = /(?:~\/\.(?:ssh|aws|config)|\/(?:etc|var\/run\/secrets)\/|\.env(?:\b|\/)|credentials?\b)/i;
 const SHELL_INSTRUCTION_RE = /(?:curl\s+[^\n|]+\|\s*(?:sh|bash)|wget\s+[^\n|]+\|\s*(?:sh|bash)|\brm\s+-rf\b|\bsudo\b|\bpowershell\b|\bchmod\s+\+x\b)/i;
@@ -53,6 +55,7 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
     name: String(metadata.name || sourceName),
     kind: 'skill',
     source: { type: 'skill-file', path: sourceName },
+    fingerprint: sha256Text(value),
     metadata: {
       name: metadata.name || null,
       description: metadata.description || null,
@@ -97,6 +100,7 @@ export function inspectPluginManifest(manifest, sourceName = 'plugin.json') {
     name: String(manifest.name || sourceName),
     kind: 'plugin',
     source: { type: 'plugin-manifest', path: sourceName },
+    fingerprint: sha256Json(manifest),
     metadata: {
       name: manifest.name || null,
       version: manifest.version || null,
