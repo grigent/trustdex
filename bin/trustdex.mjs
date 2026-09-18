@@ -107,10 +107,11 @@ async function evaluateMcp(configPath, args) {
   const inspected = inspectMcpConfig(config);
   const store = await loadTrustStore(args);
   const withProvenance = store ? attachProvenanceAll(inspected, store) : inspected;
+  const policy = await loadPolicy(args);
   return {
     config,
-    policy: await loadPolicy(args),
-    results: evaluateAll(withProvenance, await loadPolicy(args))
+    policy,
+    results: evaluateAll(withProvenance, policy)
   };
 }
 
