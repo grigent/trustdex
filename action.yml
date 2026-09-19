@@ -51,3 +51,7 @@ runs:
           args+=(--include-ask)
         fi
         node "$GITHUB_ACTION_PATH/bin/trustdex.mjs" "${args[@]}"
+
+branding:
+  icon: shield
+  color: blue

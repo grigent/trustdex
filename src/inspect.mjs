@@ -1,21 +1,23 @@
-import path from 'node:path';
 import { sha256Json } from './canonical.mjs';
 
 const SECRET_KEY_RE = /(token|secret|password|passwd|api[_-]?key|credential|auth)/i;
-const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'cmd', 'cmd.exe', 'powershell', 'pwsh']);
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell', 'pwsh']);
 const RUNNERS = new Set(['npx', 'pnpx', 'bunx', 'uvx']);
 
-function basename(command = '') {
-  return path.basename(String(command)).toLowerCase();
+function executableName(command = '') {
+  const name = String(command).trim().split(/[\\/]/).pop().toLowerCase();
+  return name.replace(/\.(?:bat|cmd|exe)$/i, '');
 }
 
 function firstPackageArg(command, args) {
-  const cmd = basename(command);
+  const cmd = executableName(command);
   if (!RUNNERS.has(cmd)) return null;
   const values = Array.isArray(args) ? args.map(String) : [];
   for (let i = 0; i < values.length; i += 1) {
     const arg = values[i];
     if (arg === '--package' || arg === '-p') return values[i + 1] || null;
+    if (arg.startsWith('--package=')) return arg.slice('--package='.length) || null;
+    if (arg.startsWith('-p=')) return arg.slice('-p='.length) || null;
     if (arg.startsWith('-')) continue;
     return arg;
   }
@@ -40,10 +42,23 @@ function looksLikePath(value) {
     value.startsWith('../') || /^[A-Za-z]:\\/.test(value);
 }
 
-function extractRemoteHost(server) {
+function extractRemoteEndpoint(server) {
   const candidate = server?.url || server?.endpoint;
   if (!candidate) return null;
-  try { return new URL(candidate).hostname.toLowerCase(); } catch { return null; }
+
+  try {
+    const url = new URL(String(candidate));
+    const protocol = url.protocol.toLowerCase();
+    return {
+      host: url.hostname.toLowerCase(),
+      origin: `${protocol}//${url.host.toLowerCase()}`,
+      protocol,
+      hasEmbeddedCredentials: Boolean(url.username || url.password),
+      hasQuery: Boolean(url.search)
+    };
+  } catch {
+    return null;
+  }
 }
 
 function normalizeServer(name, server = {}) {
@@ -52,19 +67,30 @@ function normalizeServer(name, server = {}) {
   const env = server.env && typeof server.env === 'object' ? server.env : {};
   const envKeys = Object.keys(env).sort();
   const packageSpec = firstPackageArg(command, args);
-  const remoteHost = extractRemoteHost(server);
+  const remote = extractRemoteEndpoint(server);
+  const remoteHost = remote?.host || null;
   const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
 
-  if (remoteHost) signals.add('network-endpoint');
-  if (SHELLS.has(basename(command))) signals.add('shell-execution');
-  if (RUNNERS.has(basename(command))) signals.add('install-on-run');
+  if (remote) signals.add('network-endpoint');
+  if (remote && ['http:', 'ws:'].includes(remote.protocol)) signals.add('insecure-transport');
+  if (remote?.hasEmbeddedCredentials) signals.add('embedded-credentials');
+  if (remote?.hasQuery) signals.add('url-query-parameters');
+  if (SHELLS.has(executableName(command))) signals.add('shell-execution');
+  if (RUNNERS.has(executableName(command))) signals.add('install-on-run');
   if (packageSpec && !isPinnedPackage(packageSpec)) signals.add('unbounded-version');
   if (args.some(looksLikePath)) signals.add('filesystem-path');
   if (envKeys.some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
 
   let source = { type: 'unknown' };
-  if (remoteHost) source = { type: 'remote', host: remoteHost, url: String(server.url || server.endpoint) };
-  else if (packageSpec) source = { type: 'package', runner: basename(command), package: packageSpec, pinned: isPinnedPackage(packageSpec) };
+  if (remote) {
+    source = {
+      type: 'remote',
+      host: remoteHost,
+      origin: remote.origin,
+      protocol: remote.protocol
+    };
+  }
+  else if (packageSpec) source = { type: 'package', runner: executableName(command), package: packageSpec, pinned: isPinnedPackage(packageSpec) };
   else if (command) source = { type: 'local', command };
 
   const fingerprint = sha256Json({

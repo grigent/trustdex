@@ -1,3 +1,5 @@
+const CODEX_MCP_NESTED_SECTIONS = new Set(['env', 'http_headers', 'env_http_headers']);
+
 function stripComment(line) {
   let quote = null;
   let escaped = false;
@@ -159,7 +161,9 @@ function applyAssignment(server, nested, key, value) {
     return;
   }
 
-  if (nested) return;
+  if (nested) {
+    throw new Error(`Unsupported Codex MCP subsection "${nested}".`);
+  }
 
   if (key === 'command' && typeof value === 'string') server.command = value;
   else if (key === 'args' && Array.isArray(value)) server.args = value.map(String);
@@ -189,9 +193,17 @@ function applyAssignment(server, nested, key, value) {
     if (value.some((item) => String(item) === '*')) signals.add('wildcard-tool-scope');
   } else if (key === 'disabled_tools' && Array.isArray(value)) {
     server._trustdexFingerprintData.disabledTools = value.map(String).sort();
-  } else if (key === 'default_tools_approval_mode' && value === 'approve') {
-    signals.add('auto-approve-tools');
+  } else if (key === 'default_tools_approval_mode' && typeof value === 'string') {
     server._trustdexFingerprintData.defaultToolsApprovalMode = value;
+    if (value === 'approve') signals.add('auto-approve-tools');
+  } else if (key === 'enabled' && typeof value === 'boolean') {
+    server._trustdexFingerprintData.enabled = value;
+  } else if (key === 'startup_timeout_sec' && typeof value === 'number') {
+    server._trustdexFingerprintData.startupTimeoutSec = value;
+  } else if (key === 'tool_timeout_sec' && typeof value === 'number') {
+    server._trustdexFingerprintData.toolTimeoutSec = value;
+  } else {
+    throw new Error(`Unsupported or invalid Codex MCP key "${key}".`);
   }
 }
 
@@ -206,7 +218,14 @@ export function parseCodexMcpToml(text) {
 
     const headerMatch = cleaned.match(/^\[([^\]]+)\]$/);
     if (headerMatch) {
-      section = codexServerNameFromHeader(headerMatch[1]);
+      const rawHeader = headerMatch[1].trim();
+      section = codexServerNameFromHeader(rawHeader);
+      if ((rawHeader === 'mcp_servers' || rawHeader.startsWith('mcp_servers.')) && !section) {
+        throw new Error(`Unsupported Codex MCP section "[${rawHeader}]".`);
+      }
+      if (section?.nested && !CODEX_MCP_NESTED_SECTIONS.has(section.nested)) {
+        throw new Error(`Unsupported Codex MCP subsection "${section.nested}".`);
+      }
       if (section && !servers[section.name]) {
         servers[section.name] = {
           env: {},
@@ -219,7 +238,10 @@ export function parseCodexMcpToml(text) {
             httpHeadersHelper: null,
             enabledTools: [],
             disabledTools: [],
-            defaultToolsApprovalMode: null
+            defaultToolsApprovalMode: null,
+            enabled: null,
+            startupTimeoutSec: null,
+            toolTimeoutSec: null
           }
         };
       }
@@ -263,7 +285,14 @@ export function gateCodexToml(text, results, options = {}) {
     const cleaned = stripComment(line).trim();
     const headerMatch = cleaned.match(/^\[([^\]]+)\]$/);
     if (headerMatch) {
-      const section = codexServerNameFromHeader(headerMatch[1]);
+      const rawHeader = headerMatch[1].trim();
+      const section = codexServerNameFromHeader(rawHeader);
+      if ((rawHeader === 'mcp_servers' || rawHeader.startsWith('mcp_servers.')) && !section) {
+        throw new Error(`Unsupported Codex MCP section "[${rawHeader}]".`);
+      }
+      if (section?.nested && !CODEX_MCP_NESTED_SECTIONS.has(section.nested)) {
+        throw new Error(`Unsupported Codex MCP subsection "${section.nested}".`);
+      }
       if (section) {
         const action = decisions.get(section.name);
         keepSection = action === 'allow' || (includeAsk && action === 'ask');
