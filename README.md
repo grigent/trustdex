@@ -63,6 +63,10 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - verify user-supplied package bytes against npm SRI or MCP Registry SHA-256 metadata
 - bind integrity-backed trust evidence to the configured package version and block mismatches
 
+## Compatibility
+
+TrustDex requires Node.js 20 or newer. CI exercises the full test and gate workflow on Ubuntu with Node.js 20 and 22, and on current Windows and macOS runners with Node.js 22. The checked-out composite GitHub Action has a dedicated end-to-end smoke test.
+
 ## Quick start
 
 Requires Node.js 20+.
