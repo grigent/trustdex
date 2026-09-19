@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.4.2 - 2026-09-19
+
+Trusted npm publishing migration:
+
+- authorize only `grigent/trustdex` and `.github/workflows/publish.yml` through npm Trusted Publisher OIDC
+- remove the long-lived `NPM_TOKEN` fallback from the publication workflow
+- retain Sigstore provenance for every npm release
+- align npm and GitHub Action examples with the verification release
+
 ## 0.4.1 - 2026-09-19
 
 npm packaging correction:
