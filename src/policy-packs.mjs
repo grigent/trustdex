@@ -13,7 +13,8 @@ const BASE_SIGNALS = {
   'auto-approve-tools': 'ask',
   'embedded-credentials': 'block',
   'insecure-transport': 'block',
-  'url-query-parameters': 'ask'
+  'url-query-parameters': 'ask',
+  'artifact-version-mismatch': 'block'
 };
 
 export const POLICY_PACKS = Object.freeze({

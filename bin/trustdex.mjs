@@ -15,7 +15,8 @@ import {
   inspectGitHubReleaseSignature,
   inspectMcpRegistryServer,
   provenanceObservationToClaim,
-  upsertTrustStoreClaim
+  upsertTrustStoreClaim,
+  verifyArtifactBytes
 } from '../src/provenance-online.mjs';
 import { createSnapshot, diffSnapshots } from '../src/snapshot.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
@@ -52,7 +53,9 @@ Usage:
   trustdex trust-source github <owner/repo> --publisher <name> --out trust-store.json
   trustdex trust-source github-release <owner/repo> --publisher <name> --out trust-store.json
   trustdex trust-source npm <package> --publisher <name> --out trust-store.json
+      [--artifact downloaded-package.tgz]
   trustdex trust-source mcp <namespace/server> --publisher <name> --out trust-store.json
+      [--artifact downloaded-package]
 
   trustdex approve <mcp.json> --private trustdex-private.pem --dir .trustdex/review
       [--pack ...] [--policy policy.json] [--trust-store trust-store.json]
@@ -289,12 +292,19 @@ async function main() {
     }
 
     const observation = await lookupProvenance(adapter, subject);
-    const claim = provenanceObservationToClaim(observation, publisher);
+    const artifactPath = getFlag(args, '--artifact');
+    const artifactVerification = artifactPath
+      ? verifyArtifactBytes(observation, await fs.readFile(artifactPath))
+      : null;
+    const claim = provenanceObservationToClaim(observation, publisher, { artifactVerification });
     const existing = await readJsonIfExists(out, { version: 1, claims: [] });
     const store = upsertTrustStoreClaim(existing, claim);
     parseTrustStore(store);
     await writeFileSafe(out, `${JSON.stringify(store, null, 2)}\n`);
     console.log(`Trusted ${claim.type} ${claim.subject} as "${claim.publisher}" using ${claim.evidence.kind} evidence.`);
+    if (artifactVerification) {
+      console.log(`Verified artifact integrity: ${artifactVerification.algorithm} ${artifactVerification.digest}`);
+    }
     console.log(`Wrote ${out}`);
     return;
   }

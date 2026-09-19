@@ -50,3 +50,40 @@ Unknown third-party sources remain blocked in `official-first`. A verified prove
 - pin package versions or source commits where possible
 - re-review claims when ownership or capabilities change
 - do not record credentials, tokens, private URLs, or secrets in evidence fields
+
+## Integrity-backed package evidence
+
+The optional `--artifact` flag on `trust-source npm` and `trust-source mcp` verifies a user-supplied file before recording artifact evidence.
+
+- npm observations require an SRI value using SHA-256, SHA-384, or SHA-512
+- MCP Registry observations require a single package with a SHA-256 digest
+- the file is read locally and is never executed or uploaded
+- the trust-store claim records the registry identifier, version, expected integrity metadata, computed digest, and verification time
+- the configured package version must match the verified artifact version
+
+Example evidence shape:
+
+```json
+{
+  "kind": "npm-registry",
+  "reference": "https://www.npmjs.com/package/example-mcp-server",
+  "checkedAt": "2026-09-19T00:00:00Z",
+  "artifact": {
+    "registryType": "npm",
+    "identifier": "example-mcp-server",
+    "version": "1.2.3",
+    "integrity": "sha512-..."
+  },
+  "artifactVerification": {
+    "verified": true,
+    "algorithm": "sha512",
+    "digest": "...",
+    "encoding": "base64",
+    "version": "1.2.3",
+    "identifier": "example-mcp-server",
+    "verifiedAt": "2026-09-19T00:00:01Z"
+  }
+}
+```
+
+Artifact integrity proves only that the supplied bytes match the registry metadata observed at that time. It does not prove that the bytes are safe, that the registry account was uncompromised, or that the publisher name is legitimate.

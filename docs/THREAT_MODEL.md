@@ -12,6 +12,8 @@ TrustDex addresses one narrow question:
 - provenance assertions changing or disappearing
 - newly observed shell, filesystem, network, install, wildcard-tool, or secret-environment signals
 - unsafe tool exposure caused by policy regressions
+- substitution of package bytes that do not match reviewed registry integrity metadata
+- configured package versions drifting from an integrity-verified artifact version
 - tampering with a reviewed snapshot when a signed trust record is available
 
 ## Trust boundaries
@@ -31,6 +33,7 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - sandboxing tool execution
 - detecting every prompt-injection technique
 - vulnerability scanning of all transitive dependencies
+- proving that integrity-matching package bytes are non-malicious
 - independently proving publisher ownership from a local trust-store claim
 - protecting a fully compromised host
 - protecting a stolen signing private key

@@ -21,7 +21,7 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 | src/codex-config.mjs | Focused fail-closed Codex MCP parsing and section filtering |
 | src/extensions.mjs | Skill and plugin manifest inspection |
 | src/provenance.mjs | Explicit local trust-store claims |
-| src/provenance-online.mjs | User-invoked GitHub, npm, and MCP Registry observations |
+| src/provenance-online.mjs | User-invoked GitHub, npm, and MCP Registry observations plus local artifact-digest verification |
 | src/policy.mjs | Monotonic policy evaluation; signals may raise severity |
 | src/gate.mjs | Output only approved MCP entries |
 | src/snapshot.mjs | Deterministic trust-relevant state and drift |
