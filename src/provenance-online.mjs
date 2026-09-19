@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 function assertFetch(fetchImpl) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('This Node.js runtime does not provide fetch(). Node.js 20+ is required.');
@@ -172,6 +174,13 @@ export async function inspectNpmPackage(packageName, options = {}) {
       kind: 'npm-registry',
       reference: `https://www.npmjs.com/package/${name}`,
       latestVersion: latest,
+      artifact: latest && latestMeta?.dist?.integrity ? {
+        registryType: 'npm',
+        identifier: data.name,
+        version: latest,
+        integrity: String(latestMeta.dist.integrity),
+        shasum: latestMeta.dist.shasum ? String(latestMeta.dist.shasum) : null
+      } : null,
       repository,
       maintainers: Array.isArray(data.maintainers)
         ? data.maintainers.map((item) => item?.name).filter(Boolean).sort()
@@ -235,6 +244,15 @@ export async function inspectMcpRegistryServer(serverName, options = {}) {
       reference: url,
       serverName: server.name,
       version: server.version || null,
+      artifact: packages.length === 1 && packages[0]?.identifier && packages[0]?.version && packages[0]?.fileSha256
+        ? {
+            registryType: packages[0].registryType || null,
+            identifier: String(packages[0].identifier),
+            version: String(packages[0].version),
+            algorithm: 'sha256',
+            digest: String(packages[0].fileSha256).toLowerCase()
+          }
+        : null,
       repository: server.repository?.url || null,
       repositorySource: server.repository?.source || null,
       packages: packages.map((pkg) => ({
@@ -251,7 +269,73 @@ export async function inspectMcpRegistryServer(serverName, options = {}) {
   };
 }
 
-export function provenanceObservationToClaim(observation, publisher) {
+function digestMatches(actual, expected) {
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+export function verifyArtifactBytes(observation, content) {
+  const artifact = observation?.evidence?.artifact;
+  if (!artifact) throw new Error('The provenance observation does not provide verifiable artifact integrity.');
+
+  const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
+  const version = artifact.version ? String(artifact.version) : null;
+  const identifier = artifact.identifier ? String(artifact.identifier) : String(observation.subject || '');
+
+  if (artifact.integrity) {
+    const candidates = String(artifact.integrity).trim().split(/\s+/);
+    let supported = 0;
+    for (const candidate of candidates) {
+      const match = candidate.match(/^(sha(?:256|384|512))-([A-Za-z0-9+/=]+)(?:\?.*)?$/i);
+      if (!match) continue;
+      supported += 1;
+      const algorithm = match[1].toLowerCase();
+      const expected = Buffer.from(match[2], 'base64');
+      const actual = crypto.createHash(algorithm).update(bytes).digest();
+      if (digestMatches(actual, expected)) {
+        return {
+          verified: true,
+          algorithm,
+          digest: actual.toString('base64'),
+          encoding: 'base64',
+          version,
+          identifier,
+          verifiedAt: new Date().toISOString()
+        };
+      }
+    }
+    if (!supported) throw new Error('Artifact integrity does not contain a supported SHA-256, SHA-384, or SHA-512 digest.');
+    throw new Error('Artifact bytes do not match the registry integrity metadata.');
+  }
+
+  if (artifact.algorithm && artifact.digest) {
+    const algorithm = String(artifact.algorithm).toLowerCase();
+    if (!['sha256', 'sha384', 'sha512'].includes(algorithm)) {
+      throw new Error(`Unsupported artifact digest algorithm: ${algorithm}`);
+    }
+    const expectedHex = String(artifact.digest).toLowerCase();
+    if (!/^[a-f0-9]+$/.test(expectedHex) || expectedHex.length !== crypto.createHash(algorithm).digest().length * 2) {
+      throw new Error('Artifact digest has an invalid hexadecimal format.');
+    }
+    const actual = crypto.createHash(algorithm).update(bytes).digest();
+    const expected = Buffer.from(expectedHex, 'hex');
+    if (!digestMatches(actual, expected)) {
+      throw new Error('Artifact bytes do not match the registry digest.');
+    }
+    return {
+      verified: true,
+      algorithm,
+      digest: actual.toString('hex'),
+      encoding: 'hex',
+      version,
+      identifier,
+      verifiedAt: new Date().toISOString()
+    };
+  }
+
+  throw new Error('The provenance observation does not provide a supported cryptographic digest.');
+}
+
+export function provenanceObservationToClaim(observation, publisher, options = {}) {
   if (!observation?.type || !observation?.subject || !observation?.evidence) {
     throw new Error('Invalid provenance observation.');
   }
@@ -265,16 +349,34 @@ export function provenanceObservationToClaim(observation, publisher) {
   const publisherName = String(publisher || '').trim();
   if (!publisherName) throw new Error('A publisher name is required for explicit approval.');
 
+  const evidence = {
+    kind: observation.evidence.kind,
+    reference: observation.evidence.reference,
+    checkedAt: observation.observedAt || new Date().toISOString()
+  };
+
+  if (options.artifactVerification) {
+    if (!options.artifactVerification.verified || !observation.evidence.artifact) {
+      throw new Error('Artifact verification is incomplete.');
+    }
+    evidence.artifact = JSON.parse(JSON.stringify(observation.evidence.artifact));
+    evidence.artifactVerification = {
+      verified: true,
+      algorithm: String(options.artifactVerification.algorithm),
+      digest: String(options.artifactVerification.digest),
+      encoding: String(options.artifactVerification.encoding),
+      version: options.artifactVerification.version ? String(options.artifactVerification.version) : null,
+      identifier: options.artifactVerification.identifier ? String(options.artifactVerification.identifier) : null,
+      verifiedAt: String(options.artifactVerification.verifiedAt)
+    };
+  }
+
   return {
     type: observation.type,
     subject: observation.subject,
     publisher: publisherName,
     status: 'verified',
-    evidence: {
-      kind: observation.evidence.kind,
-      reference: observation.evidence.reference,
-      checkedAt: observation.observedAt || new Date().toISOString()
-    }
+    evidence
   };
 }
 
