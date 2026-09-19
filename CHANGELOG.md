@@ -4,6 +4,8 @@
 
 Security and maintainability:
 
+- verify user-supplied artifact bytes against npm SRI or MCP Registry SHA-256 metadata
+- bind integrity evidence to package versions and block configuration mismatches
 - redact remote URL credentials, paths, and query values from inspection output
 - flag embedded URL credentials, insecure transport, and URL query parameters
 - normalize Windows executable paths and command wrappers across platforms
