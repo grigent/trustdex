@@ -1,6 +1,8 @@
 name: Create GitHub Release
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       tag:
@@ -14,6 +16,7 @@ permissions:
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'release: publish TrustDex v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -23,18 +26,24 @@ jobs:
           node-version: '24'
           package-manager-cache: false
 
-      - name: Validate tag and package version
+      - name: Resolve and validate release tag
+        id: version
         shell: bash
         env:
-          RELEASE_TAG: ${{ inputs.tag }}
+          REQUESTED_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || '' }}
         run: |
           set -euo pipefail
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           EXPECTED_TAG="v$PACKAGE_VERSION"
+          RELEASE_TAG="$REQUESTED_TAG"
+          if [[ -z "$RELEASE_TAG" ]]; then
+            RELEASE_TAG="$EXPECTED_TAG"
+          fi
           if [[ "$RELEASE_TAG" != "$EXPECTED_TAG" ]]; then
             echo "Requested tag $RELEASE_TAG does not match package.json version $PACKAGE_VERSION"
             exit 1
           fi
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
 
       - run: npm test
       - run: npm run check
@@ -44,11 +53,14 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists."
             exit 1
           fi
-          gh release create "$RELEASE_TAG"             --target "${{ github.sha }}"             --title "TrustDex $RELEASE_TAG"             --generate-notes
+          gh release create "$RELEASE_TAG" \
+            --target "${{ github.sha }}" \
+            --title "TrustDex $RELEASE_TAG" \
+            --generate-notes
