@@ -139,3 +139,41 @@ test('keeps matching integrity-backed package evidence eligible for policy evalu
   const [result] = evaluateAll([attached], getPolicyPack('official-first'));
   assert.equal(result.action, 'allow');
 });
+
+test('rejects internally inconsistent artifact evidence', () => {
+  const base = {
+    version: 1,
+    claims: [{
+      type: 'package',
+      subject: 'demo-server',
+      publisher: 'Example Publisher',
+      status: 'verified',
+      evidence: {
+        kind: 'npm-registry',
+        reference: 'https://www.npmjs.com/package/demo-server',
+        artifact: {
+          registryType: 'npm',
+          identifier: 'demo-server',
+          version: '1.2.3',
+          integrity: 'sha512-ZXhwZWN0ZWQ='
+        },
+        artifactVerification: {
+          verified: true,
+          algorithm: 'sha512',
+          digest: 'ZGlmZmVyZW50',
+          encoding: 'base64',
+          version: '1.2.3',
+          identifier: 'demo-server',
+          verifiedAt: '2026-09-19T00:00:00Z'
+        }
+      }
+    }]
+  };
+
+  assert.throws(() => parseTrustStore(base), /integrity does not match/);
+
+  const wrongVersion = structuredClone(base);
+  wrongVersion.claims[0].evidence.artifactVerification.digest = 'ZXhwZWN0ZWQ=';
+  wrongVersion.claims[0].evidence.artifactVerification.version = '2.0.0';
+  assert.throws(() => parseTrustStore(wrongVersion), /version does not match/);
+});
