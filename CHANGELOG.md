@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-Security and maintainability:
+## 0.4.0 - 2026-09-19
+
+Security hardening, artifact integrity, and public maintenance readiness:
 
 - run full cross-platform CI on Ubuntu, Windows, and macOS
 - exercise the composite GitHub Action end to end in CI

@@ -27,7 +27,7 @@ import {
   verifyTrustRecord
 } from '../src/trust-record.mjs';
 
-const VERSION = '0.3.0';
+const VERSION = '0.4.0';
 
 function usage() {
   console.log(`TrustDex v${VERSION}
