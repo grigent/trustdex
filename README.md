@@ -60,6 +60,8 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - block embedded URL credentials and insecure remote transport under strict policies
 - recognize Windows executable paths and command wrappers consistently across hosts
 - fail closed on unsupported Codex MCP keys and subsections
+- verify user-supplied package bytes against npm SRI or MCP Registry SHA-256 metadata
+- bind integrity-backed trust evidence to the configured package version and block mismatches
 
 ## Quick start
 
@@ -151,6 +153,24 @@ node ./bin/trustdex.mjs trust-source mcp io.github.user/server \
 ```
 
 For `github-release`, TrustDex refuses to create a trust claim unless GitHub reports the release tag or target commit signature as verified.
+
+### Verify exact package bytes
+
+Registry metadata can identify an expected digest, but metadata alone does not prove that a downloaded file matches it. Supply the exact package archive or artifact you reviewed:
+
+```bash
+node ./bin/trustdex.mjs trust-source npm @scope/package \
+  --publisher "Example Publisher" \
+  --artifact ./scope-package-1.2.3.tgz \
+  --out ./trust-store.json
+
+node ./bin/trustdex.mjs trust-source mcp io.github.user/server \
+  --publisher "Example Publisher" \
+  --artifact ./downloaded-package \
+  --out ./trust-store.json
+```
+
+TrustDex reads the file locally and compares its bytes with npm SRI metadata or an MCP Registry SHA-256 digest. It does not download or execute the artifact. Integrity-backed evidence is version-bound; a different configured package version receives `artifact-version-mismatch` and is blocked.
 
 ## Provenance trust store
 
