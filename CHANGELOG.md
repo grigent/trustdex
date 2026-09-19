@@ -4,6 +4,8 @@
 
 Security and maintainability:
 
+- run full cross-platform CI on Ubuntu, Windows, and macOS
+- exercise the composite GitHub Action end to end in CI
 - verify user-supplied artifact bytes against npm SRI or MCP Registry SHA-256 metadata
 - bind integrity evidence to package versions and block configuration mismatches
 - redact remote URL credentials, paths, and query values from inspection output
