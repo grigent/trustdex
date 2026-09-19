@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a reproducible TrustDex defect without private data.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Remove tokens, private URLs, signing keys, and proprietary configuration before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: TrustDex version or commit
+      placeholder: v0.3.0 or a commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - MCP JSON inspection
+        - Codex TOML inspection or gate
+        - Skill or plugin inspection
+        - Policy decision
+        - Provenance lookup
+        - Snapshot or signed review
+        - GitHub Action or release workflow
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, Node.js version, and command used.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal redacted reproduction
+      description: Include the smallest safe input and exact steps.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, private endpoints, customer data, and private signing material.
+          required: true
+        - label: This is not an undisclosed exploitable vulnerability.
+          required: true

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+Security and maintainability:
+
+- redact remote URL credentials, paths, and query values from inspection output
+- flag embedded URL credentials, insecure transport, and URL query parameters
+- normalize Windows executable paths and command wrappers across platforms
+- fail closed on unsupported Codex MCP keys and subsections
+- fingerprint supported Codex execution controls
+- add CodeQL, immutable GitHub Action pins, dependency updates, and ownership rules
+- add governance, support, architecture, roadmap, and contribution templates
+
 ## 0.3.0 - 2026-09-19
 
 Reviewable provenance and Codex integration:

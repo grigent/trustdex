@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security policy
+    url: https://github.com/grigent/trustdex/security/policy
+    about: Report exploitable vulnerabilities privately; do not open a public issue.
+  - name: Support guide
+    url: https://github.com/grigent/trustdex/blob/main/SUPPORT.md
+    about: Read what to include in usage and compatibility reports.

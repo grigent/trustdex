@@ -1,5 +1,10 @@
 # TrustDex
 
+[![CI](https://github.com/grigent/trustdex/actions/workflows/ci.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/grigent/trustdex/actions/workflows/codeql.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/grigent/trustdex)](https://github.com/grigent/trustdex/releases)
+[![License](https://img.shields.io/github/license/grigent/trustdex)](LICENSE)
+
 **A local-first trust and provenance gate for AI agent tools.**
 
 TrustDex helps decide which MCP servers, skills, and plugins an AI agent should be allowed to use. Instead of treating every discovered extension as trusted, TrustDex evaluates observable evidence and returns one of three outcomes:
@@ -9,6 +14,8 @@ TrustDex helps decide which MCP servers, skills, and plugins an AI agent should 
 - **BLOCK** - not trusted under the current policy
 
 > TrustDex is security-related infrastructure, not a malware scanner, sandbox, or certification service. An ALLOW result only means the inspected evidence matched your policy.
+
+> **Project status:** TrustDex is early-stage and seeking pilot users. The security boundary is documented, changes are tested on supported Node.js versions, and compatibility may still evolve before 1.0. See the [roadmap](docs/ROADMAP.md), [governance](GOVERNANCE.md), and [support guide](SUPPORT.md).
 
 ## Why TrustDex?
 
@@ -31,7 +38,7 @@ TrustDex policy + provenance gate
 
 TrustDex deliberately does not infer "official" status from names, stars, or branding. Provenance must come from explicit, reviewable evidence.
 
-## What v0.3 can do
+## What the current code can do
 
 - inspect MCP server entries locally without uploading configuration
 - distinguish package, remote, local, and unknown sources
@@ -49,6 +56,10 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - perform explicit provenance lookups against GitHub, npm, and the official MCP Registry
 - verify whether the latest GitHub release tag/commit has a GitHub-verified signature
 - create signed review bundles and automatically require re-review when trust-relevant state drifts
+- redact credentials, paths, and query values from remote endpoint details in reports
+- block embedded URL credentials and insecure remote transport under strict policies
+- recognize Windows executable paths and command wrappers consistently across hosts
+- fail closed on unsupported Codex MCP keys and subsections
 
 ## Quick start
 
@@ -247,7 +258,7 @@ The private key should never be committed.
 ```yaml
 - uses: actions/checkout@v4
 
-- uses: grigent/trustdex@main
+- uses: grigent/trustdex@v0.3.0
   with:
     config: ./mcp.json
     pack: official-first
@@ -269,22 +280,7 @@ For production CI, pin the action to a reviewed commit SHA rather than a moving 
 
 ## Roadmap
 
-- [x] MCP config inspection
-- [x] local ALLOW / ASK / BLOCK policy
-- [x] policy packs
-- [x] filtered runtime MCP gate
-- [x] snapshot and drift detection
-- [x] signed trust records
-- [x] explicit provenance trust store
-- [x] Agent Skill and plugin manifest inspection
-- [x] GitHub Action
-- [x] GitHub and npm provenance adapters
-- [x] official MCP Registry provenance adapter
-- [x] GitHub repository identity observation and signed-release verification
-- [x] safer signed-review recheck workflow when trust-relevant state changes
-- [x] Codex `config.toml` MCP adapter
-- [ ] additional registry ecosystems and agent-runtime adapters
-- [ ] package-file integrity download verification where registries expose immutable hashes
+The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on registry integrity verification, reproducible releases, additional agent-runtime adapters, and real-world pilot feedback. Roadmap items are intentions, not promises.
 
 ## Security
 
@@ -294,7 +290,7 @@ See [SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), an
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), and [AGENTS.md](AGENTS.md).
 
 ## License
 

@@ -1,28 +1,47 @@
 # Security Policy
 
-TrustDex is security-related software, but it is not a sandbox and it cannot prove that a third-party tool is safe.
+TrustDex is security-related software, but it is not a sandbox, malware scanner, vulnerability scanner, or certification service. An ALLOW decision means only that the observed evidence matched the selected policy.
 
-## Reporting a vulnerability
+## Supported versions
 
-Please do not open a public issue for an exploitable vulnerability that could put users at risk. Use GitHub private vulnerability reporting for this repository when available.
+Security fixes are applied to the main branch. When releases are published, users should upgrade to the latest release; older pre-1.0 releases may not receive backports.
 
-Include:
+| Version | Supported |
+| --- | --- |
+| main | Yes |
+| latest release | Yes |
+| older pre-1.0 releases | No guaranteed backports |
+
+## Report a vulnerability
+
+Do not open a public issue for a vulnerability that could put users at risk.
+
+Use GitHub Private Vulnerability Reporting from the repository Security tab when it is available. If it is unavailable, contact the maintainer through a private channel listed on the maintainer's GitHub profile. Include only a minimal public issue asking for private contact if no private channel is available; do not include exploit details there.
+
+Please include:
 
 - affected version or commit
-- minimal reproduction
+- minimal reproduction or proof of concept
 - expected and observed behavior
-- impact
+- realistic impact and prerequisites
 - suggested mitigation, if known
 
-## Security principles
+The maintainer will validate the report, coordinate a fix, and agree on disclosure timing with the reporter. Response times are best effort because the project is currently maintained by one person.
 
-TrustDex is designed around conservative defaults:
+## Security boundaries
 
-- local-first operation
+TrustDex is designed around:
+
+- local-first inspection for ordinary commands
+- explicit network access only for provenance commands
 - no telemetry
 - no secret-value logging
-- explicit ALLOW / ASK / BLOCK outcomes
+- redacted remote endpoint reporting
+- conservative ALLOW, ASK, and BLOCK outcomes
 - pinned sources preferred over floating versions
-- trust should be reconsidered when relevant source or capability signals change
+- re-review when trust-relevant state changes
+- fail-closed handling for unsupported Codex MCP syntax
 
-A TrustDex ALLOW result means only that the configured policy allowed the evidence TrustDex inspected. It is not a certification of the underlying software.
+TrustDex does not execute inspected MCP servers during inspection. It does not independently prove that third-party code is non-malicious, that a publisher identity is legitimate, or that a signed review was correct.
+
+See docs/THREAT_MODEL.md and docs/ARCHITECTURE.md for the detailed boundary.
