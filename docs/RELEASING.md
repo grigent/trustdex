@@ -15,8 +15,8 @@ For the first publication:
 
 1. Make sure the `trustdex` package name is still available on npm.
 2. Create an npm granular access token that is allowed to publish the package and store it as the repository secret `NPM_TOKEN`.
-3. Run **Create GitHub Release** for `v0.3.0`.
-4. Run **Publish Package to npmjs** for the same tag.
+3. Run **Create GitHub Release** for the current package version, such as `v0.4.0`.
+4. Run **Publish Package to npmjs** for the same tag only after the GitHub release succeeds.
 5. Delete the publishing token after the first successful publication.
 
 Do not paste npm credentials into issues, pull requests, source files, logs, or chat.
