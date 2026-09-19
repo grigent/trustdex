@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.4.1 - 2026-09-19
+
+npm packaging correction:
+
+- preserve the `trustdex` command in the published npm manifest with a normalized `bin` path
+- normalize repository metadata for npm and provenance tooling
+- document direct `npx trustdex` usage and expose the npm version badge
+
 ## 0.4.0 - 2026-09-19
 
 Security hardening, artifact integrity, and public maintenance readiness:
