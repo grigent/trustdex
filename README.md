@@ -38,6 +38,21 @@ TrustDex policy + provenance gate
 
 TrustDex deliberately does not infer "official" status from names, stars, or branding. Provenance must come from explicit, reviewable evidence.
 
+### How TrustDex differs
+
+Security scanners and runtime firewalls solve adjacent problems. TrustDex focuses on the earlier question: **which extensions should be exposed to the agent at all?**
+
+| Approach | Primary question | Typical behavior | TrustDex |
+| --- | --- | --- | --- |
+| MCP / skill security scanner | "Does this extension look malicious or vulnerable?" | Analyze code, descriptions, prompts, dependencies, or behavior and report findings or scores | Uses observable signals as policy inputs, but does not claim to certify safety |
+| Runtime tool firewall | "Should this tool call be allowed right now?" | Intercept calls after tools are already available to the agent | Filters the configuration **before tool exposure** so unapproved tools can remain unavailable |
+| Provenance / integrity check | "Where did this package come from, and are these the expected bytes?" | Verify publisher, registry, signature, or digest evidence | Combines explicit provenance and artifact integrity with local policy decisions |
+| **TrustDex** | **"Should this MCP server, skill, or plugin be available to this agent under my policy?"** | **ALLOW / ASK / BLOCK, emit an approved config, and require re-review after trust-relevant drift** | **Local-first pre-exposure trust gate** |
+
+TrustDex is therefore complementary to scanners such as [Snyk Agent Scan](https://github.com/snyk/agent-scan), [Cisco MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner), and [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector). Those projects inspect security risks; TrustDex is designed to turn reviewable trust evidence into an enforceable exposure decision.
+
+> **Scanners tell you what looks risky. TrustDex decides what the agent is allowed to see.**
+
 ## What the current code can do
 
 - inspect MCP server entries locally without uploading configuration
