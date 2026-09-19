@@ -10,7 +10,10 @@ const BASE_SIGNALS = {
   'static-http-headers': 'ask',
   'env-http-headers': 'ask',
   'env-forwarding': 'ask',
-  'auto-approve-tools': 'ask'
+  'auto-approve-tools': 'ask',
+  'embedded-credentials': 'block',
+  'insecure-transport': 'block',
+  'url-query-parameters': 'ask'
 };
 
 export const POLICY_PACKS = Object.freeze({
@@ -54,7 +57,8 @@ export const POLICY_PACKS = Object.freeze({
     allowedRemoteHosts: ['localhost', '127.0.0.1', '::1'],
     signalActions: {
       ...BASE_SIGNALS,
-      'shell-execution': 'ask'
+      'shell-execution': 'ask',
+      'insecure-transport': 'ask'
     }
   })
 });
