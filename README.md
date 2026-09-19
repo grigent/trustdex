@@ -3,6 +3,7 @@
 [![CI](https://github.com/grigent/trustdex/actions/workflows/ci.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/grigent/trustdex/actions/workflows/codeql.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/grigent/trustdex)](https://github.com/grigent/trustdex/releases)
+[![npm](https://img.shields.io/npm/v/trustdex)](https://www.npmjs.com/package/trustdex)
 [![License](https://img.shields.io/github/license/grigent/trustdex)](LICENSE)
 
 **A local-first trust and provenance gate for AI agent tools.**
@@ -70,6 +71,15 @@ TrustDex requires Node.js 20 or newer. CI exercises the full test and gate workf
 ## Quick start
 
 Requires Node.js 20+.
+
+Run directly from npm:
+
+```bash
+npx trustdex@0.4.1 --help
+npx trustdex@0.4.1 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+```
+
+Or work from a source checkout:
 
 ```bash
 git clone https://github.com/grigent/trustdex.git

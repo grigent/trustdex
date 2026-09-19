@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing GitHub release tag to publish (for example v0.3.0)
         required: true
-        default: v0.4.0
+        default: v0.4.1
         type: string
 
 permissions:
@@ -42,6 +42,12 @@ jobs:
 
       - name: Use current npm with trusted publishing support
         run: npm install --global npm@^11.15.0
+
+      - name: Validate canonical npm metadata
+        shell: bash
+        run: |
+          npm pkg fix
+          git diff --exit-code -- package.json
 
       - name: Validate release version
         shell: bash

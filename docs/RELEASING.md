@@ -7,21 +7,15 @@ TrustDex uses two small GitHub Actions workflows:
 
 This split keeps GitHub release creation separate from registry credentials.
 
-## First npm publication
+## Bootstrap publication
 
-npm trusted publishing can only be configured after a package already exists in the npm registry.
+The one-time token-based bootstrap publication has been completed. Do not repeat it for normal releases.
 
-For the first publication:
-
-1. Make sure the `trustdex` package name is still available on npm.
-2. Create an npm granular access token that is allowed to publish the package and store it as the repository secret `NPM_TOKEN`.
-3. Run **Create GitHub Release** for the current package version, such as `v0.4.0`.
-4. Run **Publish Package to npmjs** for the same tag only after the GitHub release succeeds.
-5. Delete the publishing token after the first successful publication.
+A short-lived `NPM_TOKEN` may remain only until trusted publishing has been configured and verified. Delete both the npm token and the GitHub repository secret immediately after the first successful OIDC publication.
 
 Do not paste npm credentials into issues, pull requests, source files, logs, or chat.
 
-## Switch to npm trusted publishing
+## npm trusted publishing
 
 After the package exists, configure npm trusted publishing for:
 
@@ -32,7 +26,9 @@ After the package exists, configure npm trusted publishing for:
 
 The workflow grants only `contents: read` and `id-token: write`. npm can then authenticate the GitHub-hosted job with OIDC instead of a long-lived write token.
 
-Once trusted publishing works, remove the `NPM_TOKEN` repository secret. The workflow deliberately continues to use the standard `npm publish` command so npm can select OIDC authentication.
+Once trusted publishing works, remove the `NPM_TOKEN` repository secret and revoke the bootstrap token on npm. The workflow deliberately continues to use the standard `npm publish` command so npm can select OIDC authentication.
+
+Both release workflows run `npm pkg fix` and require a clean `package.json` diff before packing or publishing. This prevents npm from silently normalizing away critical metadata such as the CLI entrypoint.
 
 ## Provenance
 

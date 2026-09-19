@@ -8,7 +8,7 @@ on:
       tag:
         description: Release tag (must match package.json version, for example v0.3.0)
         required: true
-        default: v0.4.0
+        default: v0.4.1
         type: string
 
 permissions:
@@ -28,6 +28,15 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
+
+      - name: Use current npm metadata rules
+        run: npm install --global npm@^11.15.0
+
+      - name: Validate canonical npm metadata
+        shell: bash
+        run: |
+          npm pkg fix
+          git diff --exit-code -- package.json
 
       - name: Resolve and validate release tag
         id: version
