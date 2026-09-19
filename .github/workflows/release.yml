@@ -8,7 +8,7 @@ on:
       tag:
         description: Release tag (must match package.json version, for example v0.3.0)
         required: true
-        default: v0.4.1
+        default: v0.4.2
         type: string
 
 permissions:

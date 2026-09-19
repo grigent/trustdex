@@ -6,7 +6,7 @@ on:
       tag:
         description: Existing GitHub release tag to publish (for example v0.3.0)
         required: true
-        default: v0.4.1
+        default: v0.4.2
         type: string
 
 permissions:
@@ -67,5 +67,3 @@ jobs:
 
       - name: Publish public package with provenance
         run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
