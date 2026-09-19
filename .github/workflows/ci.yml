@@ -10,11 +10,21 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }} / Node.js ${{ matrix.node-version }}
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [20, 22]
+        include:
+          - os: ubuntu-latest
+            node-version: 20
+          - os: ubuntu-latest
+            node-version: 22
+          - os: windows-latest
+            node-version: 22
+          - os: macos-latest
+            node-version: 22
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -92,3 +102,38 @@ jobs:
           node ./bin/trustdex.mjs recheck ./examples/mcp.json \
             --review-dir .trustdex/review \
             --public .trustdex/public.pem
+
+  action-smoke:
+    name: Composite Action smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Run the checked-out TrustDex Action
+        uses: ./
+        with:
+          config: ./examples/mcp.json
+          pack: strict
+          policy: ./examples/trustdex.policy.json
+          output: .trustdex/action-gated.json
+
+      - name: Verify Action output
+        shell: bash
+        run: |
+          node -e '
+            const fs = require("fs");
+            const value = JSON.parse(fs.readFileSync(".trustdex/action-gated.json", "utf8"));
+            const names = Object.keys(value.mcpServers || value);
+            if (names.join(",") !== "filesystem") {
+              console.error("Unexpected gated servers:", names);
+              process.exit(1);
+            }
+          '
