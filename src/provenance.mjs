@@ -59,6 +59,28 @@ function validateClaim(claim, index) {
     if (!artifact.version || !artifact.identifier) {
       throw new Error(`Trust-store claim #${index + 1} artifact requires identifier and version.`);
     }
+    if (String(verification.version || '') !== String(artifact.version)) {
+      throw new Error(`Trust-store claim #${index + 1} artifact version does not match its verification.`);
+    }
+    if (String(verification.identifier || '') !== String(artifact.identifier)) {
+      throw new Error(`Trust-store claim #${index + 1} artifact identifier does not match its verification.`);
+    }
+
+    const algorithm = String(verification.algorithm).toLowerCase();
+    const digest = String(verification.digest);
+    if (artifact.integrity) {
+      const expected = `${algorithm}-${digest}`;
+      const entries = String(artifact.integrity).trim().split(/\s+/).map((entry) => entry.split('?')[0]);
+      if (String(verification.encoding || '') !== 'base64' || !entries.includes(expected)) {
+        throw new Error(`Trust-store claim #${index + 1} artifact integrity does not match its verification.`);
+      }
+    } else if (
+      String(artifact.algorithm || '').toLowerCase() !== algorithm ||
+      String(artifact.digest || '').toLowerCase() !== digest.toLowerCase() ||
+      String(verification.encoding || '') !== 'hex'
+    ) {
+      throw new Error(`Trust-store claim #${index + 1} artifact digest does not match its verification.`);
+    }
   }
 }
 
