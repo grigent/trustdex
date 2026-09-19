@@ -43,6 +43,12 @@ jobs:
       - name: Use current npm with trusted publishing support
         run: npm install --global npm@^11.15.0
 
+      - name: Validate canonical npm metadata
+        shell: bash
+        run: |
+          npm pkg fix
+          git diff --exit-code -- package.json
+
       - name: Validate release version
         shell: bash
         env:
