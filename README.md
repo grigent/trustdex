@@ -147,6 +147,8 @@ node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
 
 The gate removes non-approved MCP sections while preserving unrelated TOML sections. TrustDex intentionally parses only the MCP-related TOML constructs it needs; unsupported MCP syntax fails rather than being silently trusted.
 
+See [Using TrustDex with Codex](docs/CODEX.md) for a step-by-step gating workflow and for how this project uses Codex in its own review process.
+
 ## Online provenance observations
 
 Normal inspection remains local-only. These commands perform an explicit network lookup only when invoked:

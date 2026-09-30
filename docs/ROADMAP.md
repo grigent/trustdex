@@ -19,6 +19,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Later: expand interoperability
 
+- extend signed snapshot, approval, and recheck workflows to Codex `config.toml`
 - add adapters for additional agent runtimes and registries
 - publish a compatibility matrix backed by tests
 - define machine-readable decision output for CI and policy tooling
@@ -30,4 +31,4 @@ The project is seeking pilot users willing to share non-sensitive feedback about
 
 ## How to help
 
-Open a focused issue describing the use case and redacted configuration shape. For security-sensitive proposals, include the expected trust boundary and bypass cases.
+If you ran TrustDex on a real configuration, the **Pilot feedback** issue form is the fastest way to report results. Otherwise, open a focused issue describing the use case and redacted configuration shape. For security-sensitive proposals, include the expected trust boundary and bypass cases.
