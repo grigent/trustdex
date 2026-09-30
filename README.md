@@ -3,6 +3,7 @@
 [![CI](https://github.com/grigent/trustdex/actions/workflows/ci.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/grigent/trustdex/actions/workflows/codeql.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/grigent/trustdex)](https://github.com/grigent/trustdex/releases)
+[![npm](https://img.shields.io/npm/v/trustdex)](https://www.npmjs.com/package/trustdex)
 [![License](https://img.shields.io/github/license/grigent/trustdex)](LICENSE)
 
 **A local-first trust and provenance gate for AI agent tools.**
@@ -71,6 +72,15 @@ TrustDex requires Node.js 20 or newer. CI exercises the full test and gate workf
 
 Requires Node.js 20+.
 
+Run directly from npm:
+
+```bash
+npx trustdex@0.4.3 --help
+npx trustdex@0.4.3 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+```
+
+Or work from a source checkout:
+
 ```bash
 git clone https://github.com/grigent/trustdex.git
 cd trustdex
@@ -136,6 +146,8 @@ node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
 ```
 
 The gate removes non-approved MCP sections while preserving unrelated TOML sections. TrustDex intentionally parses only the MCP-related TOML constructs it needs; unsupported MCP syntax fails rather than being silently trusted.
+
+See [Using TrustDex with Codex](docs/CODEX.md) for a step-by-step gating workflow and for how this project uses Codex in its own review process.
 
 ## Online provenance observations
 
@@ -282,7 +294,7 @@ The private key should never be committed.
 ```yaml
 - uses: actions/checkout@v4
 
-- uses: grigent/trustdex@v0.3.0
+- uses: grigent/trustdex@v0.4.3
   with:
     config: ./mcp.json
     pack: official-first

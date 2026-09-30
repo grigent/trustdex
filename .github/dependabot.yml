@@ -10,3 +10,8 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: ci
+    groups:
+      codeql-action:
+        # init and analyze must run the same release, so update them together.
+        patterns:
+          - github/codeql-action*

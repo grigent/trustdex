@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -27,7 +28,8 @@ import {
   verifyTrustRecord
 } from '../src/trust-record.mjs';
 
-const VERSION = '0.3.0';
+// Read the version from the package manifest so --version cannot drift from releases.
+const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 function usage() {
   console.log(`TrustDex v${VERSION}
