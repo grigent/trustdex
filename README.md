@@ -75,8 +75,8 @@ Requires Node.js 20+.
 Run directly from npm:
 
 ```bash
-npx trustdex@0.4.2 --help
-npx trustdex@0.4.2 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+npx trustdex@0.4.3 --help
+npx trustdex@0.4.3 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
 ```
 
 Or work from a source checkout:
@@ -294,7 +294,7 @@ The private key should never be committed.
 ```yaml
 - uses: actions/checkout@v4
 
-- uses: grigent/trustdex@v0.4.2
+- uses: grigent/trustdex@v0.4.3
   with:
     config: ./mcp.json
     pack: official-first
