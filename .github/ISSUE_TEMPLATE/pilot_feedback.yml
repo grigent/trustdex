@@ -1,0 +1,64 @@
+name: Pilot feedback
+description: Share how TrustDex behaved on a real agent configuration.
+title: "[Pilot] "
+labels:
+  - pilot-feedback
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying TrustDex. Describe configuration shapes, never contents: replace every credential, private endpoint, internal hostname, and proprietary prompt before posting.
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Agent runtime or config format
+      options:
+        - Codex config.toml
+        - MCP JSON (mcpServers / servers)
+        - SKILL.md
+        - Plugin manifest
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: TrustDex version
+      description: Output of trustdex --version
+    validations:
+      required: true
+  - type: dropdown
+    id: usage
+    attributes:
+      label: Where did you run it?
+      multiple: true
+      options:
+        - Local CLI
+        - GitHub Action / CI
+        - Pre-commit or dotfiles workflow
+        - Other
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What happened
+      description: Number of entries inspected and the ALLOW / ASK / BLOCK counts, plus any decision that surprised you.
+    validations:
+      required: true
+  - type: textarea
+    id: misclassification
+    attributes:
+      label: False positives or false negatives
+      description: Redacted entry shape, the decision TrustDex returned, and the decision you expected.
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow friction
+      description: Missing formats, confusing output, or steps that stopped you from adopting it.
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Sharing
+      options:
+        - label: All examples are public or fully redacted.
+          required: true
+        - label: The maintainer may mention my organization or project as a pilot user in public project materials.

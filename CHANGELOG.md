@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- fix `trustdex --version` and the help banner reporting 0.4.0 in the 0.4.2 package; the CLI now reads its version from `package.json`
+- add Codex review guidelines to AGENTS.md that encode TrustDex's security invariants as review findings
+- add a Codex integration guide (docs/CODEX.md)
+- add a pilot feedback issue form
+
 ## 0.4.2 - 2026-09-19
 
 Trusted npm publishing migration:
