@@ -2,7 +2,36 @@
 
 ## Unreleased
 
-Security and maintainability:
+## 0.4.3 - 2026-09-30
+
+CLI correctness and Codex maintenance readiness:
+
+- fix `trustdex --version` and the help banner reporting 0.4.0 in the 0.4.2 package; the CLI now reads its version from `package.json`
+- add Codex review guidelines to AGENTS.md that encode TrustDex's security invariants as review findings
+- add a Codex integration guide (docs/CODEX.md)
+- add a pilot feedback issue form
+- update CodeQL init and analyze together and group their Dependabot updates
+
+## 0.4.2 - 2026-09-19
+
+Trusted npm publishing migration:
+
+- authorize only `grigent/trustdex` and `.github/workflows/publish.yml` through npm Trusted Publisher OIDC
+- remove the long-lived `NPM_TOKEN` fallback from the publication workflow
+- retain Sigstore provenance for every npm release
+- align npm and GitHub Action examples with the verification release
+
+## 0.4.1 - 2026-09-19
+
+npm packaging correction:
+
+- preserve the `trustdex` command in the published npm manifest with a normalized `bin` path
+- normalize repository metadata for npm and provenance tooling
+- document direct `npx trustdex` usage and expose the npm version badge
+
+## 0.4.0 - 2026-09-19
+
+Security hardening, artifact integrity, and public maintenance readiness:
 
 - run full cross-platform CI on Ubuntu, Windows, and macOS
 - exercise the composite GitHub Action end to end in CI
