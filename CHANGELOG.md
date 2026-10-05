@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.4 - 2026-10-06
+
 - add a documented defensive security research policy and reproducible evaluation record
 - add inert adversarial MCP fixtures with enforced ALLOW / ASK / BLOCK expectations and drift tests
 - produce checksums and a CycloneDX SBOM for future GitHub releases
