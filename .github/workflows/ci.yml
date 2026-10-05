@@ -38,6 +38,9 @@ jobs:
       - run: npm test
       - run: npm run check
 
+      - name: Verify defensive research benchmark
+        run: npm run test:research
+
       - name: Verify strict example blocks unknown tool
         shell: bash
         run: |

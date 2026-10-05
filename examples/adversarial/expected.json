@@ -1,0 +1,30 @@
+{
+  "trusted-pinned-package": {
+    "action": "allow",
+    "signals": ["install-on-run"]
+  },
+  "floating-version": {
+    "action": "block",
+    "signals": ["install-on-run", "unbounded-version"]
+  },
+  "shell-launcher": {
+    "action": "block",
+    "signals": ["filesystem-path", "shell-execution"]
+  },
+  "credential-bearing-url": {
+    "action": "block",
+    "signals": ["embedded-credentials", "network-endpoint", "url-query-parameters"]
+  },
+  "insecure-remote": {
+    "action": "block",
+    "signals": ["insecure-transport", "network-endpoint"]
+  },
+  "sensitive-local-env": {
+    "action": "ask",
+    "signals": ["filesystem-path", "secret-env"]
+  },
+  "unknown-remote": {
+    "action": "block",
+    "signals": ["network-endpoint"]
+  }
+}

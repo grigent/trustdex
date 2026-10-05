@@ -30,11 +30,28 @@ Once trusted publishing works, remove the `NPM_TOKEN` repository secret and revo
 
 Both release workflows run `npm pkg fix` and require a clean `package.json` diff before packing or publishing. This prevents npm from silently normalizing away critical metadata such as the CLI entrypoint.
 
-## Provenance
+## Provenance and release evidence
 
 The repository is public and the package is public, so GitHub-hosted publishing can emit npm provenance. The workflow also passes `--provenance` explicitly.
 
 Provenance links the published artifact to its source/build environment. It does not prove that the package contains no malicious behavior.
+
+The GitHub release workflow also creates and uploads:
+
+- the npm package tarball built from the release commit
+- a CycloneDX JSON SBOM
+- a `SHA256SUMS` file covering the tarball and SBOM
+- a GitHub build-provenance attestation for the tarball
+- a GitHub SBOM attestation binding the SBOM to the tarball
+
+After downloading a release, verify its checksum and GitHub attestation before inspection or installation:
+
+```bash
+shasum -a 256 -c SHA256SUMS
+gh attestation verify trustdex-<version>.tgz --repo grigent/trustdex
+```
+
+The npm provenance statement and GitHub attestations cover different publication paths. Neither is a malware analysis or a substitute for reviewing the release contents and the documented trust boundary.
 
 ## Version checklist
 
