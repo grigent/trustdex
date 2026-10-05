@@ -100,6 +100,23 @@ Exit codes for inspection:
 - `1` - at least one entry needs review
 - `2` - at least one entry is blocked, or the command failed
 
+## Reproducible defensive research
+
+TrustDex includes an inert adversarial benchmark for testing the policy boundary without contacting or executing third-party services. The fixtures use reserved `.invalid` domains, placeholder credentials, and configuration data only; TrustDex inspects them statically and never launches the listed servers.
+
+```bash
+npm run test:research
+
+node ./bin/trustdex.mjs inspect \
+  ./examples/adversarial/mcp-config.json \
+  --pack strict \
+  --policy ./examples/adversarial/policy.json
+```
+
+The direct inspection intentionally exits with code `2`: the checked-in expectation is one `ALLOW`, one `ASK`, and five `BLOCK` decisions. The automated test also verifies that placeholder secret values do not appear in results and that a newly introduced secret-bearing environment variable invalidates the previous review state.
+
+See the [defensive security research policy](docs/SECURITY_RESEARCH.md), [evaluation record](docs/EVALUATION.md), and [adversarial fixture guide](examples/adversarial/README.md).
+
 ## Built-in policy packs
 
 ```bash
@@ -322,7 +339,7 @@ The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-ter
 
 TrustDex does **not** prove that third-party code is safe and does not replace sandboxing, dependency scanning, code review, or least-privilege credentials.
 
-See [SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), and [docs/TRUST_STORE.md](docs/TRUST_STORE.md).
+See [SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/SECURITY_RESEARCH.md](docs/SECURITY_RESEARCH.md), [docs/EVALUATION.md](docs/EVALUATION.md), and [docs/TRUST_STORE.md](docs/TRUST_STORE.md).
 
 ## Contributing
 

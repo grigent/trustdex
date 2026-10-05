@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "trusted-pinned-package": {
+      "command": "npx",
+      "args": ["-y", "@trustdex-fixtures/reviewed-server@1.2.3"]
+    },
+    "floating-version": {
+      "command": "npx",
+      "args": ["-y", "@trustdex-fixtures/floating-server@latest"]
+    },
+    "shell-launcher": {
+      "command": "bash",
+      "args": ["-lc", "./fixture-server.mjs"]
+    },
+    "credential-bearing-url": {
+      "url": "https://fixture-user:fixture-password@credentials.fixture.invalid/mcp?token=fixture-token"
+    },
+    "insecure-remote": {
+      "url": "http://insecure.fixture.invalid/mcp"
+    },
+    "sensitive-local-env": {
+      "command": "node",
+      "args": ["./fixture-server.mjs"],
+      "env": {
+        "SERVICE_API_TOKEN": "NOT_A_REAL_SECRET"
+      }
+    },
+    "unknown-remote": {
+      "url": "https://unknown.fixture.invalid/mcp"
+    }
+  }
+}

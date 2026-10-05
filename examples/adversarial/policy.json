@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "trustedPackages": [
+    "@trustdex-fixtures/reviewed-server"
+  ],
+  "allowedRemoteHosts": [
+    "credentials.fixture.invalid",
+    "insecure.fixture.invalid"
+  ]
+}

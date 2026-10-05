@@ -13,6 +13,9 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
   release:
@@ -61,11 +64,50 @@ jobs:
       - run: npm run check
       - run: npm pack --dry-run
 
+      - name: Build release package, SBOM, and checksums
+        id: artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          PACKAGE_FILE="$(npm pack --pack-destination dist --json | node -e '
+            let input = "";
+            process.stdin.on("data", (chunk) => { input += chunk; });
+            process.stdin.on("end", () => {
+              const report = JSON.parse(input);
+              process.stdout.write(report[0].filename);
+            });
+          ')"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          SBOM_FILE="trustdex-v${PACKAGE_VERSION}.sbom.cdx.json"
+          npm sbom --sbom-format=cyclonedx > "dist/$SBOM_FILE"
+          (
+            cd dist
+            shasum -a 256 "$PACKAGE_FILE" "$SBOM_FILE" > SHA256SUMS
+          )
+          echo "package_path=dist/$PACKAGE_FILE" >> "$GITHUB_OUTPUT"
+          echo "sbom_path=dist/$SBOM_FILE" >> "$GITHUB_OUTPUT"
+          echo "checksums_path=dist/SHA256SUMS" >> "$GITHUB_OUTPUT"
+
+      - name: Attest release package provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ steps.artifacts.outputs.package_path }}
+
+      - name: Attest release package SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
+        with:
+          subject-path: ${{ steps.artifacts.outputs.package_path }}
+          sbom-path: ${{ steps.artifacts.outputs.sbom_path }}
+
       - name: Create release and tag
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          PACKAGE_PATH: ${{ steps.artifacts.outputs.package_path }}
+          SBOM_PATH: ${{ steps.artifacts.outputs.sbom_path }}
+          CHECKSUMS_PATH: ${{ steps.artifacts.outputs.checksums_path }}
         run: |
           set -euo pipefail
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
@@ -75,4 +117,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             --target "${{ github.sha }}" \
             --title "TrustDex $RELEASE_TAG" \
-            --generate-notes
+            --generate-notes \
+            "$PACKAGE_PATH" \
+            "$SBOM_PATH" \
+            "$CHECKSUMS_PATH"
