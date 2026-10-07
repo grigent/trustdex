@@ -1,5 +1,9 @@
 # Contributing
 
+<p align="right">
+  <strong>English</strong> | <a href="./CONTRIBUTING.ko.md">한국어</a>
+</p>
+
 Thank you for helping improve TrustDex. This is security-sensitive software, so changes should be small enough to review and explicit about what they do and do not prove.
 
 ## Before you start

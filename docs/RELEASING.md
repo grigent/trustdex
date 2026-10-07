@@ -1,5 +1,9 @@
 # Releasing TrustDex
 
+<p align="right">
+  <strong>English</strong> | <a href="./RELEASING.ko.md">한국어</a>
+</p>
+
 TrustDex uses two small GitHub Actions workflows:
 
 - `release.yml` creates a GitHub tag and release after tests pass.

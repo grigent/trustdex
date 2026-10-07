@@ -1,5 +1,9 @@
 # Defensive evaluation
 
+<p align="right">
+  <strong>English</strong> | <a href="./EVALUATION.ko.md">한국어</a>
+</p>
+
 This evaluation records the behavior enforced by the checked-in adversarial fixtures. Run `npm run test:research` to reproduce it. The test performs local static inspection only and does not execute or contact any configured server.
 
 ## MCP policy cases

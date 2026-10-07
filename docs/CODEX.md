@@ -1,5 +1,9 @@
 # Using TrustDex with Codex
 
+<p align="right">
+  <strong>English</strong> | <a href="./CODEX.ko.md">한국어</a>
+</p>
+
 This guide covers two things: gating the MCP servers a Codex client may start, and how TrustDex itself is maintained with Codex.
 
 TrustDex is an independent project. It is not affiliated with, endorsed by, or certified by OpenAI, and an ALLOW decision is not an OpenAI or TrustDex safety certification.

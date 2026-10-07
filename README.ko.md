@@ -20,7 +20,7 @@ TrustDex는 AI 에이전트가 어떤 MCP 서버, 스킬, 플러그인을 사용
 
 > TrustDex는 보안 관련 인프라이며, 악성 코드 스캐너, 샌드박스 또는 인증 서비스가 아닙니다. ALLOW 결과는 검사된 증거가 사용자의 정책과 일치한다는 의미일 뿐입니다.
 
-> **프로젝트 상태:** TrustDex는 초기 단계이며 파일럿 사용자를 찾고 있습니다. 보안 경계가 문서화되어 있고, 지원되는 Node.js 버전에서 변경 사항을 테스트하지만, 1.0 이전에는 호환성이 계속 변경될 수 있습니다. [로드맵](docs/ROADMAP.md), [거버넌스](GOVERNANCE.md), [지원 가이드](SUPPORT.md)를 참고하세요.
+> **프로젝트 상태:** TrustDex는 초기 단계이며 파일럿 사용자를 찾고 있습니다. 보안 경계가 문서화되어 있고, 지원되는 Node.js 버전에서 변경 사항을 테스트하지만, 1.0 이전에는 호환성이 계속 변경될 수 있습니다. [로드맵](docs/ROADMAP.ko.md), [거버넌스](GOVERNANCE.ko.md), [지원 가이드](SUPPORT.ko.md)를 참고하세요.
 
 ## TrustDex가 필요한 이유
 
@@ -120,7 +120,7 @@ node ./bin/trustdex.mjs inspect \
 
 직접 검사는 의도적으로 종료 코드 `2`를 반환합니다. 체크인된 기대 결과는 `ALLOW` 1개, `ASK` 1개, `BLOCK` 5개입니다. 자동화된 테스트는 자리표시자 비밀 값이 결과에 나타나지 않는지, 비밀 정보를 포함하는 새 환경 변수가 이전 검토 상태를 무효화하는지도 확인합니다.
 
-[방어적 보안 연구 정책](docs/SECURITY_RESEARCH.md), [평가 기록](docs/EVALUATION.md), [적대적 픽스처 가이드](examples/adversarial/README.md)를 참고하세요.
+[방어적 보안 연구 정책](docs/SECURITY_RESEARCH.ko.md), [평가 기록](docs/EVALUATION.ko.md), [적대적 픽스처 가이드](examples/adversarial/README.ko.md)를 참고하세요.
 
 ## 기본 제공 정책 팩
 
@@ -132,7 +132,7 @@ node ./bin/trustdex.mjs policy development
 
 `official-first`는 소위 공식 공급업체의 하드코딩된 목록을 유지하지 **않습니다**. 신뢰 저장소에 명시적인 출처 증거가 있는 소스(또는 사용자가 명시적으로 허용 목록에 추가한 소스)만 허용하며, 알 수 없는 서드파티 소스는 기본적으로 차단합니다.
 
-[신뢰 저장소와 출처](docs/TRUST_STORE.md)를 참고하세요.
+[신뢰 저장소와 출처](docs/TRUST_STORE.ko.md)를 참고하세요.
 
 ## 에이전트가 사용하기 전에 도구 필터링
 
@@ -169,7 +169,7 @@ node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
 
 게이트는 승인되지 않은 MCP 섹션을 제거하면서 관련 없는 TOML 섹션은 유지합니다. TrustDex는 필요한 MCP 관련 TOML 구성만 의도적으로 파싱합니다. 지원하지 않는 MCP 구문은 조용히 신뢰하지 않고 실패합니다.
 
-단계별 게이트 워크플로와 이 프로젝트가 자체 검토 과정에서 Codex를 사용하는 방법은 [Codex에서 TrustDex 사용하기](docs/CODEX.md)를 참고하세요.
+단계별 게이트 워크플로와 이 프로젝트가 자체 검토 과정에서 Codex를 사용하는 방법은 [Codex에서 TrustDex 사용하기](docs/CODEX.ko.md)를 참고하세요.
 
 ## Claude Code MCP 설정
 
@@ -183,7 +183,7 @@ claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
 
 Claude를 시작하기 전에 게이트의 결과를 확인하세요. 기본적으로 `ALLOW` 항목만 노출되며, `ASK` 항목에는 검토가 필요합니다. 어댑터는 검사할 수 없는 설정을 조용히 신뢰하지 않고 거부합니다. 이 명령은 npm 0.5.0 이상과 소스 체크아웃에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.5.0`을 사용하세요.
 
-지원되는 설정, PowerShell 오류 처리, 서명된 검토 및 Claude Desktop 워크플로는 [Claude에서 TrustDex 사용하기](docs/CLAUDE.md)를 참고하세요.
+지원되는 설정, PowerShell 오류 처리, 서명된 검토 및 Claude Desktop 워크플로는 [Claude에서 TrustDex 사용하기](docs/CLAUDE.ko.md)를 참고하세요.
 
 ## 온라인 출처 관찰
 
@@ -352,17 +352,17 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 
 ## 로드맵
 
-공개 로드맵은 [docs/ROADMAP.md](docs/ROADMAP.md)에서 관리합니다. 단기 작업은 레지스트리 무결성 검증, 재현 가능한 릴리스, 추가 에이전트 런타임 어댑터 및 실제 파일럿 피드백에 중점을 둡니다. 로드맵 항목은 계획이며 약속이 아닙니다.
+공개 로드맵은 [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)에서 관리합니다. 단기 작업은 레지스트리 무결성 검증, 재현 가능한 릴리스, 추가 에이전트 런타임 어댑터 및 실제 파일럿 피드백에 중점을 둡니다. 로드맵 항목은 계획이며 약속이 아닙니다.
 
 ## 보안
 
 TrustDex는 서드파티 코드가 안전하다는 것을 **증명하지 않으며**, 샌드박싱, 의존성 검사, 코드 검토 또는 최소 권한 자격 증명을 대체하지 않습니다.
 
-[SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/SECURITY_RESEARCH.md](docs/SECURITY_RESEARCH.md), [docs/EVALUATION.md](docs/EVALUATION.md), [docs/TRUST_STORE.md](docs/TRUST_STORE.md)를 참고하세요.
+[SECURITY.ko.md](SECURITY.ko.md), [docs/THREAT_MODEL.ko.md](docs/THREAT_MODEL.ko.md), [docs/SECURITY_RESEARCH.ko.md](docs/SECURITY_RESEARCH.ko.md), [docs/EVALUATION.ko.md](docs/EVALUATION.ko.md), [docs/TRUST_STORE.ko.md](docs/TRUST_STORE.ko.md)를 참고하세요.
 
 ## 기여
 
-기여를 환영합니다. [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md), [AGENTS.md](AGENTS.md)를 참고하세요.
+기여를 환영합니다. [CONTRIBUTING.ko.md](CONTRIBUTING.ko.md), [GOVERNANCE.ko.md](GOVERNANCE.ko.md), [CODE_OF_CONDUCT.ko.md](CODE_OF_CONDUCT.ko.md), [AGENTS.ko.md](AGENTS.ko.md)를 참고하세요.
 
 ## 라이선스
 

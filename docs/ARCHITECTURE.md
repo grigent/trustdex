@@ -1,5 +1,9 @@
 # Architecture
 
+<p align="right">
+  <strong>English</strong> | <a href="./ARCHITECTURE.ko.md">한국어</a>
+</p>
+
 TrustDex is a dependency-free Node.js CLI that separates observation, policy, gating, and review evidence.
 
 ## Data flow

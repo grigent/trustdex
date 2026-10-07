@@ -1,5 +1,9 @@
 # Security Policy
 
+<p align="right">
+  <strong>English</strong> | <a href="./SECURITY.ko.md">한국어</a>
+</p>
+
 TrustDex is security-related software, but it is not a sandbox, malware scanner, vulnerability scanner, or certification service. An ALLOW decision means only that the observed evidence matched the selected policy.
 
 ## Supported versions

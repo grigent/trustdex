@@ -1,5 +1,9 @@
 # Trust store and provenance
 
+<p align="right">
+  <strong>English</strong> | <a href="./TRUST_STORE.ko.md">한국어</a>
+</p>
+
 TrustDex does not guess whether a publisher is "official" from a package name, GitHub stars, or branding.
 
 A source can receive a `verified` provenance assertion only when the user or an organization places an explicit claim in a local trust store.

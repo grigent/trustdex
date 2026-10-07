@@ -1,5 +1,9 @@
 # Support
 
+<p align="right">
+  <strong>English</strong> | <a href="./SUPPORT.ko.md">한국어</a>
+</p>
+
 ## Where to ask
 
 Use a GitHub issue when you have a reproducible bug, compatibility problem, or feature proposal. Choose the closest issue form and provide a minimal configuration with all credentials and private endpoints replaced.

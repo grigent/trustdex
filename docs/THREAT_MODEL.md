@@ -1,5 +1,9 @@
 # Threat model
 
+<p align="right">
+  <strong>English</strong> | <a href="./THREAT_MODEL.ko.md">한국어</a>
+</p>
+
 TrustDex addresses one narrow question:
 
 > **Should an agent be allowed to see and invoke this extension under the user's policy?**

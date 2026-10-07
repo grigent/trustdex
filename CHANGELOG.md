@@ -1,5 +1,9 @@
 # Changelog
 
+<p align="right">
+  <strong>English</strong> | <a href="./CHANGELOG.ko.md">한국어</a>
+</p>
+
 ## Unreleased
 
 ## 0.5.0 - 2026-10-07

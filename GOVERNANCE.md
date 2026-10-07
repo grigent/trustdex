@@ -1,5 +1,9 @@
 # Governance
 
+<p align="right">
+  <strong>English</strong> | <a href="./GOVERNANCE.ko.md">한국어</a>
+</p>
+
 TrustDex uses a lightweight maintainer-led governance model appropriate for an early-stage security project.
 
 ## Mission

@@ -1,5 +1,9 @@
 # Inert adversarial fixtures
 
+<p align="right">
+  <strong>English</strong> | <a href="./README.ko.md">한국어</a>
+</p>
+
 These files provide a reproducible defensive test of TrustDex's policy boundary.
 
 - `mcp-config.json` contains seven static MCP configuration cases.

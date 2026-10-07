@@ -1,5 +1,9 @@
 # Using TrustDex with Claude
 
+<p align="right">
+  <strong>English</strong> | <a href="./CLAUDE.ko.md">한국어</a>
+</p>
+
 TrustDex can inspect Claude MCP JSON before Claude Code or Claude Desktop receives it.
 It evaluates configuration evidence locally, does not start MCP servers, and does not
 upload your configuration. An ALLOW decision means the evidence matched your policy;

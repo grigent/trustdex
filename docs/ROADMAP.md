@@ -1,5 +1,9 @@
 # Roadmap
 
+<p align="right">
+  <strong>English</strong> | <a href="./ROADMAP.ko.md">한국어</a>
+</p>
+
 TrustDex is early-stage. This roadmap communicates direction and is not a release commitment.
 
 ## Now: harden the boundary

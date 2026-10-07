@@ -1,5 +1,9 @@
 # AGENTS.md
 
+<p align="right">
+  <strong>English</strong> | <a href="./AGENTS.ko.md">한국어</a>
+</p>
+
 TrustDex is a security-sensitive, local-first CLI. Changes should prefer small, auditable code over large dependency trees.
 
 ## Development rules

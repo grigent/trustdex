@@ -1,5 +1,9 @@
 # Defensive security research
 
+<p align="right">
+  <strong>English</strong> | <a href="./SECURITY_RESEARCH.ko.md">한국어</a>
+</p>
+
 TrustDex is developed for legitimate defensive research into trust decisions made before AI agents receive access to third-party tools. This document defines the authorization, safety, and disclosure boundaries for that work.
 
 ## Purpose

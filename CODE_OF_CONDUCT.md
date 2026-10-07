@@ -1,5 +1,9 @@
 # Code of Conduct
 
+<p align="right">
+  <strong>English</strong> | <a href="./CODE_OF_CONDUCT.ko.md">한국어</a>
+</p>
+
 TrustDex welcomes participation from people with different backgrounds and levels of experience.
 
 ## Expected behavior
