@@ -18,7 +18,7 @@ Contributors submit issues, documentation, tests, or code. Repeated contribution
 
 ### Maintainers
 
-Maintainers triage issues, review pull requests, define releases, coordinate security reports, and protect the documented trust boundary. The current maintainer is @grigent.
+Maintainers triage issues, review pull requests, define releases, coordinate security reports, and protect the documented trust boundary. The current maintainer is Jungje Lee (@grigent).
 
 ## Decisions
 
