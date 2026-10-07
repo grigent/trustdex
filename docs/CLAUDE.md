@@ -5,8 +5,9 @@ It evaluates configuration evidence locally, does not start MCP servers, and doe
 upload your configuration. An ALLOW decision means the evidence matched your policy;
 it does not prove that server code is safe.
 
-The Claude-specific commands are available from this source checkout. They are not
-included in the published npm 0.4.4 release.
+The Claude-specific commands are available in TrustDex 0.5.0 and later.
+Use `npx trustdex@0.5.0` in place of `node ./bin/trustdex.mjs` in the examples
+below to run the published CLI, or use the commands directly from a source checkout.
 
 ## Supported configuration
 
