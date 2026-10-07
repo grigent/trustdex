@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-07
+
 - add Claude MCP JSON inspection and gating for stdio, HTTP, and SSE configurations
 - fail closed on unsupported Claude settings and unresolved command/endpoint expansion
 - review authentication header metadata and block shell-based header helpers by default without retaining secret values
