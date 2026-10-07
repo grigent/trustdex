@@ -6,6 +6,7 @@ import process from 'node:process';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
 import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
+import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
@@ -47,6 +48,13 @@ Usage:
       [--trust-store trust-store.json] [--include-ask] [--json]
   trustdex gate-codex <config.toml> --out gated.toml [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--include-ask]
+
+  trustdex inspect-claude <.mcp.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex gate-claude <.mcp.json> --out gated.json [--pack ...] [--policy policy.json]
+  trustdex snapshot-claude <.mcp.json> --out snapshot.json [--pack ...]
+  trustdex approve-claude <.mcp.json> --private key.pem --dir review [--pack ...]
+  trustdex recheck-claude <.mcp.json> --review-dir review --public key.pem [--json]
+  Claude commands accept the same policy/trust-store flags as their generic counterparts.
 
   trustdex provenance github <owner/repo> [--json]
   trustdex provenance github-release <owner/repo> [--json]
@@ -146,8 +154,14 @@ function setInspectExitCode(results) {
 }
 
 async function evaluateMcp(configPath, args) {
-  const config = await readJson(configPath);
-  const inspected = inspectMcpConfig(config);
+  const isClaude = args[0].endsWith('-claude');
+  let config;
+  try { config = await readJson(configPath); } catch (error) {
+    if (isClaude && error instanceof SyntaxError) throw new Error('Invalid Claude MCP JSON.');
+    throw error;
+  }
+  const inspectionConfig = isClaude ? parseClaudeMcpConfig(config) : config;
+  const inspected = inspectMcpConfig(inspectionConfig);
   const store = await loadTrustStore(args);
   const withProvenance = store ? attachProvenanceAll(inspected, store) : inspected;
   const policy = await loadPolicy(args);
@@ -225,7 +239,7 @@ async function main() {
     return;
   }
 
-  if (command === 'inspect') {
+  if (command === 'inspect' || command === 'inspect-claude') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect requires a path to an MCP JSON file.');
 
@@ -311,7 +325,7 @@ async function main() {
     return;
   }
 
-  if (command === 'gate') {
+  if (command === 'gate' || command === 'gate-claude') {
     const configPath = args[1];
     const out = getFlag(args, '--out');
     if (!configPath || !out) throw new Error('gate requires <mcp.json> and --out <gated.json>.');
@@ -332,7 +346,7 @@ async function main() {
     return;
   }
 
-  if (command === 'approve') {
+  if (command === 'approve' || command === 'approve-claude') {
     const configPath = args[1];
     const privatePath = getFlag(args, '--private');
     const reviewDir = getFlag(args, '--dir');
@@ -364,7 +378,7 @@ async function main() {
     return;
   }
 
-  if (command === 'recheck') {
+  if (command === 'recheck' || command === 'recheck-claude') {
     const configPath = args[1];
     const reviewDir = getFlag(args, '--review-dir');
     const publicPath = getFlag(args, '--public');
@@ -409,7 +423,7 @@ async function main() {
     return;
   }
 
-  if (command === 'snapshot') {
+  if (command === 'snapshot' || command === 'snapshot-claude') {
     const configPath = args[1];
     const out = getFlag(args, '--out');
     if (!configPath || !out) throw new Error('snapshot requires <mcp.json> and --out <snapshot.json>.');

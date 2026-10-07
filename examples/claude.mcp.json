@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "reviewed": {
+      "type": "http",
+      "url": "https://reviewed.invalid/mcp"
+    },
+    "unknown": {
+      "type": "http",
+      "url": "https://unknown.invalid/mcp"
+    },
+    "helper": {
+      "type": "http",
+      "url": "https://reviewed.invalid/mcp",
+      "headersHelper": "INERT_HELPER_NOT_EXECUTED"
+    },
+    "needsReview": {
+      "type": "http",
+      "url": "https://reviewed.invalid/mcp",
+      "headers": {
+        "Authorization": "Bearer ${EXAMPLE_API_TOKEN}"
+      }
+    }
+  }
+}
