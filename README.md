@@ -54,6 +54,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - run as a GitHub Action in CI
 - fingerprint MCP entries, skills, and plugin manifests without storing secret values
 - inspect and filter Codex `config.toml` MCP sections
+- inspect and filter Claude Code MCP JSON with explicit transport validation and header execution controls
 - perform explicit provenance lookups against GitHub, npm, and the official MCP Registry
 - verify whether the latest GitHub release tag/commit has a GitHub-verified signature
 - create signed review bundles and automatically require re-review when trust-relevant state drifts
@@ -165,6 +166,26 @@ node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
 The gate removes non-approved MCP sections while preserving unrelated TOML sections. TrustDex intentionally parses only the MCP-related TOML constructs it needs; unsupported MCP syntax fails rather than being silently trusted.
 
 See [Using TrustDex with Codex](docs/CODEX.md) for a step-by-step gating workflow and for how this project uses Codex in its own review process.
+
+## Claude Code MCP configuration
+
+Claude Code uses the `mcpServers` JSON shape. Use the Claude-specific commands so
+transport changes, authentication header metadata, and header helper commands
+are included in inspection and signed review:
+
+```bash
+node ./bin/trustdex.mjs inspect-claude ./.mcp.json --pack strict
+node ./bin/trustdex.mjs gate-claude ./.mcp.json --pack strict --out .trustdex/claude-mcp.json
+claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
+```
+
+Check the gate's result before starting Claude. Only `ALLOW` entries are exposed by
+default; `ASK` entries require review. The adapter rejects settings it cannot
+inspect instead of silently trusting them. These commands are currently
+available from a source checkout and are not in npm 0.4.4.
+
+See [Using TrustDex with Claude](docs/CLAUDE.md) for supported settings, PowerShell
+error handling, signed review, and the Claude Desktop workflow.
 
 ## Online provenance observations
 

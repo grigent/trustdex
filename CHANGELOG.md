@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- add Claude MCP JSON inspection and gating for stdio, HTTP, and SSE configurations
+- fail closed on unsupported Claude settings and unresolved command/endpoint expansion
+- review authentication header metadata and block shell-based header helpers by default without retaining secret values
+- add Claude-specific snapshots and signed approval/recheck commands
+- document Claude Code and Claude Desktop gating workflows
+
 ## 0.4.4 - 2026-10-06
 
 - add a documented defensive security research policy and reproducible evaluation record
