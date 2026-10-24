@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-10-24
+
 - add static Claude Code permission inspection for automatic shell, filesystem, network, MCP, and subagent grants
 - add static Codex approval, sandbox, network, writable-root, web-search, and subagent settings inspection
 - fail closed on unsupported security-relevant settings without retaining command, path, domain, hook, credential-helper, or unrelated setting values
