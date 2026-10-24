@@ -7,9 +7,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { createToolPermissionBindingSnapshot } from '../src/bindings.mjs';
+import { sha256Json } from '../src/canonical.mjs';
 import {
   createEffectiveRuntimeEvidence,
   diffEffectiveRuntimeEvidence,
+  runtimeToolInventoryDigest,
   validateEffectiveRuntimeEvidence
 } from '../src/runtime-evidence.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
@@ -51,6 +53,25 @@ function inventory(servers, extra = {}) {
   };
 }
 
+function verifiedAuthentication(runtimeInventory, overrides = {}) {
+  return {
+    valid: true,
+    reason: null,
+    producerKeyId: 'a'.repeat(64),
+    inventoryDigest: runtimeToolInventoryDigest(runtimeInventory),
+    attestationDigest: 'b'.repeat(64),
+    ...overrides
+  };
+}
+
+function evidence(bindingSnapshot, runtimeInventory) {
+  return createEffectiveRuntimeEvidence(
+    bindingSnapshot,
+    runtimeInventory,
+    verifiedAuthentication(runtimeInventory)
+  );
+}
+
 function run(...args) {
   const output = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
   if (output.error) throw output.error;
@@ -58,7 +79,7 @@ function run(...args) {
 }
 
 test('effective runtime evidence matches observed ALLOW sources and counts tools', () => {
-  const report = createEffectiveRuntimeEvidence(bindings([
+  const report = evidence(bindings([
     bindingResult('reviewed', 'allow', 'verified'),
     bindingResult('manual', 'allow')
   ], [grant('reviewed', 'scoped'), grant('manual')]), inventory([
@@ -73,7 +94,7 @@ test('effective runtime evidence matches observed ALLOW sources and counts tools
 });
 
 test('blocked and unexpected observed servers block the effective boundary', () => {
-  const report = createEffectiveRuntimeEvidence(bindings([
+  const report = evidence(bindings([
     bindingResult('reviewed', 'allow', 'verified'),
     bindingResult('blocked', 'block')
   ], [grant('reviewed', 'scoped'), grant('blocked', 'all', true)]), inventory([
@@ -95,7 +116,7 @@ test('Codex runtime evidence preserves review for an observed all-tool grant', (
     grants: [grant('reviewed', 'all')],
     policy: getPolicyPack('strict')
   });
-  const report = createEffectiveRuntimeEvidence(codexBindings, inventory([
+  const report = evidence(codexBindings, inventory([
     { name: 'reviewed', toolCount: 5 }
   ], { runtime: 'codex', captureMethod: 'runtime-export' }));
 
@@ -109,10 +130,10 @@ test('unobserved configured servers are restriction-only and ASK exposure needs 
     bindingResult('reviewed', 'allow', 'verified'),
     bindingResult('pending', 'ask')
   ], [grant('reviewed', 'scoped'), grant('pending', 'scoped')]);
-  const restricted = createEffectiveRuntimeEvidence(baseline, inventory([
+  const restricted = evidence(baseline, inventory([
     { name: 'reviewed', toolCount: 2 }
   ]));
-  const expanded = createEffectiveRuntimeEvidence(baseline, inventory([
+  const expanded = evidence(baseline, inventory([
     { name: 'reviewed', toolCount: 2 },
     { name: 'pending', toolCount: 1 }
   ], { capturedAt: '2026-10-24T00:05:00.000Z' }));
@@ -137,7 +158,7 @@ test('runtime inventory and evidence parsing fail closed on extra values and tam
     { name: 'reviewed', toolCount: 1 }
   ], { capturedAt: 'not-a-time' })), /timestamp/);
 
-  const report = createEffectiveRuntimeEvidence(baseline, inventory([
+  const report = evidence(baseline, inventory([
     { name: 'reviewed', toolCount: 1 }
   ]));
   const tampered = structuredClone(report);
@@ -151,8 +172,8 @@ test('runtime inventory and evidence parsing fail closed on extra values and tam
 
 test('zero-tool observation changes do not create contradictory tool-count drift', () => {
   const baseline = bindings([bindingResult('reviewed', 'allow')], [grant('reviewed')]);
-  const before = createEffectiveRuntimeEvidence(baseline, inventory([]));
-  const after = createEffectiveRuntimeEvidence(baseline, inventory([
+  const before = evidence(baseline, inventory([]));
+  const after = evidence(baseline, inventory([
     { name: 'reviewed', toolCount: 0 }
   ], { capturedAt: '2026-10-24T00:05:00.000Z' }));
   const diff = diffEffectiveRuntimeEvidence(before, after);
@@ -162,20 +183,94 @@ test('zero-tool observation changes do not create contradictory tool-count drift
   assert.equal(diff.changes.some((change) => change.type === 'tool-count-changed'), false);
 });
 
+test('unverified runtime inventory fails closed and authentication changes require review', () => {
+  const baseline = bindings([bindingResult('reviewed', 'allow', 'verified')], [grant('reviewed', 'scoped')]);
+  const input = inventory([{ name: 'reviewed', toolCount: 2 }]);
+  const unverified = createEffectiveRuntimeEvidence(baseline, input);
+  const verified = evidence(baseline, input);
+
+  assert.equal(unverified.schemaVersion, 2);
+  assert.equal(unverified.inventoryAuthentication, 'unverified');
+  assert.equal(unverified.producerKeyId, null);
+  assert.equal(unverified.attestationDigest, null);
+  assert.equal(unverified.status, 'needs-review');
+  assert.equal(verified.inventoryAuthentication, 'verified');
+  assert.equal(verified.status, 'matched');
+  assert.throws(
+    () => createEffectiveRuntimeEvidence(baseline, input, verifiedAuthentication(input, {
+      inventoryDigest: '0'.repeat(64)
+    })),
+    /authentication digest mismatch/
+  );
+
+  const diff = diffEffectiveRuntimeEvidence(unverified, verified);
+  assert.equal(diff.schemaVersion, 2);
+  assert.equal(diff.status, 'needs-review');
+  assert.ok(diff.changes.some((change) => change.type === 'inventory-authentication-changed'));
+  assert.ok(diff.changes.some((change) => change.type === 'producer-key-changed'));
+});
+
+test('producer-key rotation requires review while same-key attestation refresh does not', () => {
+  const baseline = bindings([bindingResult('reviewed', 'allow', 'verified')], [grant('reviewed', 'scoped')]);
+  const input = inventory([{ name: 'reviewed', toolCount: 2 }]);
+  const before = evidence(baseline, input);
+  const refreshed = createEffectiveRuntimeEvidence(baseline, input, verifiedAuthentication(input, {
+    attestationDigest: 'c'.repeat(64)
+  }));
+  const rotated = createEffectiveRuntimeEvidence(baseline, input, verifiedAuthentication(input, {
+    producerKeyId: 'd'.repeat(64)
+  }));
+
+  assert.equal(diffEffectiveRuntimeEvidence(before, refreshed).status, 'unchanged');
+  const rotation = diffEffectiveRuntimeEvidence(before, rotated);
+  assert.equal(rotation.status, 'needs-review');
+  assert.ok(rotation.changes.some((change) => change.type === 'producer-key-changed'));
+});
+
+test('legacy schema-v1 effective evidence remains valid and diffable', () => {
+  const current = evidence(
+    bindings([bindingResult('reviewed', 'allow', 'verified')], [grant('reviewed', 'scoped')]),
+    inventory([{ name: 'reviewed', toolCount: 2 }])
+  );
+  const {
+    inventoryAuthentication: _inventoryAuthentication,
+    producerKeyId: _producerKeyId,
+    attestationDigest: _attestationDigest,
+    digest: _digest,
+    ...payload
+  } = current;
+  const legacy = { ...payload, schemaVersion: 1 };
+  legacy.digest = sha256Json({
+    schemaVersion: legacy.schemaVersion,
+    kind: legacy.kind,
+    runtime: legacy.runtime,
+    capturedAt: legacy.capturedAt,
+    captureMethod: legacy.captureMethod,
+    bindingDigest: legacy.bindingDigest,
+    inventoryDigest: legacy.inventoryDigest,
+    status: legacy.status,
+    summary: legacy.summary,
+    servers: legacy.servers
+  });
+
+  assert.equal(validateEffectiveRuntimeEvidence(legacy).status, 'matched');
+  const diff = diffEffectiveRuntimeEvidence(legacy, legacy);
+  assert.equal(diff.schemaVersion, 1);
+  assert.equal(diff.status, 'unchanged');
+});
+
 test('versioned runtime evidence schemas cover inputs, snapshots, and diffs', () => {
   const inventorySchema = JSON.parse(fs.readFileSync(
     fileURLToPath(new URL('../schemas/runtime-tool-inventory-v1.schema.json', import.meta.url)), 'utf8'
   ));
   const reportSchema = JSON.parse(fs.readFileSync(
-    fileURLToPath(new URL('../schemas/effective-runtime-tools-v1.schema.json', import.meta.url)), 'utf8'
+    fileURLToPath(new URL('../schemas/effective-runtime-tools-v2.schema.json', import.meta.url)), 'utf8'
   ));
   const diffSchema = JSON.parse(fs.readFileSync(
-    fileURLToPath(new URL('../schemas/effective-runtime-tools-diff-v1.schema.json', import.meta.url)), 'utf8'
+    fileURLToPath(new URL('../schemas/effective-runtime-tools-diff-v2.schema.json', import.meta.url)), 'utf8'
   ));
   const input = inventory([{ name: 'reviewed', toolCount: 1 }]);
-  const report = createEffectiveRuntimeEvidence(
-    bindings([bindingResult('reviewed', 'allow')], [grant('reviewed')]), input
-  );
+  const report = evidence(bindings([bindingResult('reviewed', 'allow')], [grant('reviewed')]), input);
   const diff = diffEffectiveRuntimeEvidence(report, report);
 
   for (const key of inventorySchema.required) assert.ok(Object.hasOwn(input, key));

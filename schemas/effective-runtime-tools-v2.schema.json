@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/effective-runtime-tools-v2.schema.json",
+  "title": "TrustDex authenticated effective runtime tool boundary v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "kind", "createdAt", "runtime", "capturedAt", "captureMethod",
+    "bindingDigest", "inventoryDigest", "inventoryAuthentication", "producerKeyId",
+    "attestationDigest", "status", "summary", "servers", "digest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": { "inventoryAuthentication": { "const": "verified" } },
+        "required": ["inventoryAuthentication"]
+      },
+      "then": {
+        "properties": {
+          "producerKeyId": { "$ref": "#/$defs/digest" },
+          "attestationDigest": { "$ref": "#/$defs/digest" }
+        }
+      },
+      "else": {
+        "properties": {
+          "producerKeyId": { "type": "null" },
+          "attestationDigest": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "inventoryAuthentication": { "const": "unverified" } },
+        "required": ["inventoryAuthentication"]
+      },
+      "then": {
+        "properties": { "status": { "enum": ["needs-review", "block"] } }
+      }
+    }
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "kind": { "const": "agent-effective-tool-boundary" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "runtime": { "enum": ["claude", "codex"] },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "captureMethod": { "enum": ["runtime-export", "runtime-adapter"] },
+    "bindingDigest": { "$ref": "#/$defs/digest" },
+    "inventoryDigest": { "$ref": "#/$defs/digest" },
+    "inventoryAuthentication": { "enum": ["unverified", "verified"] },
+    "producerKeyId": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "attestationDigest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "status": { "enum": ["matched", "restricted", "needs-review", "block"] },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "configuredServerCount", "observedServerCount", "observedToolCount", "matchedCount",
+        "reviewCount", "blockedCount", "unexpectedCount", "notObservedCount"
+      ],
+      "properties": {
+        "configuredServerCount": { "$ref": "#/$defs/count" },
+        "observedServerCount": { "$ref": "#/$defs/count" },
+        "observedToolCount": { "$ref": "#/$defs/count" },
+        "matchedCount": { "$ref": "#/$defs/count" },
+        "reviewCount": { "$ref": "#/$defs/count" },
+        "blockedCount": { "$ref": "#/$defs/count" },
+        "unexpectedCount": { "$ref": "#/$defs/count" },
+        "notObservedCount": { "$ref": "#/$defs/count" }
+      }
+    },
+    "servers": { "type": "array", "items": { "$ref": "#/$defs/server" } },
+    "digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "count": { "type": "integer", "minimum": 0 },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name", "configured", "observed", "toolCount", "sourceDecision", "provenanceStatus",
+        "automaticGrant", "bindingStatus", "status"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "configured": { "type": "boolean" },
+        "observed": { "type": "boolean" },
+        "toolCount": { "oneOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
+        "sourceDecision": { "oneOf": [{ "enum": ["allow", "ask", "block"] }, { "type": "null" }] },
+        "provenanceStatus": { "oneOf": [{ "enum": ["unknown", "verified", "mismatch"] }, { "type": "null" }] },
+        "automaticGrant": { "oneOf": [{ "enum": ["none", "scoped", "all"] }, { "type": "null" }] },
+        "bindingStatus": { "oneOf": [{ "enum": ["not-granted", "bound", "needs-review", "blocked"] }, { "type": "null" }] },
+        "status": { "enum": ["matched", "not-observed", "needs-review", "blocked", "unexpected"] }
+      }
+    }
+  }
+}

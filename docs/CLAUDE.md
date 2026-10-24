@@ -216,7 +216,10 @@ Then run `snapshot-runtime-tools <bindings> <inventory> --out <evidence>`. Loade
 sources and servers absent from `.mcp.json` block the result; loaded review-required
 bindings remain review-required. `diff-runtime-tools` detects newly visible servers and
 tool-count growth. TrustDex does not call Claude, discover session files, authenticate
-the adapter, or prove the inventory is complete.
+the adapter automatically, or prove the inventory is complete. Production evidence
+should use `sign-runtime-inventory`, a pinned producer public key, bounded
+`--max-age-seconds`, and `--require-authenticated` as shown in
+[Authenticated runtime evidence](RUNTIME_EVIDENCE.md).
 
 ## Signed review and drift
 

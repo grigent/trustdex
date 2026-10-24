@@ -106,13 +106,20 @@ exercise the opt-in runtime inventory contract. They require:
 - an observed ASK/broad-grant binding to require review
 - configured but unobserved servers to be restriction-only
 - newly observed servers and tool-count growth to be expansion
+- unauthenticated schema-v2 inventories to remain `needs-review` even when exposure matches
 - raw tool lists, duplicate server names, extra fields, invalid timestamps, and tampered evidence to fail closed
 - output to retain only server names, tool counts, fixed policy/provenance enums, and digests
 
-The fixture is adapter-shaped evidence, not a live Claude or Codex capture. TrustDex
-cannot determine whether an inventory is authentic or complete; deployments must secure
-the producer and transport separately. Same-count tool-set substitutions are invisible
-because the value-free contract intentionally omits tool names.
+`test/runtime-attestation.test.mjs` additionally requires an Ed25519 signature to bind
+the exact inventory, runtime metadata, producer key ID, creation time, and expiry. Wrong
+keys, modified inventories, expired/stale captures, excessive lifetimes, and future-dated
+evidence fail closed. The CLI test requires authenticated reconciliation to reach
+`matched` without printing private-key material.
+
+The fixture is adapter-shaped evidence, not a live Claude or Codex capture. A valid
+producer signature authenticates the supplied bytes and pinned key, not completeness or
+truthfulness. Same-count tool-set substitutions are invisible because the value-free
+contract intentionally omits tool names.
 
 ## Merged settings stack cases
 

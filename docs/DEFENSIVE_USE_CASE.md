@@ -46,7 +46,7 @@ This work is defensive engineering. It does not require credential theft, persis
 | Keep secrets out of evidence | tests for redaction from output, snapshots, and configuration fingerprints |
 | Make approval drift visible | deterministic snapshots, Ed25519 review records, and recheck commands |
 | Reconcile source trust with automatic grants | value-free Claude/Codex binding snapshots, schemas, diffs, and inert fixtures |
-| Compare reviewed intent with explicit runtime evidence | value-free inventory contract, effective-boundary reconciliation, and exposure drift tests |
+| Compare reviewed intent with explicit runtime evidence | value-free inventory contract, short-lived Ed25519 producer attestations, effective-boundary reconciliation, and exposure drift tests |
 | Reduce supply-chain ambiguity | explicit provenance observations, artifact digest verification, release checksums, SBOMs, and build attestations |
 | Keep research reproducible | inert fixtures, documented expectations, cross-platform CI, and CodeQL |
 
@@ -72,10 +72,12 @@ or blocked grants reviewable without retaining tool names or permission specifie
 It remains static evidence and does not enforce runtime calls.
 
 `snapshot-runtime-tools` accepts a value-free inventory from an authorized runtime
-adapter and reconciles it with those bindings. This can surface loaded blocked sources
-and unexpected servers without retaining tool names. The adapter remains outside the
-TrustDex trust boundary, so its identity, transport, and completeness need independent
-controls.
+adapter and reconciles it with those bindings. `sign-runtime-inventory` and
+`verify-runtime-inventory` bind the exact capture to a pinned Ed25519 producer key with
+short expiry and optional capture-age enforcement. This can surface loaded blocked
+sources and unexpected servers without retaining tool names. Authentication does not
+prove capture completeness or protect a compromised adapter; see
+[Authenticated runtime evidence](RUNTIME_EVIDENCE.md).
 
 ## CVP application boundary
 

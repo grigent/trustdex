@@ -165,7 +165,9 @@ the MCP server names visible to that session and a tool count for each server. R
 the reviewed Codex binding snapshot, and `diff-runtime-tools` to gate exposure growth.
 This is an opt-in evidence adapter contract, not automatic config discovery, an official
 Codex export format, or runtime enforcement. Confirm the capture path and sandbox in the
-client separately.
+client separately. Production evidence should use `sign-runtime-inventory`, a pinned
+producer public key, bounded `--max-age-seconds`, and `--require-authenticated` as shown
+in [Authenticated runtime evidence](RUNTIME_EVIDENCE.md).
 
 ### Skills and plugins
 
