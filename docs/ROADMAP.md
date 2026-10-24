@@ -9,8 +9,9 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 ## Progress
 
 - TrustDex 0.6.0 added fail-closed Claude Code and Codex permission inspection.
-- Current development adds value-free, self-validating permission posture snapshots,
-  autonomy-expansion review gates, and public adversarial permission fixtures.
+- TrustDex 0.7.0 adds value-free, self-validating permission posture snapshots,
+  autonomy-expansion review gates, versioned JSON schemas, and public adversarial
+  permission fixtures.
 
 ## Now: harden the boundary
 
