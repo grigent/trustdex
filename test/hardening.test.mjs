@@ -29,6 +29,45 @@ test('redacts remote URL credentials and query values from inspection output', (
   assert.equal(JSON.stringify(result).includes('/private/path'), false);
 });
 
+test('does not fingerprint URL secrets or sensitive command arguments', () => {
+  const inspect = (secret) => inspectMcpConfig({
+    mcpServers: {
+      remote: {
+        url: `https://alice:${secret}@example.com/mcp?token=${secret}&scope=read#${secret}`
+      },
+      local: {
+        command: 'node',
+        args: [
+          'server.mjs',
+          '--api-token', secret,
+          `--password=${secret}`,
+          '--header', `Authorization: Bearer ${secret}`,
+          `https://example.com/callback?code=${secret}`
+        ]
+      }
+    }
+  });
+
+  const first = inspect('INERT_SECRET_ONE');
+  const second = inspect('INERT_SECRET_TWO');
+  assert.equal(first[0].fingerprint, second[0].fingerprint);
+  assert.equal(first[1].fingerprint, second[1].fingerprint);
+  assert.equal(JSON.stringify(first).includes('INERT_SECRET_ONE'), false);
+});
+
+test('keeps non-secret remote endpoint changes trust-relevant', () => {
+  const fingerprint = (url) => inspectMcpConfig({ mcpServers: { remote: { url } } })[0].fingerprint;
+
+  assert.notEqual(
+    fingerprint('https://example.com/mcp?token=one'),
+    fingerprint('https://example.com/admin?token=one')
+  );
+  assert.notEqual(
+    fingerprint('https://example.com/mcp?token=one'),
+    fingerprint('https://example.com/mcp?credential=one')
+  );
+});
+
 test('strict policy blocks an allowlisted host over insecure transport', () => {
   const [server] = inspectMcpConfig({
     mcpServers: {
