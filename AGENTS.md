@@ -29,6 +29,7 @@ Apply these when reviewing a TrustDex pull request, including automated `@codex 
 - Flag parser changes (MCP JSON, Codex TOML, `SKILL.md`, plugin manifests) that silently ignore unsupported syntax instead of failing closed.
 - Flag Claude settings inspection that retains permission specifiers, hook commands, credential-helper values, directory values, domains, or environment values. Only structural capability evidence and environment-variable names may be reported.
 - Flag Codex settings inspection that retains writable-root paths or values from unrelated settings. Only the documented approval/sandbox enums, structural counts, and inspected boolean controls may be reported.
+- Flag permission posture snapshots that retain source paths, permission specifiers, writable paths, commands, domains, environment names or values, or unrelated setting values. Added autonomy or changed policy semantics must require review.
 - Flag signature, fingerprint, or snapshot schema changes that would let an old approval validate a changed configuration.
 - Flag GitHub Actions changes that use an unpinned third-party action, widen `permissions`, or expose secrets to pull requests from forks.
 - Flag a new trust signal, policy rule, provenance adapter, or trust-record change that has no test.

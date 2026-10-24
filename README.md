@@ -219,6 +219,42 @@ The command reports structural capability evidence only. It does not print or fi
 permission specifiers, directory values, hook commands, domains, credential-helper values,
 or environment values. It is a static review aid, not a settings merger or runtime sandbox.
 
+## Permission posture drift
+
+Record a value-free structural baseline for either runtime, then compare it after an
+agent or policy change:
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-settings \
+  ./.claude/settings.json \
+  --pack strict \
+  --out .trustdex/claude-posture.json
+
+node ./bin/trustdex.mjs snapshot-codex-settings \
+  ~/.codex/config.toml \
+  --pack strict \
+  --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs diff-permissions \
+  .trustdex/approved-posture.json \
+  .trustdex/current-posture.json \
+  --json
+```
+
+`diff-permissions` exits `1` when automatic grants, writable scope, network access,
+subagents, policy semantics, or another unclassified setting expands. A change that
+is only more restrictive exits `0` with status `restricted`. Snapshots contain counts,
+documented enums, capability categories, risk signals, and a policy-semantics digest;
+they omit input paths, rule specifiers, writable paths, domains, commands, environment
+names and values, and unrelated setting values. Same-count changes to redacted rule
+contents cannot be detected, so this is an advisory CI review gate rather than runtime
+enforcement.
+
+Machine consumers can validate `--json` output against
+[`schemas/permission-posture-v1.schema.json`](schemas/permission-posture-v1.schema.json)
+and [`schemas/permission-posture-diff-v1.schema.json`](schemas/permission-posture-diff-v1.schema.json).
+Schema changes require a new integer `schemaVersion`; fields are not silently repurposed.
+
 ## Online provenance observations
 
 Normal inspection remains local-only. These commands perform an explicit network lookup only when invoked:

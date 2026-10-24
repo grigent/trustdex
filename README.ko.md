@@ -207,6 +207,42 @@ node ./bin/trustdex.mjs inspect-claude-settings \
 
 이 명령은 구조적인 기능 증거만 보고합니다. 권한 지정자, 디렉터리 값, 훅 명령, 도메인, 자격 증명 도우미 값 또는 환경 값을 출력하거나 지문에 포함하지 않습니다. 이는 정적 검토 도구이며 설정 병합기나 런타임 샌드박스가 아닙니다.
 
+## 권한 상태 드리프트
+
+각 런타임에 대해 값이 제거된 구조적 기준 상태를 기록한 뒤 에이전트 또는 정책
+변경 후 상태와 비교할 수 있습니다.
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-settings \
+  ./.claude/settings.json \
+  --pack strict \
+  --out .trustdex/claude-posture.json
+
+node ./bin/trustdex.mjs snapshot-codex-settings \
+  ~/.codex/config.toml \
+  --pack strict \
+  --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs diff-permissions \
+  .trustdex/approved-posture.json \
+  .trustdex/current-posture.json \
+  --json
+```
+
+자동 허용, 쓰기 범위, 네트워크 접근, 서브에이전트, 정책 의미 또는 분류되지 않은
+설정이 확대되면 `diff-permissions`는 종료 코드 `1`을 반환합니다. 더 제한적으로만
+변한 경우에는 종료 코드 `0`과 `restricted` 상태를 반환합니다. 스냅샷에는 개수,
+문서화된 열거 값, 기능 범주, 위험 신호 및 정책 의미 다이제스트만 포함됩니다.
+입력 경로, 규칙 지정자, 쓰기 가능 경로, 도메인, 명령, 환경 변수 이름과 값 및
+관련 없는 설정 값은 제외합니다. 값이 제거된 규칙 내용이 같은 개수 안에서 바뀌면
+감지할 수 없으므로 이는 런타임 강제가 아니라 권고형 CI 검토 게이트입니다.
+
+기계 소비자는 `--json` 출력을
+[`schemas/permission-posture-v1.schema.json`](schemas/permission-posture-v1.schema.json)과
+[`schemas/permission-posture-diff-v1.schema.json`](schemas/permission-posture-diff-v1.schema.json)으로
+검증할 수 있습니다. 스키마가 바뀌면 새로운 정수 `schemaVersion`을 사용하며 기존
+필드의 의미를 조용히 바꾸지 않습니다.
+
 ## 온라인 출처 관찰
 
 일반 검사는 계속 로컬에서만 수행됩니다. 다음 명령은 명시적으로 실행할 때만 네트워크 조회를 수행합니다.

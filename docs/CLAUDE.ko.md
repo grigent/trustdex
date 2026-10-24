@@ -91,6 +91,29 @@ node ./bin/trustdex.mjs inspect-claude-settings \
 
 이 명령은 한 번에 파일 하나만 검사합니다. Claude Code는 여러 범위의 설정을 병합하고 명령줄 플래그가 세션 권한을 추가할 수 있으므로 이 결과가 실제 런타임 정책은 아닙니다. Claude Code에서 로드된 소스와 권한을 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
 
+### 권한 상태 드리프트
+
+검토 후 기준 상태를 만들고 나중의 설정 상태와 비교하세요.
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-settings \
+  ./.claude/settings.json \
+  --pack strict \
+  --out .trustdex/claude-posture.json
+
+node ./bin/trustdex.mjs diff-permissions \
+  .trustdex/approved-claude-posture.json \
+  .trustdex/current-claude-posture.json
+```
+
+새 자동 도구 범주, 추가 규칙이나 디렉터리, 완화된 보호 스위치, 더 위험한 기본
+모드, 새 위험 신호 또는 정책 의미 변경은 `NEEDS_REVIEW`와 종료 코드 `1`을
+반환합니다. 제한적으로만 변한 경우 `RESTRICTED`와 종료 코드 `0`을 반환합니다.
+스냅샷은 소스 경로와 모든 권한, 훅, 디렉터리, 도메인, 자격 증명 도우미,
+플러그인 및 환경 값을 제외합니다. 제거된 규칙 내용을 의도적으로 지문화하지
+않으므로 같은 기능 범주 안에서 규칙 개수는 같고 내용만 바뀌는 경우에는 소스
+검토나 런타임 제어가 계속 필요합니다.
+
 ## 서명된 검토 및 드리프트
 
 검토 워크플로 전체에서 Claude 어댑터를 유지하세요. 일반 MCP 명령은 Claude 전용 제어를 검사하지 않습니다.

@@ -1,0 +1,18 @@
+{
+  "claude": {
+    "restrictiveAction": "ask",
+    "expandedAction": "block",
+    "diffStatus": "needs-review"
+  },
+  "codex": {
+    "restrictiveAction": "ask",
+    "expandedAction": "block",
+    "diffStatus": "needs-review"
+  },
+  "forbiddenOutputMarkers": [
+    "INERT_CLAUDE_PERMISSION_SECRET",
+    "INERT_CLAUDE_PERMISSION_PATH",
+    "INERT_CLAUDE_HOOK_SECRET",
+    "INERT_CODEX_PERMISSION_PATH"
+  ]
+}

@@ -1,0 +1,13 @@
+approval_policy = "never"
+approvals_reviewer = "auto_review"
+sandbox_mode = "danger-full-access"
+web_search = "live"
+
+[sandbox_workspace_write]
+network_access = true
+writable_roots = ["../INERT_CODEX_PERMISSION_PATH"]
+exclude_slash_tmp = false
+exclude_tmpdir_env_var = false
+
+[agents]
+enabled = true

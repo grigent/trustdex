@@ -136,6 +136,29 @@ sandboxing for enforcement. Official references: [settings files and precedence]
 [permissions](https://code.claude.com/docs/en/permissions), and
 [security](https://code.claude.com/docs/en/security).
 
+### Permission posture drift
+
+Create a baseline after review and compare a later settings state:
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-settings \
+  ./.claude/settings.json \
+  --pack strict \
+  --out .trustdex/claude-posture.json
+
+node ./bin/trustdex.mjs diff-permissions \
+  .trustdex/approved-claude-posture.json \
+  .trustdex/current-claude-posture.json
+```
+
+New automatic tool categories, added rules or directories, relaxed protective
+switches, a riskier default mode, new risk signals, or changed policy semantics return
+`NEEDS_REVIEW` and exit `1`. Restriction-only changes return `RESTRICTED` and exit `0`.
+The snapshot excludes source paths and every permission, hook, directory, domain,
+credential-helper, plugin, and environment value. Because it intentionally does not
+fingerprint redacted rule contents, a same-count change inside one capability category
+must still be covered by source review or runtime controls.
+
 ## Signed review and drift
 
 Keep the Claude adapter throughout a review workflow; generic MCP commands do not

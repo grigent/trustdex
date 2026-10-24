@@ -63,6 +63,22 @@ inspection result. No permission-settings fingerprint is created.
 Writable-root paths and unrelated setting values must not appear in results. No
 Codex-settings fingerprint is created.
 
+## Permission posture drift cases
+
+`examples/adversarial/permissions/` contains paired restrictive and expanded settings
+for both runtimes. `test/posture.test.mjs` requires:
+
+- the restrictive baseline to remain `ASK`, without implying certification
+- automatic shell/network/subagent grants and broader filesystem scope to raise risk
+- `diff-permissions` to return `needs-review` for autonomy expansion and policy changes
+- restriction-only changes to return `restricted` without a failure exit code
+- snapshots with recomputed structural digests to omit source paths, rule values,
+  writable paths, domains, commands, environment names and values, and adjacent-setting values
+- a snapshot whose contents no longer match its digest to fail closed
+
+The digest checks internal consistency, not signer identity. Same-count changes inside
+redacted permission rules remain outside this structural comparison.
+
 ## What this does not measure
 
 This benchmark is intentionally narrow. It does not measure runtime behavior, sandbox escape, arbitrary malware, every form of prompt injection, publisher identity ownership, or vulnerabilities in transitive dependencies. It does not merge every Claude or Codex settings scope, inspect session command-line overrides, or prove that the reported sandbox is active. In particular, tool descriptions returned dynamically by an already-running MCP server are outside the current static configuration boundary.

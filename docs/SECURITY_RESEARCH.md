@@ -19,6 +19,7 @@ The research asks whether observable configuration, provenance, integrity, and c
 - parser behavior that must fail closed on unsupported syntax
 - automatic action grants in Claude Code permission settings
 - Codex sandbox, approval, network, writable-root, web-search, and subagent settings
+- structural permission posture drift and review when agent autonomy expands
 
 The intended outputs are reproducible fixtures, regression tests, documented limitations, and practical mitigations for agent developers and operators.
 
@@ -61,6 +62,7 @@ Public reports must remove credentials, private endpoints, proprietary prompts, 
 - [Adversarial MCP fixtures](../examples/adversarial/README.md)
 - [Claude Code permission fixture](../examples/claude.settings.json)
 - [Codex permission fixture](../examples/codex.permissions.toml)
+- [Adversarial Claude and Codex permission posture fixtures](../examples/adversarial/permissions/README.md)
 - [Evaluation record](EVALUATION.md)
 - [Defensive AI-agent security use case](DEFENSIVE_USE_CASE.md)
 - [Threat model](THREAT_MODEL.md)

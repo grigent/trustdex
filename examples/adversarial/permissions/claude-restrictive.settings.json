@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(git status)",
+      "Agent(Explore)"
+    ],
+    "deny": [
+      "WebFetch",
+      "mcp__unreviewed__*"
+    ],
+    "defaultMode": "plan",
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable",
+    "blockReadsOutsideWorkingDirectories": true
+  }
+}

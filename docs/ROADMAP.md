@@ -6,10 +6,16 @@
 
 TrustDex is early-stage. This roadmap communicates direction and is not a release commitment.
 
+## Progress
+
+- TrustDex 0.6.0 added fail-closed Claude Code and Codex permission inspection.
+- Current development adds value-free, self-validating permission posture snapshots,
+  autonomy-expansion review gates, and public adversarial permission fixtures.
+
 ## Now: harden the boundary
 
 - expand adversarial fixtures for MCP JSON, Codex TOML, skills, and plugin manifests
-- expand adversarial permission fixtures for both Claude Code and Codex
+- keep expanding adversarial permission fixtures for both Claude Code and Codex
 - verify that all human-readable output remains free of secret values
 - improve cross-platform source and path normalization
 - document stable policy and snapshot schema rules
@@ -18,9 +24,9 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 ## Next: make agent action boundaries reviewable
 
 - inspect merged settings sources without retaining commands, paths, domains, or credential values
-- compare permission posture over time and require review when agent autonomy expands
+- extend the initial single-file posture comparison to merged settings sources
 - connect approved tool provenance to the action permissions granted to that tool
-- define machine-readable decision output for orchestrators and CI
+- extend the versioned permission-posture JSON schemas to additional decisions and runtimes
 - document how advisory settings checks compose with runtime and operating-system sandboxes
 
 ## Then: prove integrity
