@@ -24,6 +24,8 @@ TrustDex addresses one narrow question:
 - action-permission settings changing without an explicit review
 - Claude or Codex permission posture expanding relative to a value-free structural baseline
 - precedence changes across explicitly supplied Claude or Codex settings sources
+- automatic MCP tool grants that no longer match the server's policy/provenance result
+- wildcard, unmatched, or ambiguous grants that hide the effective tool boundary
 
 ## Trust boundaries
 
@@ -50,6 +52,8 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - proving that the explicitly merged settings projection is the policy active at runtime
 - enforcing Claude Code or Codex action permissions at runtime
 - authenticating the author of an unsigned permission posture snapshot
+- proving that a binding snapshot reflects the files actually loaded by a running agent
+- intercepting or enforcing individual MCP tool calls at runtime
 
 ## Important failure mode
 

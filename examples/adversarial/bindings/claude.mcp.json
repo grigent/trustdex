@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "reviewed": {
+      "type": "http",
+      "url": "https://reviewed-bindings.invalid/mcp/INERT_BINDING_URL_MARKER"
+    },
+    "unknown": {
+      "type": "http",
+      "url": "https://unknown-bindings.invalid/mcp/INERT_BINDING_URL_MARKER"
+    }
+  }
+}

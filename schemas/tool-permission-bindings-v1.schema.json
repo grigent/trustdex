@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/tool-permission-bindings-v1.schema.json",
+  "title": "TrustDex tool provenance and permission bindings v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "createdAt",
+    "runtime",
+    "policyDigest",
+    "trustStoreDigest",
+    "status",
+    "summary",
+    "bindings",
+    "digest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "agent-tool-permission-bindings" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "runtime": { "enum": ["claude", "codex"] },
+    "policyDigest": { "$ref": "#/$defs/digest" },
+    "trustStoreDigest": {
+      "oneOf": [
+        { "$ref": "#/$defs/digest" },
+        { "type": "null" }
+      ]
+    },
+    "status": { "enum": ["clear", "bound", "needs-review", "block"] },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "serverCount",
+        "automaticGrantCount",
+        "boundCount",
+        "reviewCount",
+        "blockedCount",
+        "unboundAutomaticGrantCount",
+        "ambiguousAutomaticGrantCount"
+      ],
+      "properties": {
+        "serverCount": { "$ref": "#/$defs/count" },
+        "automaticGrantCount": { "$ref": "#/$defs/count" },
+        "boundCount": { "$ref": "#/$defs/count" },
+        "reviewCount": { "$ref": "#/$defs/count" },
+        "blockedCount": { "$ref": "#/$defs/count" },
+        "unboundAutomaticGrantCount": { "$ref": "#/$defs/count" },
+        "ambiguousAutomaticGrantCount": { "$ref": "#/$defs/count" }
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/binding" }
+    },
+    "digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sourceDecision",
+        "provenanceStatus",
+        "integrityVerified",
+        "automaticGrant",
+        "grantRuleCount",
+        "toolScopeWildcard",
+        "status"
+      ],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "sourceDecision": { "enum": ["allow", "ask", "block"] },
+        "provenanceStatus": { "enum": ["unknown", "verified", "mismatch"] },
+        "integrityVerified": { "type": "boolean" },
+        "automaticGrant": { "enum": ["none", "scoped", "all"] },
+        "grantRuleCount": { "$ref": "#/$defs/count" },
+        "toolScopeWildcard": { "type": "boolean" },
+        "status": { "enum": ["not-granted", "bound", "needs-review", "blocked"] }
+      }
+    }
+  }
+}

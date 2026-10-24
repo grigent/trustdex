@@ -136,6 +136,27 @@ for the Codex runtime sandbox.
 Merged-source snapshots use schema v2. A source-scope count change is unclassified
 and therefore returns `NEEDS_REVIEW`, even when the final structural settings match.
 
+### Bind MCP provenance to automatic grants
+
+Codex can automatically approve every tool exposed by one MCP server. Review that
+grant together with the server's policy and provenance result:
+
+```bash
+node ./bin/trustdex.mjs snapshot-codex-bindings ~/.codex/config.toml \
+  --trust-store ./trust-store.json \
+  --pack strict \
+  --out .trustdex/codex-bindings.json
+
+node ./bin/trustdex.mjs diff-bindings \
+  .trustdex/approved-codex-bindings.json \
+  .trustdex/current-codex-bindings.json
+```
+
+`default_tools_approval_mode = "approve"` is an all-tool automatic grant and therefore
+requires review even for an ALLOW source. Wildcard tool scope is recorded as a boolean;
+tool names, endpoint paths, and unrelated values are omitted. This static binding does
+not prove the configuration is loaded or enforce the Codex runtime sandbox.
+
 ### Skills and plugins
 
 Agent skills and plugin manifests can be inspected the same way:

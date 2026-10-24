@@ -45,6 +45,7 @@ This work is defensive engineering. It does not require credential theft, persis
 | Avoid silent parser bypass | focused adapters reject unsupported security-relevant syntax |
 | Keep secrets out of evidence | tests for redaction from output, snapshots, and configuration fingerprints |
 | Make approval drift visible | deterministic snapshots, Ed25519 review records, and recheck commands |
+| Reconcile source trust with automatic grants | value-free Claude/Codex binding snapshots, schemas, diffs, and inert fixtures |
 | Reduce supply-chain ambiguity | explicit provenance observations, artifact digest verification, release checksums, SBOMs, and build attestations |
 | Keep research reproducible | inert fixtures, documented expectations, cross-platform CI, and CodeQL |
 
@@ -63,6 +64,11 @@ does not fully parse without retaining their values. `inspect-codex-settings-sta
 applies documented system-through-CLI precedence to supplied files, including ordered
 project layers. It does not discover the active layers, enforce requirements, or replace
 the active Codex sandbox.
+
+`snapshot-claude-bindings` and `snapshot-codex-bindings` connect each inspected MCP
+source decision/provenance state to its automatic tool-grant shape. This makes broad
+or blocked grants reviewable without retaining tool names or permission specifiers.
+It remains static evidence and does not enforce runtime calls.
 
 ## CVP application boundary
 

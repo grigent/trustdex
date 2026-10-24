@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "claims": [
+    {
+      "type": "remote",
+      "subject": "reviewed-bindings.invalid",
+      "publisher": "Inert Reviewed Publisher",
+      "status": "verified",
+      "evidence": {
+        "kind": "manual-review",
+        "reference": "https://evidence.invalid/trustdex/bindings-review"
+      }
+    }
+  ]
+}

@@ -8,7 +8,11 @@ import { inspectMcpConfig } from '../src/inspect.mjs';
 import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
 import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
-import { inspectClaudeSettings, inspectClaudeSettingsStack } from '../src/claude-settings.mjs';
+import {
+  inspectClaudeMcpPermissionBindings,
+  inspectClaudeSettings,
+  inspectClaudeSettingsStack
+} from '../src/claude-settings.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
@@ -27,6 +31,11 @@ import {
   createPermissionPostureSnapshot,
   diffPermissionPostureSnapshots
 } from '../src/posture.mjs';
+import {
+  codexAutomaticGrantProjection,
+  createToolPermissionBindingSnapshot,
+  diffToolPermissionBindingSnapshots
+} from '../src/bindings.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
 import { assessReview } from '../src/review.mjs';
 import {
@@ -66,6 +75,10 @@ Usage:
   trustdex inspect-claude-settings-stack [--user file] [--project file] [--local file]
       [--session file] [--managed file] [--json]
   trustdex snapshot-claude-settings-stack [same source flags] --out posture.json
+  trustdex snapshot-claude-bindings <.mcp.json> --settings file --out bindings.json
+      [--trust-store trust-store.json] [--pack ...]
+  trustdex snapshot-claude-bindings <.mcp.json> [Claude stack source flags]
+      --out bindings.json [--trust-store trust-store.json] [--pack ...]
   trustdex gate-claude <.mcp.json> --out gated.json [--pack ...] [--policy policy.json]
   trustdex snapshot-claude <.mcp.json> --out snapshot.json [--pack ...]
   trustdex approve-claude <.mcp.json> --private key.pem --dir review [--pack ...]
@@ -92,6 +105,9 @@ Usage:
 
   trustdex diff <before.json> <after.json> [--json]
   trustdex diff-permissions <before.json> <after.json> [--json]
+  trustdex snapshot-codex-bindings <config.toml> --out bindings.json
+      [--trust-store trust-store.json] [--pack ...]
+  trustdex diff-bindings <before.json> <after.json> [--json]
   trustdex policy <strict|official-first|development>
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
@@ -181,8 +197,8 @@ function setInspectExitCode(results) {
   else if (results.some((result) => result.action === 'ask')) process.exitCode = 1;
 }
 
-async function evaluateMcp(configPath, args) {
-  const isClaude = args[0].endsWith('-claude');
+async function evaluateMcp(configPath, args, options = {}) {
+  const isClaude = options.claude === true || args[0].endsWith('-claude');
   let config;
   try { config = await readJson(configPath); } catch (error) {
     if (isClaude && error instanceof SyntaxError) throw new Error('Invalid Claude MCP JSON.');
@@ -273,6 +289,37 @@ async function evaluateCodexSettingsStack(args) {
   return { policy, result };
 }
 
+async function loadClaudeBindingLayers(args) {
+  const single = getFlags(args, '--settings');
+  const stackScopes = ['user', 'project', 'local', 'session', 'managed'];
+  const hasStack = stackScopes.some((scope) => getFlags(args, `--${scope}`).length);
+  if (single.length > 1 || (single.length && hasStack)) {
+    throw new Error('Claude bindings accept one --settings file or stack source flags, not both.');
+  }
+  if (single.length) {
+    let settings;
+    try { settings = await readJson(single[0]); } catch (error) {
+      if (error instanceof SyntaxError) throw new Error('Invalid Claude settings JSON.');
+      throw error;
+    }
+    return [{ scope: 'session', settings }];
+  }
+
+  const layers = [];
+  for (const scope of stackScopes) {
+    for (const file of getFlags(args, `--${scope}`)) {
+      let settings;
+      try { settings = await readJson(file); } catch (error) {
+        if (error instanceof SyntaxError) throw new Error(`Invalid Claude ${scope} settings JSON.`);
+        throw error;
+      }
+      layers.push({ scope, settings });
+    }
+  }
+  if (!layers.length) throw new Error('Claude bindings require --settings or stack source flags.');
+  return layers;
+}
+
 function printObservation(observation, asJson) {
   if (asJson) {
     console.log(JSON.stringify(observation, null, 2));
@@ -313,6 +360,23 @@ function printPermissionPostureDiff(diff) {
       ? ` (${change.items.join(', ')})`
       : Object.hasOwn(change, 'before') ? ` (${String(change.before)} -> ${String(change.after)})` : '';
     console.log(`${change.impact.toUpperCase()} ${change.type}: ${change.field}${details}`);
+  }
+}
+
+function printBindingDiff(diff) {
+  if (diff.status === 'unchanged') {
+    console.log('UNCHANGED: tool permission bindings match the baseline.');
+    return;
+  }
+  console.log(diff.status === 'restricted'
+    ? 'RESTRICTED: automatic tool permissions became more restrictive.'
+    : 'NEEDS_REVIEW: tool provenance or automatic permissions changed.');
+  for (const change of diff.changes) {
+    const subject = change.name ? `${change.name}.` : '';
+    const details = change.before !== null || change.after !== null
+      ? ` (${String(change.before)} -> ${String(change.after)})`
+      : '';
+    console.log(`${change.impact.toUpperCase()} ${change.type}: ${subject}${change.field}${details}`);
   }
 }
 
@@ -422,6 +486,50 @@ async function main() {
     return;
   }
 
+  if (command === 'snapshot-claude-bindings') {
+    const configPath = args[1];
+    const out = getFlag(args, '--out');
+    if (!configPath || !out) {
+      throw new Error('snapshot-claude-bindings requires <.mcp.json>, settings sources, and --out <bindings.json>.');
+    }
+    const { policy, store, results } = await evaluateMcp(configPath, args, { claude: true });
+    const projection = inspectClaudeMcpPermissionBindings(
+      await loadClaudeBindingLayers(args),
+      results.map((result) => result.name)
+    );
+    const snapshot = createToolPermissionBindingSnapshot({
+      runtime: 'claude',
+      results,
+      grants: projection.grants,
+      policy,
+      trustStore: store,
+      unboundAutomaticGrantCount: projection.unboundAllowRuleCount,
+      ambiguousAutomaticGrantCount: projection.ambiguousAllowRuleCount
+    });
+    await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
+    console.log(`Wrote ${out}\nStatus: ${snapshot.status}\nDigest: ${snapshot.digest}`);
+    return;
+  }
+
+  if (command === 'snapshot-codex-bindings') {
+    const configPath = args[1];
+    const out = getFlag(args, '--out');
+    if (!configPath || !out) {
+      throw new Error('snapshot-codex-bindings requires <config.toml> and --out <bindings.json>.');
+    }
+    const { policy, store, results } = await evaluateCodex(configPath, args);
+    const snapshot = createToolPermissionBindingSnapshot({
+      runtime: 'codex',
+      results,
+      grants: codexAutomaticGrantProjection(results),
+      policy,
+      trustStore: store
+    });
+    await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
+    console.log(`Wrote ${out}\nStatus: ${snapshot.status}\nDigest: ${snapshot.digest}`);
+    return;
+  }
+
   if (command === 'diff-permissions') {
     const beforePath = args[1];
     const afterPath = args[2];
@@ -434,6 +542,22 @@ async function main() {
     );
     if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
     else printPermissionPostureDiff(diff);
+    if (diff.status === 'needs-review') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'diff-bindings') {
+    const beforePath = args[1];
+    const afterPath = args[2];
+    if (!beforePath || !afterPath) {
+      throw new Error('diff-bindings requires <before.json> <after.json>.');
+    }
+    const diff = diffToolPermissionBindingSnapshots(
+      await readJson(beforePath),
+      await readJson(afterPath)
+    );
+    if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
+    else printBindingDiff(diff);
     if (diff.status === 'needs-review') process.exitCode = 1;
     return;
   }

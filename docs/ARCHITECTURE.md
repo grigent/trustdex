@@ -13,7 +13,7 @@ TrustDex is a dependency-free Node.js CLI that separates observation, policy, ga
 3. Optional trust-store claims attach explicit provenance evidence.
 4. The policy engine produces ALLOW, ASK, or BLOCK.
 5. A gate emits only the approved configuration.
-6. MCP snapshots, permission posture snapshots, and signed trust records make later drift reviewable.
+6. MCP snapshots, permission posture snapshots, provenance-permission binding snapshots, and signed trust records make later drift reviewable.
 
 The gate is the enforcement boundary. Reports alone do not prevent an agent from loading an unreviewed extension.
 
@@ -32,6 +32,7 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 | src/gate.mjs | Output only approved MCP entries |
 | src/snapshot.mjs | Deterministic trust-relevant state and drift |
 | src/posture.mjs | Value-free Claude/Codex permission posture snapshots and autonomy-expansion classification |
+| src/bindings.mjs | Value-free MCP source/provenance to automatic-tool-grant bindings and drift classification |
 | src/trust-record.mjs | Ed25519 review-record signing and verification |
 | src/review.mjs | Signed-baseline comparison |
 
@@ -41,6 +42,7 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 - Secret values must not be printed or stored in snapshots.
 - Permission rule values, writable-root paths, hook/helper bodies, and unrelated settings values must not be retained in agent-settings reports.
 - Permission posture snapshots must omit source paths and setting values; new autonomy or changed policy semantics must require review.
+- Binding snapshots must omit permission specifiers and tool names; an automatic grant to ASK/BLOCK, wildcard expansion, provenance change, or ambiguous/unbound rule must never appear as safely bound.
 - Unknown evidence must not become trust.
 - A blocking signal must not be lowered by provenance.
 - Unsupported security-relevant syntax must fail closed.
@@ -53,6 +55,12 @@ security fields. It does not discover active files, profiles, environment overri
 requirements, or server-delivered policy, and it does not prove the reported policy is
 active. MCP gates remain the implemented enforcement boundary; operating-system and
 runtime sandboxes enforce agent actions.
+
+Binding snapshots compose two static projections: MCP inspection/policy results and
+automatic tool grants parsed from explicitly supplied runtime settings. They do not
+discover effective settings or intercept tool calls. A `bound` result means the
+observed scoped grant points to an ALLOW source under the supplied evidence, not that
+the tool implementation is safe or that the runtime loaded those files.
 
 ## Dependency policy
 

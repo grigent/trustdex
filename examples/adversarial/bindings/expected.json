@@ -1,0 +1,15 @@
+{
+  "claude": {
+    "status": "block",
+    "automaticGrantCount": 2,
+    "boundCount": 1,
+    "blockedCount": 1,
+    "unboundAutomaticGrantCount": 1
+  },
+  "codex": {
+    "status": "block",
+    "automaticGrantCount": 2,
+    "reviewCount": 1,
+    "blockedCount": 1
+  }
+}
