@@ -72,6 +72,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - bind integrity-backed trust evidence to the configured package version and block mismatches
 - bind each Claude/Codex MCP source decision and provenance state to its automatic tool grant without retaining tool names or rule values
 - reconcile explicit, value-free runtime MCP inventories with reviewed bindings and detect blocked or unexpected loaded servers
+- authenticate short-lived runtime inventories with Ed25519 producer attestations, expiry, and optional capture-age limits
 
 ## Compatibility
 
@@ -330,9 +331,23 @@ capture method, server names, and tool counts. TrustDex reconciles that explicit
 with a binding snapshot without searching private files or intercepting tool calls:
 
 ```bash
+node ./bin/trustdex.mjs keygen \
+  --private .trustdex/runtime-producer-private.pem \
+  --public .trustdex/runtime-producer-public.pem
+
+node ./bin/trustdex.mjs sign-runtime-inventory \
+  ./runtime-tool-inventory.json \
+  --private .trustdex/runtime-producer-private.pem \
+  --out .trustdex/runtime-attestation.json \
+  --ttl-seconds 300
+
 node ./bin/trustdex.mjs snapshot-runtime-tools \
   .trustdex/claude-bindings.json \
   ./runtime-tool-inventory.json \
+  --attestation .trustdex/runtime-attestation.json \
+  --public .trustdex/runtime-producer-public.pem \
+  --max-age-seconds 120 \
+  --require-authenticated \
   --out .trustdex/runtime-tools.json
 
 node ./bin/trustdex.mjs diff-runtime-tools \
@@ -344,14 +359,17 @@ node ./bin/trustdex.mjs diff-runtime-tools \
 Observed BLOCK sources and unexpected servers produce `block`; observed ASK or broad
 automatic-grant bindings produce `needs-review`; configured servers absent from the
 inventory are restriction-only. Tool-count growth and newly observed servers require
-review. The input and output schemas are
+review. An unauthenticated schema-v2 inventory is always at least `needs-review`.
+Authentication verifies the exact inventory, pinned producer key, expiry, and optional
+capture-age limit; it does not prove completeness or adapter safety. The schemas are
 [`schemas/runtime-tool-inventory-v1.schema.json`](schemas/runtime-tool-inventory-v1.schema.json),
-[`schemas/effective-runtime-tools-v1.schema.json`](schemas/effective-runtime-tools-v1.schema.json),
-and [`schemas/effective-runtime-tools-diff-v1.schema.json`](schemas/effective-runtime-tools-diff-v1.schema.json).
-TrustDex validates the supplied evidence shape and digest but does not authenticate the
-adapter, prove that the inventory is complete, or enforce the runtime. Because the
-contract retains counts instead of tool names, same-count tool-set substitutions remain
-outside this comparison.
+[`schemas/runtime-tool-inventory-attestation-v1.schema.json`](schemas/runtime-tool-inventory-attestation-v1.schema.json),
+[`schemas/effective-runtime-tools-v2.schema.json`](schemas/effective-runtime-tools-v2.schema.json),
+and [`schemas/effective-runtime-tools-diff-v2.schema.json`](schemas/effective-runtime-tools-diff-v2.schema.json).
+Legacy v1 effective reports remain readable. Because the contract retains counts instead
+of tool names, same-count tool-set substitutions remain outside this comparison. See
+[Authenticated runtime evidence](docs/RUNTIME_EVIDENCE.md) for verification, key rotation,
+and threat-boundary guidance.
 
 ## Online provenance observations
 
@@ -520,7 +538,7 @@ For production CI, pin the action to a reviewed commit SHA rather than a moving 
 
 ## Roadmap
 
-The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on authenticated runtime-evidence producers, stable opt-in adapters, reproducible controls, and real-world pilot feedback. Roadmap items are intentions, not promises.
+The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on stable opt-in runtime adapters, compatibility tests, reproducible controls, and real-world pilot feedback. Roadmap items are intentions, not promises.
 
 ## Security
 

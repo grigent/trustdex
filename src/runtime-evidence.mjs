@@ -39,7 +39,7 @@ function requireTimestamp(value, field) {
   return value;
 }
 
-function normalizeInventory(input) {
+export function normalizeRuntimeToolInventory(input) {
   const inventory = requireExactKeys(input, new Set([
     'schemaVersion', 'kind', 'runtime', 'capturedAt', 'captureMethod', 'servers'
   ]), 'Invalid runtime tool inventory.');
@@ -71,6 +71,10 @@ function normalizeInventory(input) {
   };
 }
 
+export function runtimeToolInventoryDigest(input) {
+  return sha256Json(normalizeRuntimeToolInventory(input));
+}
+
 function serverStatus(binding, observed) {
   if (!binding) return 'unexpected';
   if (!observed) return 'not-observed';
@@ -95,15 +99,41 @@ function createSummary(servers) {
   };
 }
 
-function evidenceStatus(summary) {
+function baseEvidenceStatus(summary) {
   if (summary.blockedCount || summary.unexpectedCount) return 'block';
   if (summary.reviewCount) return 'needs-review';
   if (summary.notObservedCount) return 'restricted';
   return 'matched';
 }
 
+function normalizeAuthentication(input, expectedInventoryDigest) {
+  if (input === undefined || input === null) {
+    return { status: 'unverified', producerKeyId: null, attestationDigest: null };
+  }
+  requireExactKeys(input, new Set([
+    'valid', 'reason', 'producerKeyId', 'inventoryDigest', 'attestationDigest'
+  ]), 'Invalid runtime inventory authentication.');
+  if (input.valid !== true || input.reason !== null) {
+    throw new Error('Runtime inventory authentication is not verified.');
+  }
+  if (requireDigest(input.inventoryDigest, 'inventoryDigest') !== expectedInventoryDigest) {
+    throw new Error('Runtime inventory authentication digest mismatch.');
+  }
+  return {
+    status: 'verified',
+    producerKeyId: requireDigest(input.producerKeyId, 'producerKeyId'),
+    attestationDigest: requireDigest(input.attestationDigest, 'attestationDigest')
+  };
+}
+
+function evidenceStatus(summary, authentication, schemaVersion = 2) {
+  if (summary.blockedCount || summary.unexpectedCount) return 'block';
+  if (schemaVersion >= 2 && authentication.status !== 'verified') return 'needs-review';
+  return baseEvidenceStatus(summary);
+}
+
 function evidenceDigest(snapshot) {
-  return sha256Json({
+  const projected = {
     schemaVersion: snapshot.schemaVersion,
     kind: snapshot.kind,
     runtime: snapshot.runtime,
@@ -114,7 +144,13 @@ function evidenceDigest(snapshot) {
     status: snapshot.status,
     summary: snapshot.summary,
     servers: snapshot.servers
-  });
+  };
+  if (snapshot.schemaVersion >= 2) {
+    projected.inventoryAuthentication = snapshot.inventoryAuthentication;
+    projected.producerKeyId = snapshot.producerKeyId;
+    projected.attestationDigest = snapshot.attestationDigest;
+  }
+  return sha256Json(projected);
 }
 
 function inventoryFromEvidence(snapshot) {
@@ -130,9 +166,11 @@ function inventoryFromEvidence(snapshot) {
   };
 }
 
-export function createEffectiveRuntimeEvidence(bindingInput, inventoryInput) {
+export function createEffectiveRuntimeEvidence(bindingInput, inventoryInput, authenticationInput = null) {
   const bindings = validateToolPermissionBindingSnapshot(bindingInput);
-  const inventory = normalizeInventory(inventoryInput);
+  const inventory = normalizeRuntimeToolInventory(inventoryInput);
+  const inventoryDigest = runtimeToolInventoryDigest(inventory);
+  const authentication = normalizeAuthentication(authenticationInput, inventoryDigest);
   if (bindings.runtime !== inventory.runtime) {
     throw new Error('Runtime inventory does not match the binding runtime.');
   }
@@ -157,15 +195,18 @@ export function createEffectiveRuntimeEvidence(bindingInput, inventoryInput) {
   });
   const summary = createSummary(servers);
   const snapshot = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: KIND,
     createdAt: new Date().toISOString(),
     runtime: inventory.runtime,
     capturedAt: inventory.capturedAt,
     captureMethod: inventory.captureMethod,
     bindingDigest: bindings.digest,
-    inventoryDigest: sha256Json(inventory),
-    status: evidenceStatus(summary),
+    inventoryDigest,
+    inventoryAuthentication: authentication.status,
+    producerKeyId: authentication.producerKeyId,
+    attestationDigest: authentication.attestationDigest,
+    status: evidenceStatus(summary, authentication),
     summary,
     servers
   };
@@ -207,11 +248,15 @@ function validateServer(server) {
 }
 
 function validateEvidence(snapshot) {
-  requireExactKeys(snapshot, new Set([
+  const baseFields = [
     'schemaVersion', 'kind', 'createdAt', 'runtime', 'capturedAt', 'captureMethod',
     'bindingDigest', 'inventoryDigest', 'status', 'summary', 'servers', 'digest'
-  ]), 'Invalid effective runtime evidence snapshot.');
-  if (snapshot.schemaVersion !== 1 || snapshot.kind !== KIND) {
+  ];
+  const expectedFields = new Set(snapshot?.schemaVersion === 2
+    ? [...baseFields, 'inventoryAuthentication', 'producerKeyId', 'attestationDigest']
+    : baseFields);
+  requireExactKeys(snapshot, expectedFields, 'Invalid effective runtime evidence snapshot.');
+  if (![1, 2].includes(snapshot.schemaVersion) || snapshot.kind !== KIND) {
     throw new Error('Unsupported effective runtime evidence schema.');
   }
   if (!RUNTIMES.has(snapshot.runtime)) throw new Error('Invalid effective runtime evidence runtime.');
@@ -221,6 +266,23 @@ function validateEvidence(snapshot) {
   requireDigest(snapshot.bindingDigest, 'bindingDigest');
   requireDigest(snapshot.inventoryDigest, 'inventoryDigest');
   requireDigest(snapshot.digest, 'digest');
+  let authentication = { status: 'unverified', producerKeyId: null, attestationDigest: null };
+  if (snapshot.schemaVersion === 2) {
+    if (!['unverified', 'verified'].includes(snapshot.inventoryAuthentication)) {
+      throw new Error('Invalid runtime inventory authentication state.');
+    }
+    if (snapshot.inventoryAuthentication === 'verified') {
+      authentication = normalizeAuthentication({
+        valid: true,
+        reason: null,
+        producerKeyId: snapshot.producerKeyId,
+        inventoryDigest: snapshot.inventoryDigest,
+        attestationDigest: snapshot.attestationDigest
+      }, snapshot.inventoryDigest);
+    } else if (snapshot.producerKeyId !== null || snapshot.attestationDigest !== null) {
+      throw new Error('Unverified runtime inventory cannot retain attestation metadata.');
+    }
+  }
   if (!EVIDENCE_STATUSES.has(snapshot.status)) throw new Error('Invalid effective runtime evidence status.');
   if (!Array.isArray(snapshot.servers)) throw new Error('Effective runtime evidence is missing servers.');
   for (const server of snapshot.servers) validateServer(server);
@@ -239,7 +301,9 @@ function validateEvidence(snapshot) {
   if (snapshot.inventoryDigest !== sha256Json(inventoryFromEvidence(snapshot))) {
     throw new Error('Effective runtime inventory digest mismatch.');
   }
-  if (snapshot.status !== evidenceStatus(summary)) throw new Error('Effective runtime evidence status mismatch.');
+  if (snapshot.status !== evidenceStatus(summary, authentication, snapshot.schemaVersion)) {
+    throw new Error('Effective runtime evidence status mismatch.');
+  }
   if (snapshot.digest !== evidenceDigest(snapshot)) throw new Error('Effective runtime evidence digest mismatch.');
   return snapshot;
 }
@@ -262,6 +326,16 @@ export function diffEffectiveRuntimeEvidence(beforeInput, afterInput) {
   }
   if (before.captureMethod !== after.captureMethod) {
     addChange(changes, 'review', 'capture-method-changed', null, 'captureMethod', before.captureMethod, after.captureMethod);
+  }
+  const beforeAuthentication = before.schemaVersion === 2 ? before.inventoryAuthentication : 'unverified';
+  const afterAuthentication = after.schemaVersion === 2 ? after.inventoryAuthentication : 'unverified';
+  if (beforeAuthentication !== afterAuthentication) {
+    addChange(changes, 'review', 'inventory-authentication-changed', null, 'inventoryAuthentication', beforeAuthentication, afterAuthentication);
+  }
+  const beforeKeyId = before.schemaVersion === 2 ? before.producerKeyId : null;
+  const afterKeyId = after.schemaVersion === 2 ? after.producerKeyId : null;
+  if (beforeKeyId !== afterKeyId) {
+    addChange(changes, 'review', 'producer-key-changed', null, 'producerKeyId', beforeKeyId, afterKeyId);
   }
 
   const left = new Map(before.servers.map((server) => [server.name, server]));
@@ -306,7 +380,7 @@ export function diffEffectiveRuntimeEvidence(beforeInput, afterInput) {
     reviews: changes.filter((change) => change.impact === 'review').length
   };
   return {
-    schemaVersion: 1,
+    schemaVersion: before.schemaVersion === 2 || after.schemaVersion === 2 ? 2 : 1,
     runtime: before.runtime,
     status: summary.expansions || summary.reviews ? 'needs-review' :
       summary.restrictions ? 'restricted' : 'unchanged',

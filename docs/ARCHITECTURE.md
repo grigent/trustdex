@@ -14,7 +14,7 @@ TrustDex is a dependency-free Node.js CLI that separates observation, policy, ga
 4. The policy engine produces ALLOW, ASK, or BLOCK.
 5. A gate emits only the approved configuration.
 6. MCP snapshots, permission posture snapshots, provenance-permission binding snapshots, and signed trust records make later drift reviewable.
-7. An explicitly supplied value-free runtime inventory can be reconciled with reviewed bindings; TrustDex does not discover or intercept the runtime.
+7. An explicitly supplied value-free runtime inventory can be authenticated with a short-lived Ed25519 producer attestation and reconciled with reviewed bindings; TrustDex does not discover or intercept the runtime.
 
 The gate is the enforcement boundary. Reports alone do not prevent an agent from loading an unreviewed extension.
 
@@ -35,6 +35,7 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 | src/posture.mjs | Value-free Claude/Codex permission posture snapshots and autonomy-expansion classification |
 | src/bindings.mjs | Value-free MCP source/provenance to automatic-tool-grant bindings and drift classification |
 | src/runtime-evidence.mjs | Explicit runtime inventory validation, effective-boundary reconciliation, and exposure drift |
+| src/runtime-attestation.mjs | Ed25519 runtime-inventory producer signing, freshness, key-ID, and exact-inventory verification |
 | src/trust-record.mjs | Ed25519 review-record signing and verification |
 | src/review.mjs | Signed-baseline comparison |
 
@@ -46,6 +47,7 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 - Permission posture snapshots must omit source paths and setting values; new autonomy or changed policy semantics must require review.
 - Binding snapshots must omit permission specifiers and tool names; an automatic grant to ASK/BLOCK, wildcard expansion, provenance change, or ambiguous/unbound rule must never appear as safely bound.
 - Runtime evidence must reject raw tool lists and unexpected fields, block observed BLOCK/unconfigured servers, and treat newly observed servers or tool-count growth as reviewable expansion.
+- Unauthenticated runtime evidence must never become `matched` or `restricted`; verified status requires an exact-inventory signature from the supplied pinned key that is unexpired and within configured freshness limits.
 - Unknown evidence must not become trust.
 - A blocking signal must not be lowered by provenance.
 - Unsupported security-relevant syntax must fail closed.
@@ -67,8 +69,10 @@ the tool implementation is safe or that the runtime loaded those files.
 
 Runtime evidence adds a third, opt-in projection supplied by an authorized adapter. Its
 contract contains server names and tool counts, not tool names, endpoints, paths, or
-credentials. The inventory digest authenticates internal state only; an operator must
-authenticate the producer and confirm completeness through a separate trusted channel.
+credentials. A short-lived Ed25519 attestation can bind the exact inventory to a pinned
+producer key. The operator must obtain that public key through a trusted channel and
+still confirm capture completeness; a valid signature cannot detect a compromised or
+incomplete adapter.
 
 ## Dependency policy
 

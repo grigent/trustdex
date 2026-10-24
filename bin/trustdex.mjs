@@ -40,6 +40,10 @@ import {
   createEffectiveRuntimeEvidence,
   diffEffectiveRuntimeEvidence
 } from '../src/runtime-evidence.mjs';
+import {
+  createRuntimeInventoryAttestation,
+  verifyRuntimeInventoryAttestation
+} from '../src/runtime-attestation.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
 import { assessReview } from '../src/review.mjs';
 import {
@@ -113,7 +117,13 @@ Usage:
       [--trust-store trust-store.json] [--pack ...]
   trustdex diff-bindings <before.json> <after.json> [--json]
   trustdex snapshot-runtime-tools <bindings.json> <inventory.json> --out runtime.json
+      [--attestation attestation.json --public key.pem] [--max-age-seconds n]
+      [--require-authenticated]
   trustdex diff-runtime-tools <before.json> <after.json> [--json]
+  trustdex sign-runtime-inventory <inventory.json> --private key.pem --out attestation.json
+      [--ttl-seconds 300]
+  trustdex verify-runtime-inventory <inventory.json> --attestation attestation.json
+      --public key.pem [--max-age-seconds n] [--json]
   trustdex policy <strict|official-first|development>
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
@@ -163,6 +173,15 @@ function getFlags(args, name) {
 
 function hasFlag(args, name) {
   return args.includes(name);
+}
+
+function getIntegerFlag(args, name, fallback = undefined) {
+  const value = getFlag(args, name);
+  if (value === null) return fallback;
+  if (!/^\d+$/.test(value)) throw new Error(`${name} requires a non-negative integer.`);
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed)) throw new Error(`${name} exceeds the supported integer range.`);
+  return parsed;
 }
 
 function label(action) {
@@ -560,12 +579,74 @@ async function main() {
     if (!bindingsPath || !inventoryPath || !out) {
       throw new Error('snapshot-runtime-tools requires <bindings.json> <inventory.json> and --out <runtime.json>.');
     }
+    const inventory = await readJson(inventoryPath);
+    const attestationPath = getFlag(args, '--attestation');
+    const publicPath = getFlag(args, '--public');
+    if (Boolean(attestationPath) !== Boolean(publicPath)) {
+      throw new Error('Runtime inventory authentication requires both --attestation and --public.');
+    }
+    if (!attestationPath && getFlag(args, '--max-age-seconds') !== null) {
+      throw new Error('--max-age-seconds requires --attestation and --public.');
+    }
+    let authentication = null;
+    if (attestationPath && publicPath) {
+      const verification = verifyRuntimeInventoryAttestation(
+        inventory,
+        await readJson(attestationPath),
+        await fs.readFile(publicPath, 'utf8'),
+        { maxAgeSeconds: getIntegerFlag(args, '--max-age-seconds') }
+      );
+      if (!verification.valid) {
+        throw new Error(`Runtime inventory attestation verification failed: ${verification.reason}`);
+      }
+      authentication = verification;
+    } else if (hasFlag(args, '--require-authenticated')) {
+      throw new Error('Authenticated runtime inventory evidence is required.');
+    }
     const snapshot = createEffectiveRuntimeEvidence(
       await readJson(bindingsPath),
-      await readJson(inventoryPath)
+      inventory,
+      authentication
     );
     await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
     console.log(`Wrote ${out}\nStatus: ${snapshot.status}\nDigest: ${snapshot.digest}`);
+    return;
+  }
+
+  if (command === 'sign-runtime-inventory') {
+    const inventoryPath = args[1];
+    const privatePath = getFlag(args, '--private');
+    const out = getFlag(args, '--out');
+    if (!inventoryPath || !privatePath || !out) {
+      throw new Error('sign-runtime-inventory requires <inventory.json>, --private <key.pem>, and --out <attestation.json>.');
+    }
+    const attestation = createRuntimeInventoryAttestation(
+      await readJson(inventoryPath),
+      await fs.readFile(privatePath, 'utf8'),
+      { ttlSeconds: getIntegerFlag(args, '--ttl-seconds', 300) }
+    );
+    await writeFileSafe(out, `${JSON.stringify(attestation, null, 2)}\n`);
+    console.log(`Wrote ${out}\nProducer key: ${attestation.producerKeyId}\nExpires: ${attestation.expiresAt}`);
+    return;
+  }
+
+  if (command === 'verify-runtime-inventory') {
+    const inventoryPath = args[1];
+    const attestationPath = getFlag(args, '--attestation');
+    const publicPath = getFlag(args, '--public');
+    if (!inventoryPath || !attestationPath || !publicPath) {
+      throw new Error('verify-runtime-inventory requires <inventory.json>, --attestation <file>, and --public <key.pem>.');
+    }
+    const verification = verifyRuntimeInventoryAttestation(
+      await readJson(inventoryPath),
+      await readJson(attestationPath),
+      await fs.readFile(publicPath, 'utf8'),
+      { maxAgeSeconds: getIntegerFlag(args, '--max-age-seconds') }
+    );
+    if (hasFlag(args, '--json')) console.log(JSON.stringify(verification, null, 2));
+    else if (verification.valid) console.log(`VERIFIED ${verification.producerKeyId}`);
+    else console.log(`INVALID: ${verification.reason}`);
+    if (!verification.valid) process.exitCode = 2;
     return;
   }
 

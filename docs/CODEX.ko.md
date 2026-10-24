@@ -148,7 +148,9 @@ node ./bin/trustdex.mjs diff-bindings \
 `snapshot-runtime-tools <bindings> <inventory> --out <evidence>`로 검토된 Codex
 결합 스냅샷과 대조하고, `diff-runtime-tools`로 노출 확대를 게이트합니다. 이는 옵트인
 증거 어댑터 계약이며 자동 설정 탐색, 공식 Codex 내보내기 형식 또는 런타임 강제가
-아닙니다. 캡처 경로와 샌드박스는 클라이언트에서 별도로 확인하세요.
+아닙니다. 캡처 경로와 샌드박스는 클라이언트에서 별도로 확인하세요. 운영 증거에는
+[인증된 런타임 증거](RUNTIME_EVIDENCE.ko.md)에 나온 `sign-runtime-inventory`, 고정된
+생성자 공개 키, 제한된 `--max-age-seconds` 및 `--require-authenticated`를 사용하세요.
 
 ### 스킬 및 플러그인
 

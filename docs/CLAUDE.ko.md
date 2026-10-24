@@ -167,7 +167,9 @@ node ./bin/trustdex.mjs snapshot-claude-bindings ./.mcp.json \
 BLOCK 소스와 `.mcp.json`에 없는 서버는 결과를 차단하고, 검토가 필요한 연결이
 로드되면 계속 검토가 필요합니다. `diff-runtime-tools`는 새로 보이는 서버와 도구
 개수 증가를 감지합니다. TrustDex는 Claude를 호출하거나 세션 파일을 찾거나 어댑터를
-인증하거나 인벤토리의 완전성을 증명하지 않습니다.
+자동으로 인증하거나 인벤토리의 완전성을 증명하지 않습니다. 운영 증거에는
+[인증된 런타임 증거](RUNTIME_EVIDENCE.ko.md)에 나온 `sign-runtime-inventory`, 고정된
+생성자 공개 키, 제한된 `--max-age-seconds` 및 `--require-authenticated`를 사용하세요.
 
 ## 서명된 검토 및 드리프트
 

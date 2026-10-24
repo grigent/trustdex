@@ -28,6 +28,7 @@ TrustDex addresses one narrow question:
 - wildcard, unmatched, or ambiguous grants that hide the effective tool boundary
 - explicitly reported runtime inventories that expose blocked, review-required, or unconfigured MCP servers
 - effective runtime inventories expanding by server visibility or tool count
+- mutation, replay past expiry/capture-age limits, future dating, or wrong-key substitution of signed runtime inventories
 
 ## Trust boundaries
 
@@ -56,12 +57,16 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - authenticating the author of an unsigned permission posture snapshot
 - proving that a binding snapshot reflects the files actually loaded by a running agent
 - intercepting or enforcing individual MCP tool calls at runtime
-- authenticating an inventory producer, proving inventory completeness, or preventing a compromised adapter from lying
+- proving inventory completeness or preventing a compromised adapter or stolen producer key from signing false evidence
 - discovering live Claude/Codex sessions or reading their private state automatically
 
 ## Important failure mode
 
 A valid signature proves that a trust record was signed by the corresponding private key and that its bound snapshot digest has not changed. It does not prove that the original review was correct.
+
+Likewise, a valid runtime-inventory attestation proves that the pinned producer key
+signed the exact value-free inventory within the checked time limits. It does not prove
+that the producer observed every loaded tool or reported the runtime truthfully.
 
 ## Design principle
 

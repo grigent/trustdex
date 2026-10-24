@@ -72,6 +72,7 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - 무결성 기반 신뢰 증거를 설정된 패키지 버전에 연결하고 불일치 차단
 - 각 Claude/Codex MCP 소스의 결정·출처 상태를 도구 이름이나 규칙 값 없이 자동 도구 권한과 연결
 - 명시적으로 제공된 값 없는 런타임 MCP 인벤토리를 검토된 연결과 대조해 차단되거나 예상 밖으로 로드된 서버 감지
+- 수명이 짧은 런타임 인벤토리를 Ed25519 생성자 증명, 만료 및 선택적 캡처 나이 제한으로 인증
 
 ## 호환성
 
@@ -314,9 +315,23 @@ Claude에서는 `--settings` 대신 스택 소스 플래그를 사용할 수 있
 가로채지 않고 이 명시적 입력을 결합 스냅샷과 대조합니다.
 
 ```bash
+node ./bin/trustdex.mjs keygen \
+  --private .trustdex/runtime-producer-private.pem \
+  --public .trustdex/runtime-producer-public.pem
+
+node ./bin/trustdex.mjs sign-runtime-inventory \
+  ./runtime-tool-inventory.json \
+  --private .trustdex/runtime-producer-private.pem \
+  --out .trustdex/runtime-attestation.json \
+  --ttl-seconds 300
+
 node ./bin/trustdex.mjs snapshot-runtime-tools \
   .trustdex/claude-bindings.json \
   ./runtime-tool-inventory.json \
+  --attestation .trustdex/runtime-attestation.json \
+  --public .trustdex/runtime-producer-public.pem \
+  --max-age-seconds 120 \
+  --require-authenticated \
   --out .trustdex/runtime-tools.json
 
 node ./bin/trustdex.mjs diff-runtime-tools \
@@ -327,13 +342,17 @@ node ./bin/trustdex.mjs diff-runtime-tools \
 
 관찰된 BLOCK 소스와 예상 밖 서버는 `block`, 관찰된 ASK 또는 광범위한 자동 권한
 연결은 `needs-review`가 됩니다. 인벤토리에 없는 설정 서버는 제한적으로만 변한
-상태입니다. 도구 개수 증가와 새로 관찰된 서버는 재검토를 요구합니다. 입력과 출력은
+상태입니다. 도구 개수 증가와 새로 관찰된 서버는 재검토를 요구합니다. 인증하지 않은
+스키마 v2 인벤토리는 항상 최소 `needs-review`가 됩니다. 인증은 정확한 인벤토리,
+고정된 생성자 키, 만료 및 선택적 캡처 나이 제한을 검증하지만 완전성이나 어댑터
+안전성을 증명하지는 않습니다. 스키마는
 [`schemas/runtime-tool-inventory-v1.schema.json`](schemas/runtime-tool-inventory-v1.schema.json),
-[`schemas/effective-runtime-tools-v1.schema.json`](schemas/effective-runtime-tools-v1.schema.json),
-[`schemas/effective-runtime-tools-diff-v1.schema.json`](schemas/effective-runtime-tools-diff-v1.schema.json)으로
-검증할 수 있습니다. TrustDex는 전달된 증거의 형태와 다이제스트를 검증하지만 어댑터를
-인증하거나 인벤토리의 완전성을 증명하거나 런타임을 강제하지 않습니다. 도구 이름
-대신 개수만 보관하므로 개수는 같고 도구 집합만 바뀌는 대체는 비교 범위 밖입니다.
+[`schemas/runtime-tool-inventory-attestation-v1.schema.json`](schemas/runtime-tool-inventory-attestation-v1.schema.json),
+[`schemas/effective-runtime-tools-v2.schema.json`](schemas/effective-runtime-tools-v2.schema.json),
+[`schemas/effective-runtime-tools-diff-v2.schema.json`](schemas/effective-runtime-tools-diff-v2.schema.json)입니다.
+기존 v1 실제 보고서도 계속 읽을 수 있습니다. 도구 이름 대신 개수만 보관하므로 개수는
+같고 도구 집합만 바뀌는 대체는 비교 범위 밖입니다. 검증, 키 교체 및 위협 경계는
+[인증된 런타임 증거](docs/RUNTIME_EVIDENCE.ko.md)를 참고하세요.
 
 ## 온라인 출처 관찰
 
@@ -502,7 +521,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 
 ## 로드맵
 
-공개 로드맵은 [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)에서 관리합니다. 단기 작업은 인증된 런타임 증거 생성자, 안정적인 옵트인 어댑터, 재현 가능한 통제 및 실제 파일럿 피드백에 중점을 둡니다. 로드맵 항목은 계획이며 약속이 아닙니다.
+공개 로드맵은 [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)에서 관리합니다. 단기 작업은 안정적인 옵트인 런타임 어댑터, 호환성 테스트, 재현 가능한 통제 및 실제 파일럿 피드백에 중점을 둡니다. 로드맵 항목은 계획이며 약속이 아닙니다.
 
 ## 보안
 
