@@ -51,6 +51,39 @@ The signed `snapshot`, `approve`, and `recheck` drift workflow in the [README](.
 
 TrustDex parses only the TOML constructs used by Codex MCP sections. An unsupported MCP key, nested subsection, or syntax is reported as an error instead of being skipped, so a configuration TrustDex cannot fully read never silently becomes ALLOW.
 
+## Inspect Codex execution permissions
+
+MCP gating controls external tools, while Codex approval and sandbox settings control
+what the agent can do locally. Inspect those settings separately:
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings \
+  ./examples/codex.permissions.toml \
+  --pack strict \
+  --json
+```
+
+The adapter validates `approval_policy`, `approvals_reviewer`, `sandbox_mode`,
+`default_permissions`, `web_search`, and the documented
+`sandbox_workspace_write` keys. It reports:
+
+- `danger-full-access` as `BLOCK`
+- `workspace-write`, outbound network access, additional writable roots, live web search, automatic review, and `approval_policy = "never"` as at least `ASK`
+- explicit multi-agent enablement, custom permission profiles, app/plugin sections, and settings it does not fully inspect as `ASK`
+
+Security-relevant values fail closed when their type or enum value is unsupported.
+`default_permissions` also fails when combined with the legacy sandbox settings, as
+the official configuration reference says not to combine them. Writable-root paths
+and values from unrelated settings are not retained, printed, or fingerprinted.
+
+This first adapter inspects one file at a time; it does not merge user, project,
+profile, managed, system, or command-line configuration into an effective policy.
+It is static evidence, not the Codex sandbox itself. Confirm the active permission
+profile in the client. The official OpenAI documentation distinguishes the sandbox
+boundary from approval handling and documents `workspace-write` plus `on-request`
+as the lower-risk local automation combination. See the [configuration reference](https://developers.openai.com/codex/config-reference)
+and [sandbox guide](https://developers.openai.com/codex/sandboxing).
+
 ### Skills and plugins
 
 Agent skills and plugin manifests can be inspected the same way:

@@ -1,0 +1,13 @@
+approval_policy = "on-request"
+approvals_reviewer = "user"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+
+[sandbox_workspace_write]
+network_access = false
+writable_roots = ["../reviewed-shared"]
+exclude_slash_tmp = true
+exclude_tmpdir_env_var = true
+
+[agents]
+enabled = false

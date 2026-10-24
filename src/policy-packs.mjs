@@ -14,7 +14,39 @@ const BASE_SIGNALS = {
   'embedded-credentials': 'block',
   'insecure-transport': 'block',
   'url-query-parameters': 'ask',
-  'artifact-version-mismatch': 'block'
+  'artifact-version-mismatch': 'block',
+  'claude-auto-approve': 'ask',
+  'claude-broad-auto-approve': 'block',
+  'claude-shell-auto-approve': 'block',
+  'claude-filesystem-auto-approve': 'ask',
+  'claude-network-auto-approve': 'ask',
+  'claude-subagent-auto-approve': 'ask',
+  'claude-mcp-auto-approve': 'ask',
+  'claude-mcp-wildcard': 'ask',
+  'claude-bypass-permissions': 'block',
+  'claude-auto-mode': 'ask',
+  'claude-additional-directories': 'ask',
+  'claude-outside-read-access': 'ask',
+  'claude-hooks': 'block',
+  'claude-credential-helper': 'block',
+  'claude-environment': 'ask',
+  'claude-sandbox-settings': 'ask',
+  'claude-extension-loading': 'ask',
+  'uninspected-claude-settings': 'ask',
+  'codex-no-approvals': 'ask',
+  'codex-auto-review': 'ask',
+  'codex-workspace-write': 'ask',
+  'codex-full-access': 'block',
+  'codex-network-access': 'ask',
+  'codex-additional-writable-roots': 'ask',
+  'codex-temp-write-access': 'ask',
+  'codex-live-web-search': 'ask',
+  'codex-custom-permissions': 'ask',
+  'codex-subagents-enabled': 'ask',
+  'codex-subagent-settings': 'ask',
+  'codex-extension-settings': 'ask',
+  'uninspected-codex-settings': 'ask',
+  'uninspected-codex-sections': 'ask'
 };
 
 export const POLICY_PACKS = Object.freeze({
@@ -59,7 +91,11 @@ export const POLICY_PACKS = Object.freeze({
     signalActions: {
       ...BASE_SIGNALS,
       'shell-execution': 'ask',
-      'insecure-transport': 'ask'
+      'insecure-transport': 'ask',
+      'claude-broad-auto-approve': 'ask',
+      'claude-shell-auto-approve': 'ask',
+      'claude-hooks': 'ask',
+      'claude-credential-helper': 'ask'
     }
   })
 });

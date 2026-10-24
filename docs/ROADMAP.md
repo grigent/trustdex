@@ -9,12 +9,21 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 ## Now: harden the boundary
 
 - expand adversarial fixtures for MCP JSON, Codex TOML, skills, and plugin manifests
+- expand adversarial permission fixtures for both Claude Code and Codex
 - verify that all human-readable output remains free of secret values
 - improve cross-platform source and path normalization
 - document stable policy and snapshot schema rules
 - keep CI, CodeQL, and release automation reproducible and reviewable
 
-## Next: prove integrity
+## Next: make agent action boundaries reviewable
+
+- inspect merged settings sources without retaining commands, paths, domains, or credential values
+- compare permission posture over time and require review when agent autonomy expands
+- connect approved tool provenance to the action permissions granted to that tool
+- define machine-readable decision output for orchestrators and CI
+- document how advisory settings checks compose with runtime and operating-system sandboxes
+
+## Then: prove integrity
 
 - verify immutable package artifacts when registries expose cryptographic hashes
 - connect registry observations to exact package versions and repository identities
@@ -26,7 +35,6 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - extend signed snapshot, approval, and recheck workflows to Codex `config.toml`
 - add adapters for additional agent runtimes and registries
 - publish a compatibility matrix backed by tests
-- define machine-readable decision output for CI and policy tooling
 - explore organization-managed trust stores and review-key rotation
 
 ## Adoption goals

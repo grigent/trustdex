@@ -32,8 +32,39 @@ The drift fixture begins with the trusted pinned package and then introduces an 
 
 The placeholder value itself must not appear in either inspection result or snapshot.
 
+## Claude Code permission cases
+
+`test/claude-settings.test.mjs` exercises a focused `settings.json` boundary.
+
+| Case | Required evidence | Expected decision |
+| --- | --- | --- |
+| restrictive `ask`/`deny`, plan mode, bypass disabled | no added risk signal | `ASK` because the file is local evidence |
+| bare shell/filesystem/network/subagent allows plus bypass mode | broad auto-approval and bypass signals | `BLOCK` |
+| narrow shell, web, MCP, and subagent allows | capability-specific auto-approval signals | `BLOCK` under `strict` because shell is auto-approved |
+| hooks and credential helper | executable adjacent-setting signals | `BLOCK` |
+| unsupported permission key or malformed rule | parser error | exit `2` |
+
+The tests place placeholder values in command, domain, directory, hook, helper,
+environment, plugin, and unknown settings fields and require that none appear in the
+inspection result. No permission-settings fingerprint is created.
+
+## Codex permission cases
+
+`test/codex-settings.test.mjs` exercises approval and sandbox settings in `config.toml`.
+
+| Case | Required evidence | Expected decision |
+| --- | --- | --- |
+| `read-only`, `on-request`, user review, network disabled | no added risk signal | `ASK` because the file is local evidence |
+| `danger-full-access`, `never`, auto-review, live web search | unrestricted sandbox plus reduced human review | `BLOCK` |
+| workspace write, network enabled, additional writable root | bounded capability-expansion signals | `ASK` |
+| custom permission, plugin, or uninspected sections | explicit uninspected-surface signals | `ASK` |
+| unsupported enum/type, mixed permission models, or unknown sandbox key | parser error | exit `2` |
+
+Writable-root paths and unrelated setting values must not appear in results. No
+Codex-settings fingerprint is created.
+
 ## What this does not measure
 
-This benchmark is intentionally narrow. It does not measure runtime behavior, sandbox escape, arbitrary malware, every form of prompt injection, publisher identity ownership, or vulnerabilities in transitive dependencies. In particular, tool descriptions returned dynamically by an already-running MCP server are outside the current static configuration boundary.
+This benchmark is intentionally narrow. It does not measure runtime behavior, sandbox escape, arbitrary malware, every form of prompt injection, publisher identity ownership, or vulnerabilities in transitive dependencies. It does not merge every Claude or Codex settings scope, inspect session command-line overrides, or prove that the reported sandbox is active. In particular, tool descriptions returned dynamically by an already-running MCP server are outside the current static configuration boundary.
 
 The small fixture set is a regression baseline, not a statistical claim about detection accuracy. False-positive and false-negative rates require a larger, independently reviewed corpus of redacted real-world configurations.

@@ -142,4 +142,8 @@ test('Codex parser fails closed on unsupported MCP keys and subsections', () => 
     () => parseCodexMcpToml('[mcp_servers]\ndemo = {}\n'),
     /Unsupported Codex MCP section/
   );
+  assert.throws(
+    () => parseCodexMcpToml('[mcp_servers.__proto__]\ncommand = "node"\n'),
+    /Unsupported or invalid Codex MCP key|Unsupported Codex MCP/
+  );
 });

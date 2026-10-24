@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "WebFetch(domain:docs.example.invalid)",
+      "mcp__reviewed__read_*",
+      "Agent(Explore)"
+    ],
+    "ask": [
+      "Edit",
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "WebFetch(domain:*)"
+    ],
+    "defaultMode": "default",
+    "additionalDirectories": [
+      "../shared-read-only"
+    ],
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable",
+    "blockReadsOutsideWorkingDirectories": true
+  }
+}

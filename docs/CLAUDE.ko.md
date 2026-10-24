@@ -61,6 +61,36 @@ claude --strict-mcp-config --mcp-config ./.trustdex/claude-mcp.json
 
 공식 참고 자료: [Claude Code MCP](https://code.claude.com/docs/en/mcp) 및 [CLI 플래그](https://code.claude.com/docs/en/cli-reference).
 
+## Claude Code 권한 설정
+
+MCP 게이트는 노출되는 외부 서버를 제어합니다. Claude Code 자체 권한 규칙은 별도 확인 없이 실행되는 에이전트 작업을 따로 제어합니다. 사용자, 프로젝트, 로컬 또는 관리형 설정 파일을 별도 단계로 검사하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings \
+  ./.claude/settings.json \
+  --pack strict \
+  --json
+```
+
+어댑터는 문서화된 `permissions` 필드인 `allow`, `ask`, `deny`, `defaultMode`, `additionalDirectories`, `disableBypassPermissionsMode`, `disableAutoMode` 및 `blockReadsOutsideWorkingDirectories`를 검증합니다. 알 수 없는 권한 필드, 잘못된 규칙 배열, 빈 규칙, 지원하지 않는 모드, 고정되지 않은 와일드카드 허용 규칙 및 괄호가 있는 MCP 규칙은 안전하게 실패합니다.
+
+자동 권한은 값을 그대로 출력하는 대신 기능 종류에 따라 분류합니다.
+
+| 관찰된 설정 | 엄격한 정책 결과 |
+| --- | --- |
+| 좁은 셸 자동 승인 | `BLOCK` |
+| 광범위한 셸, 파일 시스템, 네트워크 또는 서브에이전트 자동 승인 | `BLOCK` |
+| 파일 시스템, 네트워크, MCP 또는 서브에이전트 자동 승인 | 최소 `ASK` |
+| `bypassPermissions` 기본 모드 | `BLOCK` |
+| `auto` 또는 `acceptEdits` 기본 모드 | 최소 `ASK` |
+| 추가 디렉터리 또는 명시적으로 허용된 작업 디렉터리 외부 읽기 | 최소 `ASK` |
+| 훅 또는 API 키 도우미 | `BLOCK` |
+| 환경, 샌드박스, 플러그인 또는 검사하지 않은 루트 설정 | 최소 `ASK` |
+
+`ask`와 `deny` 규칙은 제한적이므로 그 자체로 위험 신호를 추가하지 않습니다. 보고서에는 규칙 개수와 기능 범주가 포함되지만 명령 패턴, 경로, 도메인, 훅 본문, 도우미 명령, 디렉터리 값, 환경 값 또는 플러그인 식별자는 포함되지 않습니다. 같은 이유로 이 첫 번째 어댑터는 설정 파일용 콘텐츠 지문이나 서명된 검토 기록을 만들지 않습니다.
+
+이 명령은 한 번에 파일 하나만 검사합니다. Claude Code는 여러 범위의 설정을 병합하고 명령줄 플래그가 세션 권한을 추가할 수 있으므로 이 결과가 실제 런타임 정책은 아닙니다. Claude Code에서 로드된 소스와 권한을 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
+
 ## 서명된 검토 및 드리프트
 
 검토 워크플로 전체에서 Claude 어댑터를 유지하세요. 일반 MCP 명령은 Claude 전용 제어를 검사하지 않습니다.

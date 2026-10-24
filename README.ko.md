@@ -58,7 +58,9 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - CI에서 GitHub Action으로 실행
 - 비밀 값을 저장하지 않고 MCP 항목, 스킬 및 플러그인 매니페스트의 지문 생성
 - Codex `config.toml`의 MCP 섹션 검사 및 필터링
+- 경로 값을 보관하지 않고 Codex 승인, 샌드박스, 네트워크, 쓰기 가능 루트, 웹 검색 및 서브에이전트 설정 검사
 - 명시적인 전송 방식 검증과 헤더 실행 제어를 포함해 Claude Code MCP JSON 검사 및 필터링
+- 규칙 값을 보관하지 않고 자동 셸, 파일 시스템, 네트워크, MCP 및 서브에이전트 권한에 대해 Claude Code 권한 설정 검사
 - GitHub, npm 및 공식 MCP Registry를 대상으로 명시적인 출처 조회 수행
 - 최신 GitHub 릴리스 태그/커밋에 GitHub 검증 서명이 있는지 확인
 - 서명된 검토 번들을 생성하고 신뢰 관련 상태가 변경되면 자동으로 재검토 요구
@@ -120,7 +122,7 @@ node ./bin/trustdex.mjs inspect \
 
 직접 검사는 의도적으로 종료 코드 `2`를 반환합니다. 체크인된 기대 결과는 `ALLOW` 1개, `ASK` 1개, `BLOCK` 5개입니다. 자동화된 테스트는 자리표시자 비밀 값이 결과에 나타나지 않는지, 비밀 정보를 포함하는 새 환경 변수가 이전 검토 상태를 무효화하는지도 확인합니다.
 
-[방어적 보안 연구 정책](docs/SECURITY_RESEARCH.ko.md), [평가 기록](docs/EVALUATION.ko.md), [적대적 픽스처 가이드](examples/adversarial/README.ko.md)를 참고하세요.
+[방어적 AI 에이전트 보안 사용 사례](docs/DEFENSIVE_USE_CASE.ko.md), [방어적 보안 연구 정책](docs/SECURITY_RESEARCH.ko.md), [평가 기록](docs/EVALUATION.ko.md), [적대적 픽스처 가이드](examples/adversarial/README.ko.md)를 참고하세요.
 
 ## 기본 제공 정책 팩
 
@@ -169,6 +171,16 @@ node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
 
 게이트는 승인되지 않은 MCP 섹션을 제거하면서 관련 없는 TOML 섹션은 유지합니다. TrustDex는 필요한 MCP 관련 TOML 구성만 의도적으로 파싱합니다. 지원하지 않는 MCP 구문은 조용히 신뢰하지 않고 실패합니다.
 
+MCP 도구와 별도로 에이전트의 실행 경계를 검사하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings \
+  ./examples/codex.permissions.toml \
+  --pack strict
+```
+
+이 명령은 승인 정책, 샌드박스 종류, 네트워크 접근, 추가 쓰기 가능 루트 개수, 웹 검색 모드 및 명시적인 서브에이전트 활성화를 보고합니다. 쓰기 가능 경로나 관련 없는 설정의 값은 보관하지 않으며, 모든 설정 범위를 하나의 실제 런타임 정책으로 병합하지 않습니다.
+
 단계별 게이트 워크플로와 이 프로젝트가 자체 검토 과정에서 Codex를 사용하는 방법은 [Codex에서 TrustDex 사용하기](docs/CODEX.ko.md)를 참고하세요.
 
 ## Claude Code MCP 설정
@@ -184,6 +196,16 @@ claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
 Claude를 시작하기 전에 게이트의 결과를 확인하세요. 기본적으로 `ALLOW` 항목만 노출되며, `ASK` 항목에는 검토가 필요합니다. 어댑터는 검사할 수 없는 설정을 조용히 신뢰하지 않고 거부합니다. 이 명령은 npm 0.5.0 이상과 소스 체크아웃에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.5.0`을 사용하세요.
 
 지원되는 설정, PowerShell 오류 처리, 서명된 검토 및 Claude Desktop 워크플로는 [Claude에서 TrustDex 사용하기](docs/CLAUDE.ko.md)를 참고하세요.
+
+Claude Code 프로젝트 및 사용자 설정은 별도 확인 없이 실행되는 작업을 허용할 수도 있습니다. 문서화된 `permissions` 객체와 인접한 자동 실행 설정을 별도로 검사하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings \
+  ./.claude/settings.json \
+  --pack strict
+```
+
+이 명령은 구조적인 기능 증거만 보고합니다. 권한 지정자, 디렉터리 값, 훅 명령, 도메인, 자격 증명 도우미 값 또는 환경 값을 출력하거나 지문에 포함하지 않습니다. 이는 정적 검토 도구이며 설정 병합기나 런타임 샌드박스가 아닙니다.
 
 ## 온라인 출처 관찰
 
@@ -348,7 +370,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 4. **드리프트는 중요합니다.** 신뢰 관련 변경이 발생해도 승인이 조용히 유지되어서는 안 됩니다.
 5. **단순한 결과.** 불투명한 위험 점수 대신 ALLOW / ASK / BLOCK을 사용합니다.
 6. **브랜딩보다 증거.** 익숙한 이름만으로 "공식"이라고 추론하지 않습니다.
-7. **공급업체 중립.** 정책 모델은 Codex 및 다른 에이전트 런타임에서도 작동해야 합니다.
+7. **런타임 중립.** 도구 출처와 에이전트 행동 권한은 Codex와 Claude 모두에서 검토할 수 있어야 하며, 추가 런타임으로 확장할 수 있어야 합니다.
 
 ## 로드맵
 
@@ -358,7 +380,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 
 TrustDex는 서드파티 코드가 안전하다는 것을 **증명하지 않으며**, 샌드박싱, 의존성 검사, 코드 검토 또는 최소 권한 자격 증명을 대체하지 않습니다.
 
-[SECURITY.ko.md](SECURITY.ko.md), [docs/THREAT_MODEL.ko.md](docs/THREAT_MODEL.ko.md), [docs/SECURITY_RESEARCH.ko.md](docs/SECURITY_RESEARCH.ko.md), [docs/EVALUATION.ko.md](docs/EVALUATION.ko.md), [docs/TRUST_STORE.ko.md](docs/TRUST_STORE.ko.md)를 참고하세요.
+[SECURITY.ko.md](SECURITY.ko.md), [docs/THREAT_MODEL.ko.md](docs/THREAT_MODEL.ko.md), [docs/DEFENSIVE_USE_CASE.ko.md](docs/DEFENSIVE_USE_CASE.ko.md), [docs/SECURITY_RESEARCH.ko.md](docs/SECURITY_RESEARCH.ko.md), [docs/EVALUATION.ko.md](docs/EVALUATION.ko.md), [docs/TRUST_STORE.ko.md](docs/TRUST_STORE.ko.md)를 참고하세요.
 
 ## 기여
 
