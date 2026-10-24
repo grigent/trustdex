@@ -1,6 +1,6 @@
 {
   "name": "trustdex",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "A local-first trust, provenance, and review gate for AI agent tools, MCP servers, skills, and plugins.",
   "type": "module",
   "bin": {
