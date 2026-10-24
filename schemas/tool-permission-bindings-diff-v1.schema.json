@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/tool-permission-bindings-diff-v1.schema.json",
+  "title": "TrustDex tool provenance and permission binding diff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "runtime",
+    "status",
+    "baselineDigest",
+    "currentDigest",
+    "summary",
+    "changes"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runtime": { "enum": ["claude", "codex"] },
+    "status": { "enum": ["unchanged", "restricted", "needs-review"] },
+    "baselineDigest": { "$ref": "tool-permission-bindings-v1.schema.json#/$defs/digest" },
+    "currentDigest": { "$ref": "tool-permission-bindings-v1.schema.json#/$defs/digest" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expansions", "restrictions", "reviews"],
+      "properties": {
+        "expansions": { "$ref": "tool-permission-bindings-v1.schema.json#/$defs/count" },
+        "restrictions": { "$ref": "tool-permission-bindings-v1.schema.json#/$defs/count" },
+        "reviews": { "$ref": "tool-permission-bindings-v1.schema.json#/$defs/count" }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/change" }
+    }
+  },
+  "$defs": {
+    "value": { "type": ["string", "boolean", "number", "null"] },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["impact", "type", "name", "field", "before", "after"],
+      "properties": {
+        "impact": { "enum": ["expansion", "restriction", "review"] },
+        "type": {
+          "enum": [
+            "policy-changed",
+            "trust-store-changed",
+            "count-changed",
+            "binding-added",
+            "binding-removed",
+            "source-decision-changed",
+            "provenance-changed",
+            "grant-changed",
+            "wildcard-changed"
+          ]
+        },
+        "name": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            { "type": "null" }
+          ]
+        },
+        "field": { "type": "string", "minLength": 1 },
+        "before": { "$ref": "#/$defs/value" },
+        "after": { "$ref": "#/$defs/value" }
+      }
+    }
+  }
+}

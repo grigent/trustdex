@@ -1,0 +1,9 @@
+[mcp_servers.reviewed]
+url = "https://reviewed-bindings.invalid/mcp/INERT_BINDING_URL_MARKER"
+default_tools_approval_mode = "approve"
+enabled_tools = ["read_INERT_BINDING_TOOL_MARKER"]
+
+[mcp_servers.unknown]
+url = "https://unknown-bindings.invalid/mcp/INERT_BINDING_URL_MARKER"
+default_tools_approval_mode = "approve"
+enabled_tools = ["*"]

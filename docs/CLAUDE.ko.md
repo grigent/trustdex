@@ -137,6 +137,28 @@ node ./bin/trustdex.mjs diff-permissions \
 병합 소스 스냅샷은 스키마 v2를 사용하고 소스 범위 개수만 포함합니다. 최종 구조적
 권한 상태가 같더라도 소스 추가, 제거 또는 범위 변경에는 재검토가 필요합니다.
 
+### MCP 출처와 자동 권한 연결
+
+각 `.mcp.json` 서버의 정책/출처 결과와 이를 호출할 수 있는 병합 Claude
+`permissions.allow` 권한을 하나의 자체 검증 기록으로 연결합니다.
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-bindings ./.mcp.json \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --managed ./review/managed-settings.json \
+  --trust-store ./trust-store.json \
+  --out .trustdex/claude-bindings.json
+```
+
+설정 파일 하나에는 `--settings <file>`을 사용합니다. 범위가 제한된 규칙은
+`ALLOW` 소스에 연결할 수 있습니다. 와일드카드 권한, ASK/BLOCK 소스의 권한,
+일치하지 않는 규칙 및 모호한 서버 이름 일치는 검토 또는 차단 대상으로 표시합니다.
+스냅샷은 서버 이름과 권한 형태만 기록하며 권한 지정자와 도구 이름은 제외합니다.
+따라서 범위가 제한된 도구가 같은 개수 안에서 바뀌는 경우에는 소스 검토가 필요합니다.
+검토본과 현재 기록은 `diff-bindings`로 비교하며, 확대 또는 출처/정책 드리프트는
+종료 코드 `1`을 반환합니다.
+
 ## 서명된 검토 및 드리프트
 
 검토 워크플로 전체에서 Claude 어댑터를 유지하세요. 일반 MCP 명령은 Claude 전용 제어를 검사하지 않습니다.

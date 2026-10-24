@@ -70,6 +70,7 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - 지원하지 않는 Codex MCP 키와 하위 섹션을 발견하면 안전하게 실패
 - 사용자가 제공한 패키지 바이트를 npm SRI 또는 MCP Registry SHA-256 메타데이터와 대조해 검증
 - 무결성 기반 신뢰 증거를 설정된 패키지 버전에 연결하고 불일치 차단
+- 각 Claude/Codex MCP 소스의 결정·출처 상태를 도구 이름이나 규칙 값 없이 자동 도구 권한과 연결
 
 ## 호환성
 
@@ -275,6 +276,36 @@ node ./bin/trustdex.mjs diff-permissions \
 사용합니다. 스키마가 바뀌면 새로운 정수 `schemaVersion`을 사용하며 기존
 필드의 의미를 조용히 바꾸지 않습니다.
 
+## 도구 출처와 자동 권한 연결
+
+MCP 소스와 해당 소스에 부여된 자동 권한을 하나의 값 없는 기록으로 검토합니다.
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-bindings ./.mcp.json \
+  --settings ./.claude/settings.json \
+  --trust-store ./trust-store.json \
+  --out .trustdex/claude-bindings.json
+
+node ./bin/trustdex.mjs snapshot-codex-bindings ~/.codex/config.toml \
+  --trust-store ./trust-store.json \
+  --out .trustdex/codex-bindings.json
+
+node ./bin/trustdex.mjs diff-bindings \
+  .trustdex/approved-bindings.json \
+  .trustdex/current-bindings.json \
+  --json
+```
+
+Claude에서는 `--settings` 대신 스택 소스 플래그를 사용할 수 있습니다. 범위가
+제한된 권한은 MCP 소스가 `ALLOW`일 때만 `bound`가 될 수 있습니다. 와일드카드/전체
+도구 권한, ASK 소스, 출처 변경, 일치하지 않는 규칙 및 모호한 서버 이름 일치는
+재검토 또는 차단 대상입니다. Codex의 `default_tools_approval_mode = "approve"`는
+전체 도구 권한으로 취급합니다. 보고서는 서버 이름과 구조적 개수만 보관하고
+엔드포인트 경로, 권한 지정자 및 도구 이름은 제외합니다.
+[`schemas/tool-permission-bindings-v1.schema.json`](schemas/tool-permission-bindings-v1.schema.json)과
+[`schemas/tool-permission-bindings-diff-v1.schema.json`](schemas/tool-permission-bindings-diff-v1.schema.json)으로
+검증할 수 있습니다. 이는 검토 증거이며 런타임 권한 강제 기능이 아닙니다.
+
 ## 온라인 출처 관찰
 
 일반 검사는 계속 로컬에서만 수행됩니다. 다음 명령은 명시적으로 실행할 때만 네트워크 조회를 수행합니다.
@@ -442,7 +473,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 
 ## 로드맵
 
-공개 로드맵은 [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)에서 관리합니다. 단기 작업은 레지스트리 무결성 검증, 재현 가능한 릴리스, 추가 에이전트 런타임 어댑터 및 실제 파일럿 피드백에 중점을 둡니다. 로드맵 항목은 계획이며 약속이 아닙니다.
+공개 로드맵은 [docs/ROADMAP.ko.md](docs/ROADMAP.ko.md)에서 관리합니다. 단기 작업은 실제 런타임 증거, 추가 에이전트 런타임 어댑터, 재현 가능한 통제 및 실제 파일럿 피드백에 중점을 둡니다. 로드맵 항목은 계획이며 약속이 아닙니다.
 
 ## 보안
 

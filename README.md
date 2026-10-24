@@ -70,6 +70,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - fail closed on unsupported Codex MCP keys and subsections
 - verify user-supplied package bytes against npm SRI or MCP Registry SHA-256 metadata
 - bind integrity-backed trust evidence to the configured package version and block mismatches
+- bind each Claude/Codex MCP source decision and provenance state to its automatic tool grant without retaining tool names or rule values
 
 ## Compatibility
 
@@ -291,6 +292,36 @@ Merged-source snapshots and their diffs use
 and [`schemas/permission-posture-diff-v2.schema.json`](schemas/permission-posture-diff-v2.schema.json).
 Schema changes require a new integer `schemaVersion`; fields are not silently repurposed.
 
+## Tool provenance and automatic permission bindings
+
+Review an MCP source and the automatic permission granted to it as one value-free record:
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-bindings ./.mcp.json \
+  --settings ./.claude/settings.json \
+  --trust-store ./trust-store.json \
+  --out .trustdex/claude-bindings.json
+
+node ./bin/trustdex.mjs snapshot-codex-bindings ~/.codex/config.toml \
+  --trust-store ./trust-store.json \
+  --out .trustdex/codex-bindings.json
+
+node ./bin/trustdex.mjs diff-bindings \
+  .trustdex/approved-bindings.json \
+  .trustdex/current-bindings.json \
+  --json
+```
+
+Claude stack source flags can replace `--settings`. A scoped grant can be `bound` only
+when its MCP source is `ALLOW`; wildcard/all-tool grants, ASK sources, changed
+provenance, unmatched rules, and ambiguous server-name matches require review or are
+blocked. Codex `default_tools_approval_mode = "approve"` is treated as an all-tool
+grant. Reports retain server names and structural counts, but omit endpoint paths,
+permission specifiers, and tool names. Validate them with
+[`schemas/tool-permission-bindings-v1.schema.json`](schemas/tool-permission-bindings-v1.schema.json)
+and [`schemas/tool-permission-bindings-diff-v1.schema.json`](schemas/tool-permission-bindings-diff-v1.schema.json).
+This is review evidence, not runtime permission enforcement.
+
 ## Online provenance observations
 
 Normal inspection remains local-only. These commands perform an explicit network lookup only when invoked:
@@ -458,7 +489,7 @@ For production CI, pin the action to a reviewed commit SHA rather than a moving 
 
 ## Roadmap
 
-The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on registry integrity verification, reproducible releases, additional agent-runtime adapters, and real-world pilot feedback. Roadmap items are intentions, not promises.
+The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on effective-runtime evidence, additional agent-runtime adapters, reproducible controls, and real-world pilot feedback. Roadmap items are intentions, not promises.
 
 ## Security
 

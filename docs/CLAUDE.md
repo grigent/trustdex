@@ -187,6 +187,27 @@ Merged-source snapshots use schema v2 and include only source-scope counts. Addi
 removing, or reclassifying a source requires review even when the resulting structural
 permission posture is otherwise unchanged.
 
+### Bind MCP provenance to automatic grants
+
+Create a self-validating record that joins each `.mcp.json` server's policy/provenance
+result to the merged Claude `permissions.allow` grant that can invoke it:
+
+```bash
+node ./bin/trustdex.mjs snapshot-claude-bindings ./.mcp.json \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --managed ./review/managed-settings.json \
+  --trust-store ./trust-store.json \
+  --out .trustdex/claude-bindings.json
+```
+
+For one settings file, use `--settings <file>`. Scoped rules can bind to an `ALLOW`
+source; wildcard grants, grants to ASK/BLOCK sources, unmatched rules, and ambiguous
+server-name matches are surfaced for review or blocking. The snapshot records server
+names and grant shape only. It omits permission specifiers and tool names, so same-count
+changes among scoped tools remain a source-review responsibility. Compare reviewed and
+current records with `diff-bindings`; expansion or provenance/policy drift exits `1`.
+
 ## Signed review and drift
 
 Keep the Claude adapter throughout a review workflow; generic MCP commands do not

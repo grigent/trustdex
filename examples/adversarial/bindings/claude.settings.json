@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__reviewed__read_INERT_BINDING_TOOL_MARKER",
+      "mcp__unknown__*",
+      "mcp__missing__INERT_BINDING_UNBOUND_MARKER"
+    ]
+  }
+}

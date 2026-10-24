@@ -252,3 +252,52 @@ export function inspectClaudeSettingsStack(layers) {
     }
   };
 }
+
+export function inspectClaudeMcpPermissionBindings(layers, serverNames) {
+  const normalized = normalizeClaudeLayers(layers);
+  if (!Array.isArray(serverNames) ||
+      serverNames.some((name) => typeof name !== 'string' || !name.trim()) ||
+      new Set(serverNames).size !== serverNames.length) {
+    throw new Error('Claude MCP permission bindings require unique non-empty server names.');
+  }
+
+  const merged = mergeClaudeSettings(normalized);
+  const { rules } = validatePermissions(merged.permissions);
+  const grants = new Map(serverNames.map((name) => [name, {
+    name,
+    automaticGrant: 'none',
+    grantRuleCount: 0,
+    toolScopeWildcard: false
+  }]));
+  let unboundAllowRuleCount = 0;
+  let ambiguousAllowRuleCount = 0;
+
+  for (const rule of rules.allow.filter((entry) => entry.tool.startsWith('mcp__'))) {
+    const matches = serverNames.filter((name) =>
+      rule.tool === `mcp__${name}` || rule.tool.startsWith(`mcp__${name}__`)
+    );
+    if (matches.length !== 1) {
+      if (matches.length > 1) ambiguousAllowRuleCount += 1;
+      else unboundAllowRuleCount += 1;
+      continue;
+    }
+
+    const name = matches[0];
+    const grant = grants.get(name);
+    const prefix = `mcp__${name}`;
+    const tool = rule.tool === prefix ? '*' : rule.tool.slice(`${prefix}__`.length);
+    grant.grantRuleCount += 1;
+    if (tool === '*' || !tool) {
+      grant.automaticGrant = 'all';
+      grant.toolScopeWildcard = true;
+    } else if (grant.automaticGrant === 'none') {
+      grant.automaticGrant = 'scoped';
+    }
+  }
+
+  return {
+    grants: [...grants.values()].sort((left, right) => left.name.localeCompare(right.name)),
+    unboundAllowRuleCount,
+    ambiguousAllowRuleCount
+  };
+}

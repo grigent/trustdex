@@ -14,6 +14,8 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
   permission fixtures.
 - TrustDex 0.8.0 adds explicit merged-source inspection for documented Claude Code
   and Codex precedence, schema-v2 source topology evidence, and fail-closed stack tests.
+- TrustDex 0.9.0 adds value-free Claude/Codex bindings between MCP policy/provenance
+  results and automatic tool grants, versioned schemas, drift review, and inert fixtures.
 
 ## Now: harden the boundary
 
@@ -24,12 +26,12 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - document stable policy and snapshot schema rules
 - keep CI, CodeQL, and release automation reproducible and reviewable
 
-## Next: make agent action boundaries reviewable
+## Next: strengthen effective-runtime evidence
 
-- connect approved tool provenance to the action permissions granted to that tool
 - extend the versioned permission-posture JSON schemas to additional decisions and runtimes
 - document how advisory settings checks compose with runtime and operating-system sandboxes
 - add runtime-produced effective-setting evidence without silently discovering private files
+- add opt-in adapters for runtime-produced MCP/tool inventories without intercepting calls
 
 ## Then: prove integrity
 

@@ -79,6 +79,23 @@ for both runtimes. `test/posture.test.mjs` requires:
 The digest checks internal consistency, not signer identity. Same-count changes inside
 redacted permission rules remain outside this structural comparison.
 
+## Tool provenance and permission binding cases
+
+`examples/adversarial/bindings/` and `test/bindings.test.mjs` join MCP policy/provenance
+results to Claude and Codex automatic tool grants. The regression requires:
+
+- a scoped Claude grant to an ALLOW source to be `bound`
+- wildcard or all-tool grants and grants to ASK sources to require review
+- grants to BLOCK sources or provenance mismatches to be `blocked`
+- unmatched and ambiguous Claude rules to be counted without retaining their values
+- policy, provenance, trust-store, and grant expansion drift to require review
+- tampered summaries, statuses, or digests to fail closed
+- endpoint paths, permission specifiers, tool names, and inert marker values to remain absent
+
+The snapshot schemas validate the stable report shape. A signed trust record can
+authenticate a reviewed snapshot, but neither the schema nor signature proves runtime
+enforcement or tool safety.
+
 ## Merged settings stack cases
 
 `test/settings-stack.test.mjs` exercises explicit source stacks for both runtimes. It requires:

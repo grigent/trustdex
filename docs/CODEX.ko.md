@@ -120,6 +120,27 @@ node ./bin/trustdex.mjs diff-permissions \
 병합 소스 스냅샷은 스키마 v2를 사용합니다. 최종 구조 설정이 같더라도 소스 범위 개수가
 바뀌면 분류되지 않은 변경으로 처리되어 `NEEDS_REVIEW`를 반환합니다.
 
+### MCP 출처와 자동 권한 연결
+
+Codex는 한 MCP 서버가 노출한 모든 도구를 자동 승인할 수 있습니다. 이 권한을
+서버의 정책 및 출처 결과와 함께 검토합니다.
+
+```bash
+node ./bin/trustdex.mjs snapshot-codex-bindings ~/.codex/config.toml \
+  --trust-store ./trust-store.json \
+  --pack strict \
+  --out .trustdex/codex-bindings.json
+
+node ./bin/trustdex.mjs diff-bindings \
+  .trustdex/approved-codex-bindings.json \
+  .trustdex/current-codex-bindings.json
+```
+
+`default_tools_approval_mode = "approve"`는 전체 도구 자동 권한이므로 ALLOW
+소스에서도 검토가 필요합니다. 와일드카드 도구 범위는 불리언으로 기록하며 도구
+이름, 엔드포인트 경로 및 관련 없는 값은 제외합니다. 이 정적 연결은 설정이 실제로
+로드되었음을 증명하거나 Codex 런타임 샌드박스를 강제하지 않습니다.
+
 ### 스킬 및 플러그인
 
 에이전트 스킬과 플러그인 매니페스트도 같은 방법으로 검사할 수 있습니다.
