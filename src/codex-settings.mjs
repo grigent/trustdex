@@ -25,6 +25,14 @@ const INSPECTED_ROOT_KEYS = new Set([
   'default_permissions',
   'web_search'
 ]);
+const CODEX_SCOPE_RANK = Object.freeze({
+  system: 0,
+  managed: 1,
+  user: 2,
+  profile: 3,
+  project: 4,
+  cli: 5
+});
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -154,8 +162,7 @@ function validateSandbox(sandbox) {
   }
 }
 
-export function inspectCodexSettingsText(text, sourceName = 'config.toml') {
-  const { root, sandbox, agents, sections } = parseTomlAssignments(text);
+function inspectParsedCodexSettings({ root, sandbox, agents, sections }, sourceName, kind) {
   validateSandbox(sandbox);
 
   const signals = new Set();
@@ -222,7 +229,7 @@ export function inspectCodexSettingsText(text, sourceName = 'config.toml') {
 
   return {
     name: sourceName,
-    kind: 'codex-settings',
+    kind,
     source: { type: 'local', format: 'codex-settings', path: sourceName },
     metadata: {
       approvalPolicy: approval.mode,
@@ -243,5 +250,76 @@ export function inspectCodexSettingsText(text, sourceName = 'config.toml') {
     },
     signals: [...signals].sort(),
     envKeys: []
+  };
+}
+
+export function inspectCodexSettingsText(text, sourceName = 'config.toml') {
+  return inspectParsedCodexSettings(
+    parseTomlAssignments(text),
+    sourceName,
+    'codex-settings'
+  );
+}
+
+function normalizeCodexLayers(layers) {
+  if (!Array.isArray(layers) || !layers.length) {
+    throw new Error('Codex settings stack requires at least one config source.');
+  }
+  const seen = new Set();
+  return layers.map((layer, index) => {
+    if (!isObject(layer) || !Object.hasOwn(CODEX_SCOPE_RANK, layer.scope)) {
+      throw new Error('Unsupported Codex config source scope.');
+    }
+    if (layer.scope !== 'project' && seen.has(layer.scope)) {
+      throw new Error(`Codex settings stack accepts only one ${layer.scope} source.`);
+    }
+    seen.add(layer.scope);
+    if (typeof layer.text !== 'string') throw new Error('Codex config source must contain TOML text.');
+    const parsed = parseTomlAssignments(layer.text);
+    inspectParsedCodexSettings(parsed, 'Codex settings source', 'codex-settings');
+    return { ...layer, parsed, index };
+  }).sort((left, right) =>
+    CODEX_SCOPE_RANK[left.scope] - CODEX_SCOPE_RANK[right.scope] || left.index - right.index
+  );
+}
+
+export function inspectCodexSettingsStack(layers) {
+  const normalized = normalizeCodexLayers(layers);
+  const merged = {
+    root: Object.create(null),
+    sandbox: Object.create(null),
+    agents: Object.create(null),
+    sections: []
+  };
+  const sections = new Set();
+  const sourceCounts = Object.fromEntries(Object.keys(CODEX_SCOPE_RANK).map((scope) => [scope, 0]));
+  let activeSourceCount = 0;
+
+  for (const layer of normalized) {
+    sourceCounts[layer.scope] += 1;
+    Object.assign(merged.root, layer.parsed.root);
+    Object.assign(merged.sandbox, layer.parsed.sandbox);
+    Object.assign(merged.agents, layer.parsed.agents);
+    for (const section of layer.parsed.sections) sections.add(section);
+    if (Object.keys(layer.parsed.root).length || Object.keys(layer.parsed.sandbox).length ||
+        Object.keys(layer.parsed.agents).length || layer.parsed.sections.length) {
+      activeSourceCount += 1;
+    }
+  }
+  merged.sections = [...sections].sort();
+
+  const result = inspectParsedCodexSettings(
+    merged,
+    'merged Codex settings',
+    'codex-settings-stack'
+  );
+  return {
+    ...result,
+    source: { type: 'local', format: 'codex-settings-stack', scopes: sourceCounts },
+    settingsContext: {
+      sourceCount: normalized.length,
+      activeSourceCount,
+      sourceCounts
+    }
   };
 }

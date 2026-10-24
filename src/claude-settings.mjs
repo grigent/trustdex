@@ -19,6 +19,14 @@ const MODES = new Set([
   'auto'
 ]);
 const NON_PERMISSION_ROOT_KEYS = new Set(['$schema', 'permissions']);
+const CLAUDE_SCOPE_RANK = Object.freeze({
+  user: 0,
+  project: 1,
+  local: 2,
+  session: 3,
+  managed: 4
+});
+const MERGED_PERMISSION_LISTS = new Set(['allow', 'ask', 'deny', 'additionalDirectories']);
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -169,5 +177,78 @@ export function inspectClaudeSettings(settings, sourceName = 'settings.json') {
     },
     signals: [...signals].sort(),
     envKeys
+  };
+}
+
+function normalizeClaudeLayers(layers) {
+  if (!Array.isArray(layers) || !layers.length) {
+    throw new Error('Claude settings stack requires at least one settings source.');
+  }
+  const seen = new Set();
+  return layers.map((layer, index) => {
+    if (!isObject(layer) || !Object.hasOwn(CLAUDE_SCOPE_RANK, layer.scope)) {
+      throw new Error('Unsupported Claude settings source scope.');
+    }
+    if (seen.has(layer.scope)) {
+      throw new Error(`Claude settings stack accepts only one ${layer.scope} source.`);
+    }
+    seen.add(layer.scope);
+    if (!isObject(layer.settings)) throw new Error('Claude settings source must contain a JSON object.');
+    inspectClaudeSettings(layer.settings, 'Claude settings source');
+    return { ...layer, index };
+  }).sort((left, right) =>
+    CLAUDE_SCOPE_RANK[left.scope] - CLAUDE_SCOPE_RANK[right.scope] || left.index - right.index
+  );
+}
+
+function mergeClaudeSettings(layers) {
+  const merged = {};
+  const permissions = {};
+
+  for (const { scope, settings } of layers) {
+    for (const [key, value] of Object.entries(settings)) {
+      if (key === 'permissions') continue;
+      if (Array.isArray(value) && Array.isArray(merged[key])) merged[key] = [...merged[key], ...value];
+      else merged[key] = value;
+    }
+
+    const current = settings.permissions || {};
+    for (const [key, value] of Object.entries(current)) {
+      if (MERGED_PERMISSION_LISTS.has(key)) {
+        permissions[key] = [...(permissions[key] || []), ...value];
+        continue;
+      }
+      if (key === 'defaultMode' && ['project', 'local'].includes(scope) &&
+          ['auto', 'bypassPermissions'].includes(value)) {
+        continue;
+      }
+      permissions[key] = value;
+    }
+  }
+
+  if (Object.keys(permissions).length) merged.permissions = permissions;
+  return merged;
+}
+
+export function inspectClaudeSettingsStack(layers) {
+  const normalized = normalizeClaudeLayers(layers);
+  const merged = mergeClaudeSettings(normalized);
+  const result = inspectClaudeSettings(merged, 'merged Claude settings');
+  const sourceCounts = Object.fromEntries(Object.keys(CLAUDE_SCOPE_RANK).map((scope) => [scope, 0]));
+  let activeSourceCount = 0;
+  for (const layer of normalized) {
+    sourceCounts[layer.scope] += 1;
+    if (Object.keys(layer.settings).length) activeSourceCount += 1;
+  }
+  return {
+    ...result,
+    name: 'merged Claude settings',
+    kind: 'claude-settings-stack',
+    source: { type: 'local', format: 'claude-settings-stack', scopes: sourceCounts },
+    settingsContext: {
+      sourceCount: normalized.length,
+      activeSourceCount,
+      sourceCounts
+    }
   };
 }

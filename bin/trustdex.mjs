@@ -6,9 +6,9 @@ import process from 'node:process';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
 import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
-import { inspectCodexSettingsText } from '../src/codex-settings.mjs';
+import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
-import { inspectClaudeSettings } from '../src/claude-settings.mjs';
+import { inspectClaudeSettings, inspectClaudeSettingsStack } from '../src/claude-settings.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
@@ -51,6 +51,9 @@ Usage:
       [--trust-store trust-store.json] [--json]
   trustdex inspect-codex-settings <config.toml> [--pack ...] [--policy policy.json] [--json]
   trustdex snapshot-codex-settings <config.toml> --out posture.json [--pack ...]
+  trustdex inspect-codex-settings-stack [--system file] [--managed file] [--user file]
+      [--profile file] [--project file ...] [--cli file] [--json]
+  trustdex snapshot-codex-settings-stack [same source flags] --out posture.json
 
   trustdex gate <mcp.json> --out gated.json [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--include-ask] [--json]
@@ -60,6 +63,9 @@ Usage:
   trustdex inspect-claude <.mcp.json> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-claude-settings <settings.json> [--pack ...] [--policy policy.json] [--json]
   trustdex snapshot-claude-settings <settings.json> --out posture.json [--pack ...]
+  trustdex inspect-claude-settings-stack [--user file] [--project file] [--local file]
+      [--session file] [--managed file] [--json]
+  trustdex snapshot-claude-settings-stack [same source flags] --out posture.json
   trustdex gate-claude <.mcp.json> --out gated.json [--pack ...] [--policy policy.json]
   trustdex snapshot-claude <.mcp.json> --out snapshot.json [--pack ...]
   trustdex approve-claude <.mcp.json> --private key.pem --dir review [--pack ...]
@@ -120,6 +126,17 @@ async function writeFileSafe(file, content, options = {}) {
 function getFlag(args, name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : null;
+}
+
+function getFlags(args, name) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] !== name) continue;
+    const value = args[index + 1];
+    if (!value || value.startsWith('--')) throw new Error(`${name} requires a file path.`);
+    values.push(value);
+  }
+  return values;
 }
 
 function hasFlag(args, name) {
@@ -225,6 +242,37 @@ async function evaluateCodexSettings(configPath, args) {
   return { policy, result };
 }
 
+async function evaluateClaudeSettingsStack(args) {
+  const layers = [];
+  for (const scope of ['user', 'project', 'local', 'session', 'managed']) {
+    for (const file of getFlags(args, `--${scope}`)) {
+      let settings;
+      try { settings = await readJson(file); } catch (error) {
+        if (error instanceof SyntaxError) throw new Error(`Invalid Claude ${scope} settings JSON.`);
+        throw error;
+      }
+      layers.push({ scope, settings });
+    }
+  }
+  if (!layers.length) throw new Error('Claude settings stack requires at least one source flag.');
+  const policy = await loadPolicy(args);
+  const [result] = evaluateAll([inspectClaudeSettingsStack(layers)], policy);
+  return { policy, result };
+}
+
+async function evaluateCodexSettingsStack(args) {
+  const layers = [];
+  for (const scope of ['system', 'managed', 'user', 'profile', 'project', 'cli']) {
+    for (const file of getFlags(args, `--${scope}`)) {
+      layers.push({ scope, text: await fs.readFile(file, 'utf8') });
+    }
+  }
+  if (!layers.length) throw new Error('Codex settings stack requires at least one source flag.');
+  const policy = await loadPolicy(args);
+  const [result] = evaluateAll([inspectCodexSettingsStack(layers)], policy);
+  return { policy, result };
+}
+
 function printObservation(observation, asJson) {
   if (asJson) {
     console.log(JSON.stringify(observation, null, 2));
@@ -320,6 +368,13 @@ async function main() {
     return;
   }
 
+  if (command === 'inspect-claude-settings-stack') {
+    const { result } = await evaluateClaudeSettingsStack(args);
+    printResults([result], hasFlag(args, '--json'));
+    setInspectExitCode([result]);
+    return;
+  }
+
   if (command === 'inspect-codex') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex requires a path to Codex config.toml.');
@@ -338,15 +393,29 @@ async function main() {
     return;
   }
 
-  if (command === 'snapshot-claude-settings' || command === 'snapshot-codex-settings') {
-    const configPath = args[1];
+  if (command === 'inspect-codex-settings-stack') {
+    const { result } = await evaluateCodexSettingsStack(args);
+    printResults([result], hasFlag(args, '--json'));
+    setInspectExitCode([result]);
+    return;
+  }
+
+  if (['snapshot-claude-settings', 'snapshot-codex-settings',
+    'snapshot-claude-settings-stack', 'snapshot-codex-settings-stack'].includes(command)) {
+    const isStack = command.endsWith('-stack');
+    const configPath = isStack ? null : args[1];
     const out = getFlag(args, '--out');
-    if (!configPath || !out) {
-      throw new Error(`${command} requires a settings path and --out <posture.json>.`);
+    if ((!isStack && !configPath) || !out) {
+      throw new Error(isStack
+        ? `${command} requires source flags and --out <posture.json>.`
+        : `${command} requires a settings path and --out <posture.json>.`);
     }
-    const { policy, result } = command === 'snapshot-claude-settings'
-      ? await evaluateClaudeSettings(configPath, args)
-      : await evaluateCodexSettings(configPath, args);
+    let evaluated;
+    if (command === 'snapshot-claude-settings') evaluated = await evaluateClaudeSettings(configPath, args);
+    else if (command === 'snapshot-codex-settings') evaluated = await evaluateCodexSettings(configPath, args);
+    else if (command === 'snapshot-claude-settings-stack') evaluated = await evaluateClaudeSettingsStack(args);
+    else evaluated = await evaluateCodexSettingsStack(args);
+    const { policy, result } = evaluated;
     const snapshot = createPermissionPostureSnapshot(result, policy);
     await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
     console.log(`Wrote ${out}\nDigest: ${snapshot.digest}`);

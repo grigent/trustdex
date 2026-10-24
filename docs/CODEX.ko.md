@@ -70,7 +70,21 @@ node ./bin/trustdex.mjs inspect-codex-settings \
 
 보안 관련 값의 타입이나 열거 값이 지원되지 않으면 안전하게 실패합니다. 공식 설정 레퍼런스가 함께 사용하지 말라고 명시하므로 `default_permissions`와 기존 샌드박스 설정을 같이 사용해도 실패합니다. 쓰기 가능 루트 경로와 관련 없는 설정의 값은 보관·출력·지문화하지 않습니다.
 
-이 첫 번째 어댑터는 한 번에 파일 하나를 검사하며 사용자, 프로젝트, 프로필, 관리형, 시스템 또는 명령줄 설정을 하나의 실제 정책으로 병합하지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. 공식 OpenAI 문서는 샌드박스 경계와 승인 처리를 구분하며 `workspace-write`와 `on-request` 조합을 더 낮은 위험의 로컬 자동화 구성으로 안내합니다. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [샌드박스 가이드](https://developers.openai.com/codex/sandboxing)를 참고하세요.
+문서화된 설정 우선순위를 적용하려면 스택 명령을 사용하세요. `--project`는 저장소 루트에서 현재 디렉터리 방향으로 반복하며 가장 가까운 프로젝트 파일이 우선합니다.
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings-stack \
+  --system ./review/system.toml \
+  --managed ./review/managed.toml \
+  --user ./review/user.toml \
+  --profile ./review/profile.toml \
+  --project ./review/root-project.toml \
+  --project ./review/closest-project.toml \
+  --cli ./review/cli-overrides.toml \
+  --pack strict --json
+```
+
+스택은 시스템부터 CLI 우선순위까지 지원되는 보안 필드별로 병합됩니다. 높은 소스가 재정의하더라도 어떤 소스에 지원하지 않는 구문이 있으면 안전하게 실패합니다. 보고서에는 고정된 소스 범위 개수만 남고 설정 경로나 관련 없는 값은 남지 않습니다. 소스는 명시적 입력이며 신뢰된 프로젝트, 활성 프로필, 클라우드 관리 기본값, 요구사항 또는 CLI 플래그를 자동으로 찾지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. 공식 OpenAI 문서는 샌드박스 경계와 승인 처리를 구분합니다. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [설정 우선순위](https://developers.openai.com/codex/config-basic)를 참고하세요.
 
 ### 권한 상태 드리프트
 
@@ -82,6 +96,13 @@ node ./bin/trustdex.mjs snapshot-codex-settings \
   ~/.codex/config.toml \
   --pack strict \
   --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs snapshot-codex-settings-stack \
+  --system ./review/system.toml \
+  --user ./review/user.toml \
+  --project ./review/project.toml \
+  --pack strict \
+  --out .trustdex/codex-stack-posture.json
 
 node ./bin/trustdex.mjs diff-permissions \
   .trustdex/approved-codex-posture.json \
@@ -96,6 +117,8 @@ node ./bin/trustdex.mjs diff-permissions \
 사용자 정의 프로필 값 또는 관련 없는 설정은 저장하지 않습니다. 다이제스트는
 우발적이거나 조정되지 않은 편집을 감지하지만 누구나 서명되지 않은 다이제스트를
 다시 계산할 수 있습니다. 인증이 아니며 Codex 런타임 샌드박스를 대체하지 않습니다.
+병합 소스 스냅샷은 스키마 v2를 사용합니다. 최종 구조 설정이 같더라도 소스 범위 개수가
+바뀌면 분류되지 않은 변경으로 처리되어 `NEEDS_REVIEW`를 반환합니다.
 
 ### 스킬 및 플러그인
 
