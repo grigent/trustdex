@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.11.0 - 2026-10-24
+
 - add short-lived Ed25519 producer attestations for exact value-free Claude/Codex runtime inventories
 - reject wrong-key, mutated, expired, stale, excessive-lifetime, and future-dated runtime evidence
 - add schema-v2 effective evidence with fail-closed authentication state, producer-key drift, CLI workflows, tests, and operations guidance
