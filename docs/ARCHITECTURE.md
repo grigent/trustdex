@@ -8,7 +8,7 @@ TrustDex is a dependency-free Node.js CLI that separates observation, policy, ga
 
 ## Data flow
 
-1. An adapter reads an MCP JSON file, a focused Codex TOML subset, a skill, or a plugin manifest.
+1. An adapter reads an MCP JSON file, a focused Codex TOML subset, a Claude/Codex permission settings file, a skill, or a plugin manifest.
 2. Inspection normalizes the source and emits observable signals. Secret values are not retained in reports.
 3. Optional trust-store claims attach explicit provenance evidence.
 4. The policy engine produces ALLOW, ASK, or BLOCK.
@@ -23,6 +23,8 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 | --- | --- |
 | src/inspect.mjs | MCP source classification, redaction, fingerprinting, and signals |
 | src/codex-config.mjs | Focused fail-closed Codex MCP parsing and section filtering |
+| src/codex-settings.mjs | Codex approval, sandbox, network, writable-root, web-search, and subagent settings inspection |
+| src/claude-settings.mjs | Claude Code permission rules and adjacent executable settings inspection |
 | src/extensions.mjs | Skill and plugin manifest inspection |
 | src/provenance.mjs | Explicit local trust-store claims |
 | src/provenance-online.mjs | User-invoked GitHub, npm, and MCP Registry observations plus local artifact-digest verification |
@@ -36,11 +38,16 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 
 - Inspection must not execute the inspected extension.
 - Secret values must not be printed or stored in snapshots.
+- Permission rule values, writable-root paths, hook/helper bodies, and unrelated settings values must not be retained in agent-settings reports.
 - Unknown evidence must not become trust.
 - A blocking signal must not be lowered by provenance.
 - Unsupported security-relevant syntax must fail closed.
 - Network lookup is explicit and observation is not approval.
 - ALLOW is a policy result, not a safety certification.
+
+Settings inspection is currently advisory. It reads one source file at a time and does
+not calculate the merged effective runtime policy. MCP gates remain the implemented
+enforcement boundary; operating-system and runtime sandboxes enforce agent actions.
 
 ## Dependency policy
 

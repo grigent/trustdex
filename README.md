@@ -58,7 +58,9 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - run as a GitHub Action in CI
 - fingerprint MCP entries, skills, and plugin manifests without storing secret values
 - inspect and filter Codex `config.toml` MCP sections
+- inspect Codex approval, sandbox, network, writable-root, web-search, and subagent settings without retaining path values
 - inspect and filter Claude Code MCP JSON with explicit transport validation and header execution controls
+- inspect Claude Code permission settings for automatic shell, filesystem, network, MCP, and subagent grants without retaining rule values
 - perform explicit provenance lookups against GitHub, npm, and the official MCP Registry
 - verify whether the latest GitHub release tag/commit has a GitHub-verified signature
 - create signed review bundles and automatically require re-review when trust-relevant state drifts
@@ -120,7 +122,7 @@ node ./bin/trustdex.mjs inspect \
 
 The direct inspection intentionally exits with code `2`: the checked-in expectation is one `ALLOW`, one `ASK`, and five `BLOCK` decisions. The automated test also verifies that placeholder secret values do not appear in results and that a newly introduced secret-bearing environment variable invalidates the previous review state.
 
-See the [defensive security research policy](docs/SECURITY_RESEARCH.md), [evaluation record](docs/EVALUATION.md), and [adversarial fixture guide](examples/adversarial/README.md).
+See the [defensive AI-agent security use case](docs/DEFENSIVE_USE_CASE.md), [defensive security research policy](docs/SECURITY_RESEARCH.md), [evaluation record](docs/EVALUATION.md), and [adversarial fixture guide](examples/adversarial/README.md).
 
 ## Built-in policy packs
 
@@ -169,6 +171,19 @@ node ./bin/trustdex.mjs gate-codex ./examples/codex.config.toml \
 
 The gate removes non-approved MCP sections while preserving unrelated TOML sections. TrustDex intentionally parses only the MCP-related TOML constructs it needs; unsupported MCP syntax fails rather than being silently trusted.
 
+Inspect the agent's execution boundary separately from its MCP tools:
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings \
+  ./examples/codex.permissions.toml \
+  --pack strict
+```
+
+This reports approval policy, sandbox class, network access, additional writable-root
+count, web-search mode, and explicit subagent enablement. It does not retain writable
+paths or values from unrelated settings, and it does not merge every configuration
+scope into an effective runtime policy.
+
 See [Using TrustDex with Codex](docs/CODEX.md) for a step-by-step gating workflow and for how this project uses Codex in its own review process.
 
 ## Claude Code MCP configuration
@@ -190,6 +205,19 @@ Use `npx trustdex@0.5.0` in place of `node ./bin/trustdex.mjs` to run the publis
 
 See [Using TrustDex with Claude](docs/CLAUDE.md) for supported settings, PowerShell
 error handling, signed review, and the Claude Desktop workflow.
+
+Claude Code project and user settings can also grant actions without prompting. Inspect
+the documented `permissions` object and nearby executable settings separately:
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings \
+  ./.claude/settings.json \
+  --pack strict
+```
+
+The command reports structural capability evidence only. It does not print or fingerprint
+permission specifiers, directory values, hook commands, domains, credential-helper values,
+or environment values. It is a static review aid, not a settings merger or runtime sandbox.
 
 ## Online provenance observations
 
@@ -354,7 +382,7 @@ For production CI, pin the action to a reviewed commit SHA rather than a moving 
 4. **Drift matters.** Approval should not silently survive trust-relevant changes.
 5. **Simple outcomes.** ALLOW / ASK / BLOCK instead of an opaque risk score.
 6. **Evidence over branding.** "Official" is not inferred from a familiar name.
-7. **Vendor neutral.** The policy model should work across Codex and other agent runtimes.
+7. **Runtime neutral.** Tool provenance and agent-action permissions should be reviewable across both Codex and Claude, with room for additional runtimes.
 
 ## Roadmap
 
@@ -364,7 +392,7 @@ The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-ter
 
 TrustDex does **not** prove that third-party code is safe and does not replace sandboxing, dependency scanning, code review, or least-privilege credentials.
 
-See [SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/SECURITY_RESEARCH.md](docs/SECURITY_RESEARCH.md), [docs/EVALUATION.md](docs/EVALUATION.md), and [docs/TRUST_STORE.md](docs/TRUST_STORE.md).
+See [SECURITY.md](SECURITY.md), [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md), [docs/DEFENSIVE_USE_CASE.md](docs/DEFENSIVE_USE_CASE.md), [docs/SECURITY_RESEARCH.md](docs/SECURITY_RESEARCH.md), [docs/EVALUATION.md](docs/EVALUATION.md), and [docs/TRUST_STORE.md](docs/TRUST_STORE.md).
 
 ## Contributing
 

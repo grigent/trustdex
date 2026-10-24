@@ -6,6 +6,12 @@
 
 ## Unreleased
 
+- add static Claude Code permission inspection for automatic shell, filesystem, network, MCP, and subagent grants
+- add static Codex approval, sandbox, network, writable-root, web-search, and subagent settings inspection
+- fail closed on unsupported security-relevant settings without retaining command, path, domain, hook, credential-helper, or unrelated setting values
+- document the project's defensive AI-agent security use case, authorization boundary, CVP evidence boundary, and reproducible evaluation
+- include inert examples in the published package so documented local evaluations remain reproducible from npm artifacts
+
 ## 0.5.1 - 2026-10-24
 
 - exclude URL credentials, query values, and sensitive command arguments from configuration fingerprints while retaining trust-relevant endpoint structure

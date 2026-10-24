@@ -51,6 +51,27 @@ TrustDex는 `config.toml`을 직접 수정하지 않습니다. 원본 파일을 
 
 TrustDex는 Codex MCP 섹션에 사용되는 TOML 구성만 파싱합니다. 지원하지 않는 MCP 키, 중첩 하위 섹션 또는 구문은 건너뛰지 않고 오류로 보고되므로 TrustDex가 완전히 읽을 수 없는 설정이 조용히 ALLOW가 되지 않습니다.
 
+## Codex 실행 권한 검사
+
+MCP 게이트는 외부 도구를 제어하고 Codex 승인·샌드박스 설정은 에이전트가 로컬에서 할 수 있는 일을 제어합니다. 이 설정을 별도로 검사하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings \
+  ./examples/codex.permissions.toml \
+  --pack strict \
+  --json
+```
+
+어댑터는 `approval_policy`, `approvals_reviewer`, `sandbox_mode`, `default_permissions`, `web_search` 및 문서화된 `sandbox_workspace_write` 키를 검증합니다. 다음을 보고합니다.
+
+- `danger-full-access`는 `BLOCK`
+- `workspace-write`, 외부 네트워크 접근, 추가 쓰기 가능 루트, 실시간 웹 검색, 자동 검토 및 `approval_policy = "never"`는 최소 `ASK`
+- 명시적인 멀티 에이전트 활성화, 사용자 정의 권한 프로필, 앱/플러그인 섹션 및 완전히 검사하지 않는 설정은 `ASK`
+
+보안 관련 값의 타입이나 열거 값이 지원되지 않으면 안전하게 실패합니다. 공식 설정 레퍼런스가 함께 사용하지 말라고 명시하므로 `default_permissions`와 기존 샌드박스 설정을 같이 사용해도 실패합니다. 쓰기 가능 루트 경로와 관련 없는 설정의 값은 보관·출력·지문화하지 않습니다.
+
+이 첫 번째 어댑터는 한 번에 파일 하나를 검사하며 사용자, 프로젝트, 프로필, 관리형, 시스템 또는 명령줄 설정을 하나의 실제 정책으로 병합하지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. 공식 OpenAI 문서는 샌드박스 경계와 승인 처리를 구분하며 `workspace-write`와 `on-request` 조합을 더 낮은 위험의 로컬 자동화 구성으로 안내합니다. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [샌드박스 가이드](https://developers.openai.com/codex/sandboxing)를 참고하세요.
+
 ### 스킬 및 플러그인
 
 에이전트 스킬과 플러그인 매니페스트도 같은 방법으로 검사할 수 있습니다.

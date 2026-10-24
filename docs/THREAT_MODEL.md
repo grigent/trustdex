@@ -6,7 +6,7 @@
 
 TrustDex addresses one narrow question:
 
-> **Should an agent be allowed to see and invoke this extension under the user's policy?**
+> **Should an agent see this extension or receive this automatic action capability under the user's policy?**
 
 ## In scope
 
@@ -19,6 +19,9 @@ TrustDex addresses one narrow question:
 - substitution of package bytes that do not match reviewed registry integrity metadata
 - configured package versions drifting from an integrity-verified artifact version
 - tampering with a reviewed snapshot when a signed trust record is available
+- Claude Code permission rules that silently auto-approve broad shell, filesystem, network, MCP, or subagent actions
+- Codex configurations that remove the sandbox, suppress approvals, enable network access, or add writable roots
+- action-permission settings changing without an explicit review
 
 ## Trust boundaries
 
@@ -41,6 +44,8 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - independently proving publisher ownership from a local trust-store claim
 - protecting a fully compromised host
 - protecting a stolen signing private key
+- calculating the effective configuration after every user, project, profile, managed, system, environment, and command-line source is merged
+- enforcing Claude Code or Codex action permissions at runtime
 
 ## Important failure mode
 

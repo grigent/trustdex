@@ -14,6 +14,7 @@ body:
       label: Agent runtime or config format
       options:
         - Codex config.toml
+        - Claude Code settings.json permissions
         - MCP JSON (mcpServers / servers)
         - SKILL.md
         - Plugin manifest

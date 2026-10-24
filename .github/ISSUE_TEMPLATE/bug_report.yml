@@ -21,7 +21,8 @@ body:
       label: Area
       options:
         - MCP JSON inspection
-        - Codex TOML inspection or gate
+        - Claude Code permission settings inspection
+        - Codex TOML / execution settings inspection or gate
         - Skill or plugin inspection
         - Policy decision
         - Provenance lookup

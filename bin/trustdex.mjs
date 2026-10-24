@@ -6,7 +6,9 @@ import process from 'node:process';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
 import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
+import { inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
+import { inspectClaudeSettings } from '../src/claude-settings.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
@@ -43,6 +45,7 @@ Usage:
   trustdex inspect-plugin <plugin.json> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-codex <config.toml> [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--json]
+  trustdex inspect-codex-settings <config.toml> [--pack ...] [--policy policy.json] [--json]
 
   trustdex gate <mcp.json> --out gated.json [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--include-ask] [--json]
@@ -50,11 +53,12 @@ Usage:
       [--trust-store trust-store.json] [--include-ask]
 
   trustdex inspect-claude <.mcp.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex inspect-claude-settings <settings.json> [--pack ...] [--policy policy.json] [--json]
   trustdex gate-claude <.mcp.json> --out gated.json [--pack ...] [--policy policy.json]
   trustdex snapshot-claude <.mcp.json> --out snapshot.json [--pack ...]
   trustdex approve-claude <.mcp.json> --private key.pem --dir review [--pack ...]
   trustdex recheck-claude <.mcp.json> --review-dir review --public key.pem [--json]
-  Claude commands accept the same policy/trust-store flags as their generic counterparts.
+  Claude MCP commands accept the same policy/trust-store flags as their generic counterparts.
 
   trustdex provenance github <owner/repo> [--json]
   trustdex provenance github-release <owner/repo> [--json]
@@ -263,12 +267,31 @@ async function main() {
     return;
   }
 
+  if (command === 'inspect-claude-settings') {
+    const settingsPath = args[1];
+    if (!settingsPath) throw new Error('inspect-claude-settings requires a path to Claude settings JSON.');
+    let settings;
+    try { settings = await readJson(settingsPath); } catch (error) {
+      if (error instanceof SyntaxError) throw new Error('Invalid Claude settings JSON.');
+      throw error;
+    }
+    await inspectSingle(inspectClaudeSettings(settings, settingsPath), args);
+    return;
+  }
+
   if (command === 'inspect-codex') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex requires a path to Codex config.toml.');
     const { results } = await evaluateCodex(configPath, args);
     printResults(results, hasFlag(args, '--json'));
     setInspectExitCode(results);
+    return;
+  }
+
+  if (command === 'inspect-codex-settings') {
+    const configPath = args[1];
+    if (!configPath) throw new Error('inspect-codex-settings requires a path to Codex config.toml.');
+    await inspectSingle(inspectCodexSettingsText(await fs.readFile(configPath, 'utf8'), configPath), args);
     return;
   }
 

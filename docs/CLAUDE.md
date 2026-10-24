@@ -91,6 +91,51 @@ Official references:
 [Claude Code MCP](https://code.claude.com/docs/en/mcp) and
 [CLI flags](https://code.claude.com/docs/en/cli-reference).
 
+## Claude Code permission settings
+
+MCP gating controls which external servers are exposed. Claude Code's own permission
+rules separately control which agent actions run without prompting. Inspect a user,
+project, local, or managed settings file as a separate step:
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings \
+  ./.claude/settings.json \
+  --pack strict \
+  --json
+```
+
+The adapter validates the documented `permissions` fields `allow`, `ask`, `deny`,
+`defaultMode`, `additionalDirectories`, `disableBypassPermissionsMode`,
+`disableAutoMode`, and `blockReadsOutsideWorkingDirectories`. Unknown permission
+fields, malformed rule arrays, empty rules, unsupported modes, unanchored wildcard
+allow rules, and parenthesized MCP rules fail closed.
+
+Automatic grants are classified by capability rather than echoing their values:
+
+| Observed setting | Strict result |
+| --- | --- |
+| narrow shell auto-approval | `BLOCK` |
+| broad shell, filesystem, network, or subagent auto-approval | `BLOCK` |
+| filesystem, network, MCP, or subagent auto-approval | at least `ASK` |
+| `bypassPermissions` default mode | `BLOCK` |
+| `auto` or `acceptEdits` default mode | at least `ASK` |
+| additional directories or explicitly unblocked outside reads | at least `ASK` |
+| hooks or an API-key helper | `BLOCK` |
+| environment, sandbox, plugin, or uninspected root settings | at least `ASK` |
+
+`ask` and `deny` rules are restrictive and do not add a risk signal by themselves.
+The report includes rule counts and capability categories, but not command patterns,
+paths, domains, hook bodies, helper commands, directory values, environment values,
+or plugin identifiers. For the same reason, this first adapter does not create a
+content fingerprint or signed review record for settings files.
+
+This command inspects one file at a time. Claude Code merges settings across scopes
+and command-line flags can add session permissions, so the result is not the effective
+runtime policy. Confirm loaded sources and permissions in Claude Code and use OS-level
+sandboxing for enforcement. Official references: [settings files and precedence](https://code.claude.com/docs/en/settings),
+[permissions](https://code.claude.com/docs/en/permissions), and
+[security](https://code.claude.com/docs/en/security).
+
 ## Signed review and drift
 
 Keep the Claude adapter throughout a review workflow; generic MCP commands do not

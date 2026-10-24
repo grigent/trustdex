@@ -1,6 +1,6 @@
 const CODEX_MCP_NESTED_SECTIONS = new Set(['env', 'http_headers', 'env_http_headers']);
 
-function stripComment(line) {
+export function stripComment(line) {
   let quote = null;
   let escaped = false;
   for (let i = 0; i < line.length; i += 1) {
@@ -61,7 +61,7 @@ function splitTopLevel(value) {
   return out;
 }
 
-function unquote(value) {
+export function unquote(value) {
   const raw = value.trim();
   if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
     return raw.slice(1, -1);
@@ -69,7 +69,7 @@ function unquote(value) {
   return raw;
 }
 
-function parseValue(raw) {
+export function parseValue(raw) {
   const value = raw.trim();
   if (!value) return '';
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
@@ -79,7 +79,7 @@ function parseValue(raw) {
     return splitTopLevel(value.slice(1, -1)).map(parseValue);
   }
   if (value.startsWith('{') && value.endsWith('}')) {
-    const object = {};
+    const object = Object.create(null);
     for (const part of splitTopLevel(value.slice(1, -1))) {
       const index = part.indexOf('=');
       if (index < 1) throw new Error(`Unsupported TOML inline table entry: ${part}`);
@@ -93,7 +93,7 @@ function parseValue(raw) {
   return value;
 }
 
-function valueComplete(value) {
+export function valueComplete(value) {
   let square = 0;
   let curly = 0;
   let quote = null;
@@ -128,8 +128,10 @@ export function codexServerNameFromHeader(header) {
     /^mcp_servers\.(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))(?:\.(.*))?$/
   );
   if (!match) return null;
+  const name = match[1] || match[2] || match[3];
+  if (['__proto__', 'prototype', 'constructor'].includes(name)) return null;
   return {
-    name: match[1] || match[2] || match[3],
+    name,
     nested: match[4] || ''
   };
 }
@@ -209,7 +211,7 @@ function applyAssignment(server, nested, key, value) {
 
 export function parseCodexMcpToml(text) {
   const lines = String(text || '').split(/\r?\n/);
-  const servers = {};
+  const servers = Object.create(null);
   let section = null;
 
   for (let i = 0; i < lines.length; i += 1) {
