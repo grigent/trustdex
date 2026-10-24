@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.9.0 - 2026-10-24
+
 - bind Claude Code and Codex MCP policy/provenance results to automatic tool grants without retaining permission specifiers or tool names
 - add self-validating binding snapshots, drift classification, versioned JSON schemas, and inert adversarial fixtures
 - fail closed on unmatched or ambiguous Claude MCP permission rules and blocked/provenance-mismatched automatic grants
