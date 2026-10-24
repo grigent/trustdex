@@ -157,6 +157,16 @@ requires review even for an ALLOW source. Wildcard tool scope is recorded as a b
 tool names, endpoint paths, and unrelated values are omitted. This static binding does
 not prove the configuration is loaded or enforce the Codex runtime sandbox.
 
+### Compare an explicit runtime inventory
+
+An authorized Codex integration can provide `agent-runtime-tool-inventory` JSON with
+the MCP server names visible to that session and a tool count for each server. Run
+`snapshot-runtime-tools <bindings> <inventory> --out <evidence>` to reconcile it with
+the reviewed Codex binding snapshot, and `diff-runtime-tools` to gate exposure growth.
+This is an opt-in evidence adapter contract, not automatic config discovery, an official
+Codex export format, or runtime enforcement. Confirm the capture path and sandbox in the
+client separately.
+
 ### Skills and plugins
 
 Agent skills and plugin manifests can be inspected the same way:

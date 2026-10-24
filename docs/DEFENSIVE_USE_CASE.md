@@ -46,6 +46,7 @@ This work is defensive engineering. It does not require credential theft, persis
 | Keep secrets out of evidence | tests for redaction from output, snapshots, and configuration fingerprints |
 | Make approval drift visible | deterministic snapshots, Ed25519 review records, and recheck commands |
 | Reconcile source trust with automatic grants | value-free Claude/Codex binding snapshots, schemas, diffs, and inert fixtures |
+| Compare reviewed intent with explicit runtime evidence | value-free inventory contract, effective-boundary reconciliation, and exposure drift tests |
 | Reduce supply-chain ambiguity | explicit provenance observations, artifact digest verification, release checksums, SBOMs, and build attestations |
 | Keep research reproducible | inert fixtures, documented expectations, cross-platform CI, and CodeQL |
 
@@ -69,6 +70,12 @@ the active Codex sandbox.
 source decision/provenance state to its automatic tool-grant shape. This makes broad
 or blocked grants reviewable without retaining tool names or permission specifiers.
 It remains static evidence and does not enforce runtime calls.
+
+`snapshot-runtime-tools` accepts a value-free inventory from an authorized runtime
+adapter and reconciles it with those bindings. This can surface loaded blocked sources
+and unexpected servers without retaining tool names. The adapter remains outside the
+TrustDex trust boundary, so its identity, transport, and completeness need independent
+controls.
 
 ## CVP application boundary
 

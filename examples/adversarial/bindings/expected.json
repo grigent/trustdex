@@ -11,5 +11,17 @@
     "automaticGrantCount": 2,
     "reviewCount": 1,
     "blockedCount": 1
+  },
+  "runtimeBefore": {
+    "status": "restricted",
+    "observedServerCount": 1,
+    "matchedCount": 1,
+    "notObservedCount": 1
+  },
+  "runtimeAfter": {
+    "status": "block",
+    "observedServerCount": 3,
+    "blockedCount": 1,
+    "unexpectedCount": 1
   }
 }

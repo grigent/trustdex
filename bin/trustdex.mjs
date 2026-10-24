@@ -36,6 +36,10 @@ import {
   createToolPermissionBindingSnapshot,
   diffToolPermissionBindingSnapshots
 } from '../src/bindings.mjs';
+import {
+  createEffectiveRuntimeEvidence,
+  diffEffectiveRuntimeEvidence
+} from '../src/runtime-evidence.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
 import { assessReview } from '../src/review.mjs';
 import {
@@ -108,6 +112,8 @@ Usage:
   trustdex snapshot-codex-bindings <config.toml> --out bindings.json
       [--trust-store trust-store.json] [--pack ...]
   trustdex diff-bindings <before.json> <after.json> [--json]
+  trustdex snapshot-runtime-tools <bindings.json> <inventory.json> --out runtime.json
+  trustdex diff-runtime-tools <before.json> <after.json> [--json]
   trustdex policy <strict|official-first|development>
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
@@ -380,6 +386,23 @@ function printBindingDiff(diff) {
   }
 }
 
+function printRuntimeEvidenceDiff(diff) {
+  if (diff.status === 'unchanged') {
+    console.log('UNCHANGED: effective runtime tool evidence matches the baseline.');
+    return;
+  }
+  console.log(diff.status === 'restricted'
+    ? 'RESTRICTED: observed runtime tool exposure became more restrictive.'
+    : 'NEEDS_REVIEW: effective runtime tool evidence changed.');
+  for (const change of diff.changes) {
+    const subject = change.name ? `${change.name}.` : '';
+    const details = change.before !== null || change.after !== null
+      ? ` (${String(change.before)} -> ${String(change.after)})`
+      : '';
+    console.log(`${change.impact.toUpperCase()} ${change.type}: ${subject}${change.field}${details}`);
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -530,6 +553,22 @@ async function main() {
     return;
   }
 
+  if (command === 'snapshot-runtime-tools') {
+    const bindingsPath = args[1];
+    const inventoryPath = args[2];
+    const out = getFlag(args, '--out');
+    if (!bindingsPath || !inventoryPath || !out) {
+      throw new Error('snapshot-runtime-tools requires <bindings.json> <inventory.json> and --out <runtime.json>.');
+    }
+    const snapshot = createEffectiveRuntimeEvidence(
+      await readJson(bindingsPath),
+      await readJson(inventoryPath)
+    );
+    await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
+    console.log(`Wrote ${out}\nStatus: ${snapshot.status}\nDigest: ${snapshot.digest}`);
+    return;
+  }
+
   if (command === 'diff-permissions') {
     const beforePath = args[1];
     const afterPath = args[2];
@@ -558,6 +597,22 @@ async function main() {
     );
     if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
     else printBindingDiff(diff);
+    if (diff.status === 'needs-review') process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'diff-runtime-tools') {
+    const beforePath = args[1];
+    const afterPath = args[2];
+    if (!beforePath || !afterPath) {
+      throw new Error('diff-runtime-tools requires <before.json> <after.json>.');
+    }
+    const diff = diffEffectiveRuntimeEvidence(
+      await readJson(beforePath),
+      await readJson(afterPath)
+    );
+    if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
+    else printRuntimeEvidenceDiff(diff);
     if (diff.status === 'needs-review') process.exitCode = 1;
     return;
   }

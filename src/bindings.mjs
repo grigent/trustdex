@@ -214,6 +214,10 @@ function validateSnapshot(snapshot) {
   return snapshot;
 }
 
+export function validateToolPermissionBindingSnapshot(snapshot) {
+  return validateSnapshot(snapshot);
+}
+
 function createSummary(bindings, input) {
   return {
     serverCount: bindings.length,

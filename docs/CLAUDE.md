@@ -208,6 +208,16 @@ names and grant shape only. It omits permission specifiers and tool names, so sa
 changes among scoped tools remain a source-review responsibility. Compare reviewed and
 current records with `diff-bindings`; expansion or provenance/policy drift exits `1`.
 
+### Compare an explicit runtime inventory
+
+If an authorized integration can obtain the MCP servers visible to a Claude session,
+have it emit `agent-runtime-tool-inventory` JSON with server names and tool counts only.
+Then run `snapshot-runtime-tools <bindings> <inventory> --out <evidence>`. Loaded BLOCK
+sources and servers absent from `.mcp.json` block the result; loaded review-required
+bindings remain review-required. `diff-runtime-tools` detects newly visible servers and
+tool-count growth. TrustDex does not call Claude, discover session files, authenticate
+the adapter, or prove the inventory is complete.
+
 ## Signed review and drift
 
 Keep the Claude adapter throughout a review workflow; generic MCP commands do not

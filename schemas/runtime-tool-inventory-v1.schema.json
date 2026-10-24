@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/runtime-tool-inventory-v1.schema.json",
+  "title": "TrustDex value-free runtime tool inventory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "runtime", "capturedAt", "captureMethod", "servers"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "agent-runtime-tool-inventory" },
+    "runtime": { "enum": ["claude", "codex"] },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "captureMethod": { "enum": ["runtime-export", "runtime-adapter"] },
+    "servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "toolCount"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "toolCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

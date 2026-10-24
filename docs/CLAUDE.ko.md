@@ -159,6 +159,16 @@ node ./bin/trustdex.mjs snapshot-claude-bindings ./.mcp.json \
 검토본과 현재 기록은 `diff-bindings`로 비교하며, 확대 또는 출처/정책 드리프트는
 종료 코드 `1`을 반환합니다.
 
+### 명시적 런타임 인벤토리 비교
+
+권한이 있는 통합이 Claude 세션에 보이는 MCP 서버를 가져올 수 있다면 서버 이름과
+도구 개수만 포함하는 `agent-runtime-tool-inventory` JSON을 생성하게 하세요. 그다음
+`snapshot-runtime-tools <bindings> <inventory> --out <evidence>`를 실행합니다. 로드된
+BLOCK 소스와 `.mcp.json`에 없는 서버는 결과를 차단하고, 검토가 필요한 연결이
+로드되면 계속 검토가 필요합니다. `diff-runtime-tools`는 새로 보이는 서버와 도구
+개수 증가를 감지합니다. TrustDex는 Claude를 호출하거나 세션 파일을 찾거나 어댑터를
+인증하거나 인벤토리의 완전성을 증명하지 않습니다.
+
 ## 서명된 검토 및 드리프트
 
 검토 워크플로 전체에서 Claude 어댑터를 유지하세요. 일반 MCP 명령은 Claude 전용 제어를 검사하지 않습니다.

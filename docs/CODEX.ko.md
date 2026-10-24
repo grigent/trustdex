@@ -141,6 +141,15 @@ node ./bin/trustdex.mjs diff-bindings \
 이름, 엔드포인트 경로 및 관련 없는 값은 제외합니다. 이 정적 연결은 설정이 실제로
 로드되었음을 증명하거나 Codex 런타임 샌드박스를 강제하지 않습니다.
 
+### 명시적 런타임 인벤토리 비교
+
+권한이 있는 Codex 통합은 해당 세션에 보이는 MCP 서버 이름과 서버별 도구 개수를
+담은 `agent-runtime-tool-inventory` JSON을 제공할 수 있습니다.
+`snapshot-runtime-tools <bindings> <inventory> --out <evidence>`로 검토된 Codex
+결합 스냅샷과 대조하고, `diff-runtime-tools`로 노출 확대를 게이트합니다. 이는 옵트인
+증거 어댑터 계약이며 자동 설정 탐색, 공식 Codex 내보내기 형식 또는 런타임 강제가
+아닙니다. 캡처 경로와 샌드박스는 클라이언트에서 별도로 확인하세요.
+
 ### 스킬 및 플러그인
 
 에이전트 스킬과 플러그인 매니페스트도 같은 방법으로 검사할 수 있습니다.

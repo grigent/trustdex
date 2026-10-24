@@ -11,7 +11,7 @@ These files provide a reproducible defensive test of TrustDex's policy boundary.
 - `expected.json` records the required decisions and minimum signals.
 - `drift-before.json` and `drift-after.json` model a reviewed package gaining a secret-bearing environment key.
 - [`permissions/`](permissions/README.md) covers value-free Claude/Codex permission posture drift.
-- [`bindings/`](bindings/README.md) covers MCP provenance-to-automatic-grant bindings.
+- [`bindings/`](bindings/README.md) covers MCP provenance-to-automatic-grant bindings and explicit runtime inventory reconciliation.
 
 All package names are fictional, all remote endpoints use the reserved `.invalid` top-level domain, and all apparent credentials are placeholders. Do not replace them with real values. TrustDex reads these files but never executes the listed commands or contacts the listed endpoints.
 

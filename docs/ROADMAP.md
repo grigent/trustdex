@@ -16,6 +16,8 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
   and Codex precedence, schema-v2 source topology evidence, and fail-closed stack tests.
 - TrustDex 0.9.0 adds value-free Claude/Codex bindings between MCP policy/provenance
   results and automatic tool grants, versioned schemas, drift review, and inert fixtures.
+- TrustDex 0.10.0 adds an explicit value-free runtime inventory contract, effective
+  boundary reconciliation, exposure-drift review, versioned schemas, and fixtures.
 
 ## Now: harden the boundary
 
@@ -28,10 +30,10 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Next: strengthen effective-runtime evidence
 
-- extend the versioned permission-posture JSON schemas to additional decisions and runtimes
-- document how advisory settings checks compose with runtime and operating-system sandboxes
-- add runtime-produced effective-setting evidence without silently discovering private files
-- add opt-in adapters for runtime-produced MCP/tool inventories without intercepting calls
+- ship concrete opt-in adapters only where a runtime exposes an authorized stable interface
+- authenticate inventory producers and transports without introducing long-lived shared secrets
+- extend effective evidence beyond MCP visibility while retaining value-free reports
+- publish a tested compatibility matrix for supported adapter/runtime versions
 
 ## Then: prove integrity
 

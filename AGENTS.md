@@ -32,6 +32,7 @@ Apply these when reviewing a TrustDex pull request, including automated `@codex 
 - Flag permission posture snapshots that retain source paths, permission specifiers, writable paths, commands, domains, environment names or values, or unrelated setting values. Added autonomy or changed policy semantics must require review.
 - Flag merged-settings logic that silently skips a supplied source, reverses documented precedence, retains source paths or values, or treats source-topology changes as unchanged.
 - Flag provenance-permission bindings that retain permission specifiers or tool names, classify automatic grants to ASK/BLOCK sources as safely bound, or treat grant/provenance expansion as unchanged.
+- Flag runtime-evidence code that discovers private state without explicit input, accepts raw tool lists or arbitrary fields, treats observed BLOCK/unconfigured servers as safe, or treats new exposure as unchanged.
 - Flag signature, fingerprint, or snapshot schema changes that would let an old approval validate a changed configuration.
 - Flag GitHub Actions changes that use an unpinned third-party action, widen `permissions`, or expose secrets to pull requests from forks.
 - Flag a new trust signal, policy rule, provenance adapter, or trust-record change that has no test.
