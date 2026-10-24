@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.10.0 - 2026-10-24
+
 - add an explicit value-free Claude/Codex runtime MCP inventory contract and effective-boundary reconciliation
 - block observed BLOCK or unconfigured servers and require review for ASK/broad-grant exposure
 - add self-validating runtime evidence snapshots, drift classification, versioned schemas, and inert fixtures
