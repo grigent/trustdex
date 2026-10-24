@@ -42,6 +42,57 @@ function looksLikePath(value) {
     value.startsWith('../') || /^[A-Za-z]:\\/.test(value);
 }
 
+function fingerprintUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return {
+      origin: `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}`,
+      pathname: url.pathname,
+      queryKeys: [...new Set(url.searchParams.keys())].sort()
+    };
+  } catch {
+    return { invalid: true };
+  }
+}
+
+function fingerprintArgs(args) {
+  const values = Array.isArray(args) ? args.map(String) : [];
+  const sanitized = [];
+  let redactNext = false;
+
+  for (const value of values) {
+    if (redactNext) {
+      sanitized.push('<redacted>');
+      redactNext = false;
+      continue;
+    }
+
+    const assignment = value.match(/^(-{1,2}[^=]+)=(.*)$/);
+    if (assignment && SECRET_KEY_RE.test(assignment[1])) {
+      sanitized.push(`${assignment[1]}=<redacted>`);
+      continue;
+    }
+    if (/^-{1,2}/.test(value) && SECRET_KEY_RE.test(value)) {
+      sanitized.push(value);
+      redactNext = true;
+      continue;
+    }
+    if (value === '-H' || value === '--header') {
+      sanitized.push(value);
+      redactNext = true;
+      continue;
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+      sanitized.push(fingerprintUrl(value));
+      continue;
+    }
+
+    sanitized.push(value);
+  }
+
+  return sanitized;
+}
+
 function extractRemoteEndpoint(server) {
   const candidate = server?.url || server?.endpoint;
   if (!candidate) return null;
@@ -53,6 +104,8 @@ function extractRemoteEndpoint(server) {
       host: url.hostname.toLowerCase(),
       origin: `${protocol}//${url.host.toLowerCase()}`,
       protocol,
+      pathname: url.pathname,
+      queryKeys: [...new Set(url.searchParams.keys())].sort(),
       hasEmbeddedCredentials: Boolean(url.username || url.password),
       hasQuery: Boolean(url.search)
     };
@@ -95,9 +148,13 @@ function normalizeServer(name, server = {}) {
 
   const fingerprint = sha256Json({
     command,
-    args,
-    url: server.url || null,
-    endpoint: server.endpoint || null,
+    args: fingerprintArgs(args),
+    remoteEndpoint: remote ? {
+      origin: remote.origin,
+      pathname: remote.pathname,
+      queryKeys: remote.queryKeys
+    } : null,
+    invalidEndpoint: (server.url || server.endpoint) && !remote ? true : null,
     envKeys,
     adapter: server._trustdexFingerprintData || null
   });

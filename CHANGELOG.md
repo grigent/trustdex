@@ -6,6 +6,10 @@
 
 ## Unreleased
 
+## 0.5.1 - 2026-10-24
+
+- exclude URL credentials, query values, and sensitive command arguments from configuration fingerprints while retaining trust-relevant endpoint structure
+
 ## 0.5.0 - 2026-10-07
 
 - add Claude MCP JSON inspection and gating for stdio, HTTP, and SSE configurations
