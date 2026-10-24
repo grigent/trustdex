@@ -18,7 +18,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
   results and automatic tool grants, versioned schemas, drift review, and inert fixtures.
 - TrustDex 0.10.0 adds an explicit value-free runtime inventory contract, effective
   boundary reconciliation, exposure-drift review, versioned schemas, and fixtures.
-- The next release adds Ed25519 producer authentication for exact runtime inventories,
+- TrustDex 0.11.0 adds Ed25519 producer authentication for exact runtime inventories,
   bounded expiry/capture age, schema-v2 authentication state, and fail-closed tests for
   replay, wrong-key, future-time, mutation, and unauthenticated evidence.
 

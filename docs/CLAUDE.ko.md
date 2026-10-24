@@ -6,7 +6,7 @@
 
 TrustDex는 Claude Code 또는 Claude Desktop이 MCP JSON을 받기 전에 이를 검사할 수 있습니다. 설정 증거를 로컬에서 평가하고, MCP 서버를 시작하지 않으며, 설정을 업로드하지 않습니다. ALLOW 결정은 증거가 정책과 일치한다는 뜻이며 서버 코드가 안전하다는 것을 증명하지 않습니다.
 
-Claude 전용 명령은 TrustDex 0.5.0 이상에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 아래 예제의 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.10.0`을 사용하거나, 소스 체크아웃에서 명령을 직접 사용하세요.
+Claude 전용 명령은 TrustDex 0.5.0 이상에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 아래 예제의 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.11.0`을 사용하거나, 소스 체크아웃에서 명령을 직접 사용하세요.
 
 ## 지원되는 설정
 
