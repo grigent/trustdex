@@ -19,6 +19,7 @@ TrustDex는 AI 에이전트가 서드파티 도구에 접근하기 전에 내리
 - 지원하지 않는 구문에서 안전하게 실패해야 하는 파서 동작
 - Claude Code 권한 설정의 자동 행동 권한
 - Codex 샌드박스, 승인, 네트워크, 쓰기 가능 루트, 웹 검색 및 서브에이전트 설정
+- 구조적 권한 상태 드리프트 및 에이전트 자율성 확대 시 재검토
 
 의도한 결과물은 재현 가능한 픽스처, 회귀 테스트, 문서화된 제한 사항 및 에이전트 개발자와 운영자를 위한 실용적인 완화책입니다.
 
@@ -61,6 +62,7 @@ TrustDex 연구는 관련 없는 공개 시스템을 테스트할 권한을 부�
 - [적대적 MCP 픽스처](../examples/adversarial/README.ko.md)
 - [Claude Code 권한 픽스처](../examples/claude.settings.json)
 - [Codex 권한 픽스처](../examples/codex.permissions.toml)
+- [적대적 Claude 및 Codex 권한 상태 픽스처](../examples/adversarial/permissions/README.ko.md)
 - [평가 기록](EVALUATION.ko.md)
 - [방어적 AI 에이전트 보안 사용 사례](DEFENSIVE_USE_CASE.ko.md)
 - [위협 모델](THREAT_MODEL.ko.md)

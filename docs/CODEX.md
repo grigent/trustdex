@@ -84,6 +84,31 @@ boundary from approval handling and documents `workspace-write` plus `on-request
 as the lower-risk local automation combination. See the [configuration reference](https://developers.openai.com/codex/config-reference)
 and [sandbox guide](https://developers.openai.com/codex/sandboxing).
 
+### Permission posture drift
+
+Create and commit a reviewed structural baseline, then generate a current snapshot in
+CI and compare them:
+
+```bash
+node ./bin/trustdex.mjs snapshot-codex-settings \
+  ~/.codex/config.toml \
+  --pack strict \
+  --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs diff-permissions \
+  .trustdex/approved-codex-posture.json \
+  .trustdex/current-codex-posture.json \
+  --json
+```
+
+Network enablement, broader writable scope, a weaker sandbox or approval posture,
+live search, subagent enablement, new risk signals, and policy-semantic changes require
+review and exit `1`. Restriction-only changes exit `0`. The snapshot stores structural
+counts and documented enums, not the config path, writable-root paths, custom profile
+values, or unrelated settings. Its digest detects accidental or unreconciled edits,
+but anyone can recompute an unsigned digest; it is not authentication or a replacement
+for the Codex runtime sandbox.
+
 ### Skills and plugins
 
 Agent skills and plugin manifests can be inspected the same way:

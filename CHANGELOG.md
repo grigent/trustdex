@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- add self-validating Claude and Codex permission posture snapshots and autonomy-expansion review gates
+- add inert adversarial permission fixtures that verify value-free inspection, snapshot, and diff output
+
 ## 0.6.0 - 2026-10-24
 
 - add static Claude Code permission inspection for automatic shell, filesystem, network, MCP, and subagent grants

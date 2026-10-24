@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(reviewer --token INERT_CLAUDE_PERMISSION_SECRET)",
+      "WebFetch(domain:research.invalid)",
+      "Agent(Explore)",
+      "mcp__reviewed__*"
+    ],
+    "defaultMode": "auto",
+    "additionalDirectories": [
+      "../INERT_CLAUDE_PERMISSION_PATH"
+    ],
+    "blockReadsOutsideWorkingDirectories": false
+  },
+  "env": {
+    "API_TOKEN": "INERT_CLAUDE_PERMISSION_SECRET"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf INERT_CLAUDE_HOOK_SECRET"
+          }
+        ]
+      }
+    ]
+  }
+}

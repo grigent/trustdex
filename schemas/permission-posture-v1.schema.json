@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/permission-posture-v1.schema.json",
+  "title": "TrustDex permission posture snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "createdAt",
+    "runtime",
+    "policyDigest",
+    "posture",
+    "digest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "agent-permission-posture" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "runtime": { "enum": ["claude", "codex"] },
+    "policyDigest": { "$ref": "#/$defs/digest" },
+    "digest": { "$ref": "#/$defs/digest" },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "signals", "metadata"],
+      "properties": {
+        "action": { "enum": ["allow", "ask", "block"] },
+        "signals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "metadata": { "type": "object" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "runtime": { "const": "claude" } } },
+      "then": {
+        "properties": {
+          "posture": {
+            "properties": {
+              "metadata": { "$ref": "#/$defs/claudeMetadata" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "runtime": { "const": "codex" } } },
+      "then": {
+        "properties": {
+          "posture": {
+            "properties": {
+              "metadata": { "$ref": "#/$defs/codexMetadata" }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "claudeMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "defaultMode",
+        "allowRuleCount",
+        "askRuleCount",
+        "denyRuleCount",
+        "allowCategories",
+        "additionalDirectoryCount",
+        "bypassDisabled",
+        "autoModeDisabled",
+        "outsideReadsBlocked",
+        "uninspectedRootKeyCount"
+      ],
+      "properties": {
+        "defaultMode": {
+          "type": ["string", "null"],
+          "enum": [null, "default", "manual", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto"]
+        },
+        "allowRuleCount": { "$ref": "#/$defs/count" },
+        "askRuleCount": { "$ref": "#/$defs/count" },
+        "denyRuleCount": { "$ref": "#/$defs/count" },
+        "allowCategories": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["filesystem", "mcp", "network", "other", "shell", "subagent"] }
+        },
+        "additionalDirectoryCount": { "$ref": "#/$defs/count" },
+        "bypassDisabled": { "type": "boolean" },
+        "autoModeDisabled": { "type": "boolean" },
+        "outsideReadsBlocked": { "type": "boolean" },
+        "uninspectedRootKeyCount": { "$ref": "#/$defs/count" }
+      }
+    },
+    "codexMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approvalPolicy",
+        "granularPromptCategories",
+        "approvalsReviewer",
+        "sandboxMode",
+        "defaultPermissionsKind",
+        "webSearch",
+        "networkAccess",
+        "additionalWritableRootCount",
+        "tempRootsExcluded",
+        "subagentsEnabled",
+        "uninspectedAgentKeyCount",
+        "uninspectedRootKeyCount",
+        "uninspectedSectionKindCount"
+      ],
+      "properties": {
+        "approvalPolicy": {
+          "type": ["string", "null"],
+          "enum": [null, "on-request", "never", "granular"]
+        },
+        "granularPromptCategories": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["mcp_elicitations", "request_permissions", "rules", "sandbox_approval", "skill_approval"] }
+        },
+        "approvalsReviewer": {
+          "type": ["string", "null"],
+          "enum": [null, "user", "auto_review"]
+        },
+        "sandboxMode": {
+          "type": ["string", "null"],
+          "enum": [null, "read-only", "workspace-write", "danger-full-access"]
+        },
+        "defaultPermissionsKind": {
+          "type": ["string", "null"],
+          "enum": [null, ":read-only", ":workspace", ":danger-full-access", "custom"]
+        },
+        "webSearch": {
+          "type": ["string", "null"],
+          "enum": [null, "disabled", "cached", "indexed", "live"]
+        },
+        "networkAccess": { "type": "boolean" },
+        "additionalWritableRootCount": { "$ref": "#/$defs/count" },
+        "tempRootsExcluded": { "type": "boolean" },
+        "subagentsEnabled": { "type": "boolean" },
+        "uninspectedAgentKeyCount": { "$ref": "#/$defs/count" },
+        "uninspectedRootKeyCount": { "$ref": "#/$defs/count" },
+        "uninspectedSectionKindCount": { "$ref": "#/$defs/count" }
+      }
+    }
+  }
+}

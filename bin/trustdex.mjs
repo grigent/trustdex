@@ -23,6 +23,10 @@ import {
   verifyArtifactBytes
 } from '../src/provenance-online.mjs';
 import { createSnapshot, diffSnapshots } from '../src/snapshot.mjs';
+import {
+  createPermissionPostureSnapshot,
+  diffPermissionPostureSnapshots
+} from '../src/posture.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
 import { assessReview } from '../src/review.mjs';
 import {
@@ -46,6 +50,7 @@ Usage:
   trustdex inspect-codex <config.toml> [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--json]
   trustdex inspect-codex-settings <config.toml> [--pack ...] [--policy policy.json] [--json]
+  trustdex snapshot-codex-settings <config.toml> --out posture.json [--pack ...]
 
   trustdex gate <mcp.json> --out gated.json [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--include-ask] [--json]
@@ -54,6 +59,7 @@ Usage:
 
   trustdex inspect-claude <.mcp.json> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-claude-settings <settings.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex snapshot-claude-settings <settings.json> --out posture.json [--pack ...]
   trustdex gate-claude <.mcp.json> --out gated.json [--pack ...] [--policy policy.json]
   trustdex snapshot-claude <.mcp.json> --out snapshot.json [--pack ...]
   trustdex approve-claude <.mcp.json> --private key.pem --dir review [--pack ...]
@@ -79,6 +85,7 @@ Usage:
       [--policy policy.json] [--trust-store trust-store.json]
 
   trustdex diff <before.json> <after.json> [--json]
+  trustdex diff-permissions <before.json> <after.json> [--json]
   trustdex policy <strict|official-first|development>
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
@@ -199,6 +206,25 @@ async function inspectSingle(item, args) {
   setInspectExitCode(results);
 }
 
+async function evaluateClaudeSettings(settingsPath, args) {
+  let settings;
+  try { settings = await readJson(settingsPath); } catch (error) {
+    if (error instanceof SyntaxError) throw new Error('Invalid Claude settings JSON.');
+    throw error;
+  }
+  const policy = await loadPolicy(args);
+  const [result] = evaluateAll([inspectClaudeSettings(settings, settingsPath)], policy);
+  return { policy, result };
+}
+
+async function evaluateCodexSettings(configPath, args) {
+  const policy = await loadPolicy(args);
+  const [result] = evaluateAll([
+    inspectCodexSettingsText(await fs.readFile(configPath, 'utf8'), configPath)
+  ], policy);
+  return { policy, result };
+}
+
 function printObservation(observation, asJson) {
   if (asJson) {
     console.log(JSON.stringify(observation, null, 2));
@@ -221,6 +247,24 @@ async function lookupProvenance(adapter, subject) {
 function printChanges(changes) {
   for (const change of changes) {
     console.log(`${change.type}: ${change.name}${change.signals ? ` (${change.signals.join(', ')})` : ''}`);
+  }
+}
+
+function printPermissionPostureDiff(diff) {
+  if (diff.status === 'unchanged') {
+    console.log('UNCHANGED: permission posture matches the baseline.');
+    return;
+  }
+  if (diff.status === 'restricted') {
+    console.log('RESTRICTED: permission posture became more restrictive.');
+  } else {
+    console.log('NEEDS_REVIEW: permission posture expanded or changed in an unclassified way.');
+  }
+  for (const change of diff.changes) {
+    const details = change.items
+      ? ` (${change.items.join(', ')})`
+      : Object.hasOwn(change, 'before') ? ` (${String(change.before)} -> ${String(change.after)})` : '';
+    console.log(`${change.impact.toUpperCase()} ${change.type}: ${change.field}${details}`);
   }
 }
 
@@ -270,12 +314,9 @@ async function main() {
   if (command === 'inspect-claude-settings') {
     const settingsPath = args[1];
     if (!settingsPath) throw new Error('inspect-claude-settings requires a path to Claude settings JSON.');
-    let settings;
-    try { settings = await readJson(settingsPath); } catch (error) {
-      if (error instanceof SyntaxError) throw new Error('Invalid Claude settings JSON.');
-      throw error;
-    }
-    await inspectSingle(inspectClaudeSettings(settings, settingsPath), args);
+    const { result } = await evaluateClaudeSettings(settingsPath, args);
+    printResults([result], hasFlag(args, '--json'));
+    setInspectExitCode([result]);
     return;
   }
 
@@ -291,7 +332,40 @@ async function main() {
   if (command === 'inspect-codex-settings') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex-settings requires a path to Codex config.toml.');
-    await inspectSingle(inspectCodexSettingsText(await fs.readFile(configPath, 'utf8'), configPath), args);
+    const { result } = await evaluateCodexSettings(configPath, args);
+    printResults([result], hasFlag(args, '--json'));
+    setInspectExitCode([result]);
+    return;
+  }
+
+  if (command === 'snapshot-claude-settings' || command === 'snapshot-codex-settings') {
+    const configPath = args[1];
+    const out = getFlag(args, '--out');
+    if (!configPath || !out) {
+      throw new Error(`${command} requires a settings path and --out <posture.json>.`);
+    }
+    const { policy, result } = command === 'snapshot-claude-settings'
+      ? await evaluateClaudeSettings(configPath, args)
+      : await evaluateCodexSettings(configPath, args);
+    const snapshot = createPermissionPostureSnapshot(result, policy);
+    await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
+    console.log(`Wrote ${out}\nDigest: ${snapshot.digest}`);
+    return;
+  }
+
+  if (command === 'diff-permissions') {
+    const beforePath = args[1];
+    const afterPath = args[2];
+    if (!beforePath || !afterPath) {
+      throw new Error('diff-permissions requires <before.json> <after.json>.');
+    }
+    const diff = diffPermissionPostureSnapshots(
+      await readJson(beforePath),
+      await readJson(afterPath)
+    );
+    if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
+    else printPermissionPostureDiff(diff);
+    if (diff.status === 'needs-review') process.exitCode = 1;
     return;
   }
 

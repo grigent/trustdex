@@ -72,6 +72,31 @@ node ./bin/trustdex.mjs inspect-codex-settings \
 
 이 첫 번째 어댑터는 한 번에 파일 하나를 검사하며 사용자, 프로젝트, 프로필, 관리형, 시스템 또는 명령줄 설정을 하나의 실제 정책으로 병합하지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. 공식 OpenAI 문서는 샌드박스 경계와 승인 처리를 구분하며 `workspace-write`와 `on-request` 조합을 더 낮은 위험의 로컬 자동화 구성으로 안내합니다. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [샌드박스 가이드](https://developers.openai.com/codex/sandboxing)를 참고하세요.
 
+### 권한 상태 드리프트
+
+검토한 구조적 기준 상태를 생성해 커밋한 뒤 CI에서 현재 스냅샷을 만들고
+비교하세요.
+
+```bash
+node ./bin/trustdex.mjs snapshot-codex-settings \
+  ~/.codex/config.toml \
+  --pack strict \
+  --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs diff-permissions \
+  .trustdex/approved-codex-posture.json \
+  .trustdex/current-codex-posture.json \
+  --json
+```
+
+네트워크 활성화, 더 넓은 쓰기 범위, 더 약한 샌드박스나 승인 상태, 실시간 검색,
+서브에이전트 활성화, 새 위험 신호 및 정책 의미 변경은 검토를 요구하고 종료 코드
+`1`을 반환합니다. 제한적으로만 변한 경우 종료 코드 `0`을 반환합니다. 스냅샷은
+구조적 개수와 문서화된 열거 값만 저장하며 설정 파일 경로, 쓰기 가능 루트 경로,
+사용자 정의 프로필 값 또는 관련 없는 설정은 저장하지 않습니다. 다이제스트는
+우발적이거나 조정되지 않은 편집을 감지하지만 누구나 서명되지 않은 다이제스트를
+다시 계산할 수 있습니다. 인증이 아니며 Codex 런타임 샌드박스를 대체하지 않습니다.
+
 ### 스킬 및 플러그인
 
 에이전트 스킬과 플러그인 매니페스트도 같은 방법으로 검사할 수 있습니다.
