@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/permission-posture-v2.schema.json",
+  "title": "TrustDex merged permission posture snapshot v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "createdAt",
+    "runtime",
+    "policyDigest",
+    "posture",
+    "sources",
+    "digest"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "kind": { "const": "agent-permission-posture" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "runtime": { "enum": ["claude", "codex"] },
+    "policyDigest": { "$ref": "permission-posture-v1.schema.json#/$defs/digest" },
+    "digest": { "$ref": "permission-posture-v1.schema.json#/$defs/digest" },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "signals", "metadata"],
+      "properties": {
+        "action": { "enum": ["allow", "ask", "block"] },
+        "signals": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "metadata": { "type": "object" }
+      }
+    },
+    "sources": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "runtime": { "const": "claude" } } },
+      "then": {
+        "properties": {
+          "posture": {
+            "properties": {
+              "metadata": { "$ref": "permission-posture-v1.schema.json#/$defs/claudeMetadata" }
+            }
+          },
+          "sources": { "$ref": "#/$defs/claudeSources" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "runtime": { "const": "codex" } } },
+      "then": {
+        "properties": {
+          "posture": {
+            "properties": {
+              "metadata": { "$ref": "permission-posture-v1.schema.json#/$defs/codexMetadata" }
+            }
+          },
+          "sources": { "$ref": "#/$defs/codexSources" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "claudeSources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceCount", "activeSourceCount", "sourceCounts"],
+      "properties": {
+        "sourceCount": { "$ref": "#/$defs/count" },
+        "activeSourceCount": { "$ref": "#/$defs/count" },
+        "sourceCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["user", "project", "local", "session", "managed"],
+          "properties": {
+            "user": { "$ref": "#/$defs/count" },
+            "project": { "$ref": "#/$defs/count" },
+            "local": { "$ref": "#/$defs/count" },
+            "session": { "$ref": "#/$defs/count" },
+            "managed": { "$ref": "#/$defs/count" }
+          }
+        }
+      }
+    },
+    "codexSources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceCount", "activeSourceCount", "sourceCounts"],
+      "properties": {
+        "sourceCount": { "$ref": "#/$defs/count" },
+        "activeSourceCount": { "$ref": "#/$defs/count" },
+        "sourceCounts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["system", "managed", "user", "profile", "project", "cli"],
+          "properties": {
+            "system": { "$ref": "#/$defs/count" },
+            "managed": { "$ref": "#/$defs/count" },
+            "user": { "$ref": "#/$defs/count" },
+            "profile": { "$ref": "#/$defs/count" },
+            "project": { "$ref": "#/$defs/count" },
+            "cli": { "$ref": "#/$defs/count" }
+          }
+        }
+      }
+    }
+  }
+}

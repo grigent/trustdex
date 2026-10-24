@@ -129,10 +129,28 @@ paths, domains, hook bodies, helper commands, directory values, environment valu
 or plugin identifiers. For the same reason, this first adapter does not create a
 content fingerprint or signed review record for settings files.
 
-This command inspects one file at a time. Claude Code merges settings across scopes
-and command-line flags can add session permissions, so the result is not the effective
-runtime policy. Confirm loaded sources and permissions in Claude Code and use OS-level
-sandboxing for enforcement. Official references: [settings files and precedence](https://code.claude.com/docs/en/settings),
+Use the stack command when reviewing multiple active sources:
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --local ./.claude/settings.local.json \
+  --session ./review/session.settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict --json
+```
+
+TrustDex applies user, shared project, project-local, session, and managed precedence;
+permission lists combine, while supported scalar permission controls use the highest
+effective source. It also ignores `auto` and `bypassPermissions` defaults from project
+or local sources, matching the documented scope restriction. The report stores only
+fixed scope names and counts, never input paths or setting values.
+
+Sources must be passed explicitly. TrustDex does not discover settings, shell environment
+overrides, embedded-host policy, or server-delivered managed settings, so confirm loaded
+sources with `/status` and use OS-level sandboxing for enforcement. Official references:
+[settings files and precedence](https://code.claude.com/docs/en/settings),
 [permissions](https://code.claude.com/docs/en/permissions), and
 [security](https://code.claude.com/docs/en/security).
 
@@ -146,6 +164,13 @@ node ./bin/trustdex.mjs snapshot-claude-settings \
   --pack strict \
   --out .trustdex/claude-posture.json
 
+node ./bin/trustdex.mjs snapshot-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict \
+  --out .trustdex/claude-stack-posture.json
+
 node ./bin/trustdex.mjs diff-permissions \
   .trustdex/approved-claude-posture.json \
   .trustdex/current-claude-posture.json
@@ -158,6 +183,9 @@ The snapshot excludes source paths and every permission, hook, directory, domain
 credential-helper, plugin, and environment value. Because it intentionally does not
 fingerprint redacted rule contents, a same-count change inside one capability category
 must still be covered by source review or runtime controls.
+Merged-source snapshots use schema v2 and include only source-scope counts. Adding,
+removing, or reclassifying a source requires review even when the resulting structural
+permission posture is otherwise unchanged.
 
 ## Signed review and drift
 

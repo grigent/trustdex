@@ -12,6 +12,8 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - TrustDex 0.7.0 adds value-free, self-validating permission posture snapshots,
   autonomy-expansion review gates, versioned JSON schemas, and public adversarial
   permission fixtures.
+- TrustDex 0.8.0 adds explicit merged-source inspection for documented Claude Code
+  and Codex precedence, schema-v2 source topology evidence, and fail-closed stack tests.
 
 ## Now: harden the boundary
 
@@ -24,11 +26,10 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Next: make agent action boundaries reviewable
 
-- inspect merged settings sources without retaining commands, paths, domains, or credential values
-- extend the initial single-file posture comparison to merged settings sources
 - connect approved tool provenance to the action permissions granted to that tool
 - extend the versioned permission-posture JSON schemas to additional decisions and runtimes
 - document how advisory settings checks compose with runtime and operating-system sandboxes
+- add runtime-produced effective-setting evidence without silently discovering private files
 
 ## Then: prove integrity
 

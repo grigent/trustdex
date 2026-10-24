@@ -179,7 +179,17 @@ node ./bin/trustdex.mjs inspect-codex-settings \
   --pack strict
 ```
 
-이 명령은 승인 정책, 샌드박스 종류, 네트워크 접근, 추가 쓰기 가능 루트 개수, 웹 검색 모드 및 명시적인 서브에이전트 활성화를 보고합니다. 쓰기 가능 경로나 관련 없는 설정의 값은 보관하지 않으며, 모든 설정 범위를 하나의 실제 런타임 정책으로 병합하지 않습니다.
+이 명령은 승인 정책, 샌드박스 종류, 네트워크 접근, 추가 쓰기 가능 루트 개수, 웹 검색 모드 및 명시적인 서브에이전트 활성화를 보고합니다. 쓰기 가능 경로나 관련 없는 설정의 값은 보관하지 않습니다. 문서화된 병합 우선순위를 검사하려면 활성 소스를 명시적으로 제공하세요. `--project`는 저장소 루트에서 현재 디렉터리 방향으로 반복합니다.
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings-stack \
+  --system ./review/system.toml \
+  --user ./review/user.toml \
+  --project ./review/root-project.toml \
+  --project ./review/closest-project.toml \
+  --cli ./review/cli-overrides.toml \
+  --pack strict
+```
 
 단계별 게이트 워크플로와 이 프로젝트가 자체 검토 과정에서 Codex를 사용하는 방법은 [Codex에서 TrustDex 사용하기](docs/CODEX.ko.md)를 참고하세요.
 
@@ -205,7 +215,19 @@ node ./bin/trustdex.mjs inspect-claude-settings \
   --pack strict
 ```
 
-이 명령은 구조적인 기능 증거만 보고합니다. 권한 지정자, 디렉터리 값, 훅 명령, 도메인, 자격 증명 도우미 값 또는 환경 값을 출력하거나 지문에 포함하지 않습니다. 이는 정적 검토 도구이며 설정 병합기나 런타임 샌드박스가 아닙니다.
+이 명령은 구조적인 기능 증거만 보고합니다. 권한 지정자, 디렉터리 값, 훅 명령, 도메인, 자격 증명 도우미 값 또는 환경 값을 출력하거나 지문에 포함하지 않습니다. 문서화된 파일 우선순위와 목록 병합을 계산하려면 소스를 명시적으로 제공하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --local ./.claude/settings.local.json \
+  --session ./review/session.settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict
+```
+
+스택 검사는 여전히 정적 검토 도구이며 런타임 샌드박스가 아닙니다. 파일, 환경 변수 재정의 또는 조직 정책을 자동으로 찾지 않으며, 전달된 소스만 평가합니다.
 
 ## 권한 상태 드리프트
 
@@ -222,6 +244,13 @@ node ./bin/trustdex.mjs snapshot-codex-settings \
   ~/.codex/config.toml \
   --pack strict \
   --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs snapshot-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict \
+  --out .trustdex/claude-stack-posture.json
 
 node ./bin/trustdex.mjs diff-permissions \
   .trustdex/approved-posture.json \
@@ -240,7 +269,10 @@ node ./bin/trustdex.mjs diff-permissions \
 기계 소비자는 `--json` 출력을
 [`schemas/permission-posture-v1.schema.json`](schemas/permission-posture-v1.schema.json)과
 [`schemas/permission-posture-diff-v1.schema.json`](schemas/permission-posture-diff-v1.schema.json)으로
-검증할 수 있습니다. 스키마가 바뀌면 새로운 정수 `schemaVersion`을 사용하며 기존
+검증할 수 있습니다. 병합 소스 스냅샷과 차이는
+[`schemas/permission-posture-v2.schema.json`](schemas/permission-posture-v2.schema.json)과
+[`schemas/permission-posture-diff-v2.schema.json`](schemas/permission-posture-diff-v2.schema.json)을
+사용합니다. 스키마가 바뀌면 새로운 정수 `schemaVersion`을 사용하며 기존
 필드의 의미를 조용히 바꾸지 않습니다.
 
 ## 온라인 출처 관찰

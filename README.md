@@ -181,8 +181,19 @@ node ./bin/trustdex.mjs inspect-codex-settings \
 
 This reports approval policy, sandbox class, network access, additional writable-root
 count, web-search mode, and explicit subagent enablement. It does not retain writable
-paths or values from unrelated settings, and it does not merge every configuration
-scope into an effective runtime policy.
+paths or values from unrelated settings. To inspect the documented merged precedence,
+provide each active source explicitly; repeat `--project` from repository root toward
+the current directory:
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings-stack \
+  --system ./review/system.toml \
+  --user ./review/user.toml \
+  --project ./review/root-project.toml \
+  --project ./review/closest-project.toml \
+  --cli ./review/cli-overrides.toml \
+  --pack strict
+```
 
 See [Using TrustDex with Codex](docs/CODEX.md) for a step-by-step gating workflow and for how this project uses Codex in its own review process.
 
@@ -217,7 +228,22 @@ node ./bin/trustdex.mjs inspect-claude-settings \
 
 The command reports structural capability evidence only. It does not print or fingerprint
 permission specifiers, directory values, hook commands, domains, credential-helper values,
-or environment values. It is a static review aid, not a settings merger or runtime sandbox.
+or environment values. To calculate the documented file precedence and list merging, pass
+the sources explicitly:
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --local ./.claude/settings.local.json \
+  --session ./review/session.settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict
+```
+
+The stack inspector remains a static review aid, not a runtime sandbox. It does not discover
+files, environment overrides, or organization policy automatically; only supplied sources
+are evaluated.
 
 ## Permission posture drift
 
@@ -234,6 +260,13 @@ node ./bin/trustdex.mjs snapshot-codex-settings \
   ~/.codex/config.toml \
   --pack strict \
   --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs snapshot-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict \
+  --out .trustdex/claude-stack-posture.json
 
 node ./bin/trustdex.mjs diff-permissions \
   .trustdex/approved-posture.json \
@@ -253,6 +286,9 @@ enforcement.
 Machine consumers can validate `--json` output against
 [`schemas/permission-posture-v1.schema.json`](schemas/permission-posture-v1.schema.json)
 and [`schemas/permission-posture-diff-v1.schema.json`](schemas/permission-posture-diff-v1.schema.json).
+Merged-source snapshots and their diffs use
+[`schemas/permission-posture-v2.schema.json`](schemas/permission-posture-v2.schema.json)
+and [`schemas/permission-posture-diff-v2.schema.json`](schemas/permission-posture-diff-v2.schema.json).
 Schema changes require a new integer `schemaVersion`; fields are not silently repurposed.
 
 ## Online provenance observations

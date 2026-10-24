@@ -23,6 +23,7 @@ TrustDex addresses one narrow question:
 - Codex configurations that remove the sandbox, suppress approvals, enable network access, or add writable roots
 - action-permission settings changing without an explicit review
 - Claude or Codex permission posture expanding relative to a value-free structural baseline
+- precedence changes across explicitly supplied Claude or Codex settings sources
 
 ## Trust boundaries
 
@@ -45,7 +46,8 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - independently proving publisher ownership from a local trust-store claim
 - protecting a fully compromised host
 - protecting a stolen signing private key
-- calculating the effective configuration after every user, project, profile, managed, system, environment, and command-line source is merged
+- automatically discovering every active settings source, profile, environment override, requirement, or server-delivered policy
+- proving that the explicitly merged settings projection is the policy active at runtime
 - enforcing Claude Code or Codex action permissions at runtime
 - authenticating the author of an unsigned permission posture snapshot
 

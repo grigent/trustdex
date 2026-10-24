@@ -89,7 +89,21 @@ node ./bin/trustdex.mjs inspect-claude-settings \
 
 `ask`와 `deny` 규칙은 제한적이므로 그 자체로 위험 신호를 추가하지 않습니다. 보고서에는 규칙 개수와 기능 범주가 포함되지만 명령 패턴, 경로, 도메인, 훅 본문, 도우미 명령, 디렉터리 값, 환경 값 또는 플러그인 식별자는 포함되지 않습니다. 같은 이유로 이 첫 번째 어댑터는 설정 파일용 콘텐츠 지문이나 서명된 검토 기록을 만들지 않습니다.
 
-이 명령은 한 번에 파일 하나만 검사합니다. Claude Code는 여러 범위의 설정을 병합하고 명령줄 플래그가 세션 권한을 추가할 수 있으므로 이 결과가 실제 런타임 정책은 아닙니다. Claude Code에서 로드된 소스와 권한을 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
+여러 활성 소스를 검토할 때는 스택 명령을 사용하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --local ./.claude/settings.local.json \
+  --session ./review/session.settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict --json
+```
+
+TrustDex는 사용자, 공유 프로젝트, 프로젝트 로컬, 세션 및 관리형 우선순위를 적용합니다. 권한 목록은 결합하고 지원되는 스칼라 권한 제어는 가장 높은 유효 소스를 사용합니다. 문서화된 범위 제한에 맞춰 프로젝트 또는 로컬 소스의 `auto`와 `bypassPermissions` 기본 모드는 무시합니다. 보고서에는 고정된 소스 범위 이름과 개수만 저장하며 입력 경로나 설정 값은 저장하지 않습니다.
+
+소스는 명시적으로 전달해야 합니다. TrustDex는 설정, 셸 환경 변수 재정의, 임베딩 호스트 정책 또는 서버 전달 관리형 설정을 자동으로 찾지 않습니다. `/status`로 로드된 소스를 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
 
 ### 권한 상태 드리프트
 
@@ -100,6 +114,13 @@ node ./bin/trustdex.mjs snapshot-claude-settings \
   ./.claude/settings.json \
   --pack strict \
   --out .trustdex/claude-posture.json
+
+node ./bin/trustdex.mjs snapshot-claude-settings-stack \
+  --user ./review/user.settings.json \
+  --project ./.claude/settings.json \
+  --managed ./review/managed-settings.json \
+  --pack strict \
+  --out .trustdex/claude-stack-posture.json
 
 node ./bin/trustdex.mjs diff-permissions \
   .trustdex/approved-claude-posture.json \
@@ -113,6 +134,8 @@ node ./bin/trustdex.mjs diff-permissions \
 플러그인 및 환경 값을 제외합니다. 제거된 규칙 내용을 의도적으로 지문화하지
 않으므로 같은 기능 범주 안에서 규칙 개수는 같고 내용만 바뀌는 경우에는 소스
 검토나 런타임 제어가 계속 필요합니다.
+병합 소스 스냅샷은 스키마 v2를 사용하고 소스 범위 개수만 포함합니다. 최종 구조적
+권한 상태가 같더라도 소스 추가, 제거 또는 범위 변경에는 재검토가 필요합니다.
 
 ## 서명된 검토 및 드리프트
 

@@ -76,13 +76,31 @@ Security-relevant values fail closed when their type or enum value is unsupporte
 the official configuration reference says not to combine them. Writable-root paths
 and values from unrelated settings are not retained, printed, or fingerprinted.
 
-This first adapter inspects one file at a time; it does not merge user, project,
-profile, managed, system, or command-line configuration into an effective policy.
-It is static evidence, not the Codex sandbox itself. Confirm the active permission
-profile in the client. The official OpenAI documentation distinguishes the sandbox
-boundary from approval handling and documents `workspace-write` plus `on-request`
-as the lower-risk local automation combination. See the [configuration reference](https://developers.openai.com/codex/config-reference)
-and [sandbox guide](https://developers.openai.com/codex/sandboxing).
+Use the stack command to apply the documented configuration precedence. Repeat
+`--project` from the repository root toward the current directory; the closest project
+file wins:
+
+```bash
+node ./bin/trustdex.mjs inspect-codex-settings-stack \
+  --system ./review/system.toml \
+  --managed ./review/managed.toml \
+  --user ./review/user.toml \
+  --profile ./review/profile.toml \
+  --project ./review/root-project.toml \
+  --project ./review/closest-project.toml \
+  --cli ./review/cli-overrides.toml \
+  --pack strict --json
+```
+
+The stack is merged from system through CLI precedence, one supported security field
+at a time. Unsupported syntax in any source fails closed even when a higher source
+would override it. Reports retain fixed source-scope counts but not config paths or
+unrelated values. Sources are explicit inputs: the command does not discover trusted
+projects, active profiles, cloud-managed defaults, requirements, or CLI flags itself.
+It is static evidence, not the Codex sandbox. Confirm the active permission profile
+in the client. The official OpenAI documentation distinguishes the sandbox boundary
+from approval handling. See the [configuration reference](https://developers.openai.com/codex/config-reference)
+and [configuration precedence](https://developers.openai.com/codex/config-basic).
 
 ### Permission posture drift
 
@@ -94,6 +112,13 @@ node ./bin/trustdex.mjs snapshot-codex-settings \
   ~/.codex/config.toml \
   --pack strict \
   --out .trustdex/codex-posture.json
+
+node ./bin/trustdex.mjs snapshot-codex-settings-stack \
+  --system ./review/system.toml \
+  --user ./review/user.toml \
+  --project ./review/project.toml \
+  --pack strict \
+  --out .trustdex/codex-stack-posture.json
 
 node ./bin/trustdex.mjs diff-permissions \
   .trustdex/approved-codex-posture.json \
@@ -108,6 +133,8 @@ counts and documented enums, not the config path, writable-root paths, custom pr
 values, or unrelated settings. Its digest detects accidental or unreconciled edits,
 but anyone can recompute an unsigned digest; it is not authentication or a replacement
 for the Codex runtime sandbox.
+Merged-source snapshots use schema v2. A source-scope count change is unclassified
+and therefore returns `NEEDS_REVIEW`, even when the final structural settings match.
 
 ### Skills and plugins
 

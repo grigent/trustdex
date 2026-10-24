@@ -54,13 +54,15 @@ An ALLOW result is still only a policy result over observed evidence. TrustDex i
 
 `inspect-claude-settings` examines the documented `permissions` object and reports automatic approval of shell, filesystem, network, MCP, and subagent capabilities. It also surfaces the presence of hooks, credential helpers, environment settings, sandbox configuration, and plugin loading without retaining their values.
 
-This is static evidence, not runtime enforcement. It does not merge every Claude settings scope, inspect command-line flags, prove that managed settings reached a session, or replace Claude Code sandboxing. The operator must confirm the effective runtime configuration separately.
+`inspect-claude-settings-stack` applies documented precedence to explicitly supplied user, project, local, session, and managed sources. This is static evidence, not runtime enforcement. It does not discover sources or prove that managed settings reached a session, and it does not replace Claude Code sandboxing. The operator must confirm the effective runtime configuration separately.
 
 `inspect-codex-settings` evaluates Codex approval policy, reviewer choice, sandbox
 class, network access, additional writable-root count, web-search mode, and explicit
 subagent enablement. It reports custom permission, app, and plugin surfaces that it
-does not fully parse without retaining their values. It likewise does not merge every
-Codex configuration layer or replace the active Codex sandbox.
+does not fully parse without retaining their values. `inspect-codex-settings-stack`
+applies documented system-through-CLI precedence to supplied files, including ordered
+project layers. It does not discover the active layers, enforce requirements, or replace
+the active Codex sandbox.
 
 ## CVP application boundary
 

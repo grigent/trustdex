@@ -2,7 +2,8 @@ import { sha256Json } from './canonical.mjs';
 
 const ACTION_RANK = Object.freeze({ allow: 0, ask: 1, block: 2 });
 const SNAPSHOT_KIND = 'agent-permission-posture';
-const SNAPSHOT_VERSION = 1;
+const SINGLE_SNAPSHOT_VERSION = 1;
+const STACK_SNAPSHOT_VERSION = 2;
 
 const CLAUDE_MODES = new Set([
   null,
@@ -65,6 +66,10 @@ const RUNTIME_SIGNALS = Object.freeze({
     'uninspected-codex-settings',
     'uninspected-codex-sections'
   ])
+});
+const SOURCE_SCOPES = Object.freeze({
+  claude: Object.freeze(['user', 'project', 'local', 'session', 'managed']),
+  codex: Object.freeze(['system', 'managed', 'user', 'profile', 'project', 'cli'])
 });
 
 function requireObject(value, message) {
@@ -202,14 +207,36 @@ function projectPolicy(policy, runtime) {
   };
 }
 
+function normalizeSettingsContext(context, runtime) {
+  requireObject(context, 'Permission posture settings context is missing.');
+  assertMetadataKeys(context, new Set(['sourceCount', 'activeSourceCount', 'sourceCounts']));
+  const sourceCount = requireCount(context.sourceCount, 'sourceCount');
+  const activeSourceCount = requireCount(context.activeSourceCount, 'activeSourceCount');
+  if (activeSourceCount > sourceCount) {
+    throw new Error('Permission posture active source count exceeds total source count.');
+  }
+  const inputCounts = requireObject(context.sourceCounts, 'Permission posture source counts are missing.');
+  const scopes = SOURCE_SCOPES[runtime];
+  assertMetadataKeys(inputCounts, new Set(scopes));
+  const sourceCounts = Object.fromEntries(
+    scopes.map((scope) => [scope, requireCount(inputCounts[scope], `sourceCounts.${scope}`)])
+  );
+  if (Object.values(sourceCounts).reduce((total, count) => total + count, 0) !== sourceCount) {
+    throw new Error('Permission posture source counts do not match the total source count.');
+  }
+  return { sourceCount, activeSourceCount, sourceCounts };
+}
+
 function snapshotDigest(snapshot) {
-  return sha256Json({
+  const projected = {
     schemaVersion: snapshot.schemaVersion,
     kind: snapshot.kind,
     runtime: snapshot.runtime,
     policyDigest: snapshot.policyDigest,
     posture: snapshot.posture
-  });
+  };
+  if (snapshot.schemaVersion === STACK_SNAPSHOT_VERSION) projected.sources = snapshot.sources;
+  return sha256Json(projected);
 }
 
 export function createPermissionPostureSnapshot(result, policy = {}) {
@@ -218,9 +245,9 @@ export function createPermissionPostureSnapshot(result, policy = {}) {
   if (!Array.isArray(result.signals) || result.signals.some((item) => typeof item !== 'string')) {
     throw new Error('Permission posture result has invalid signals.');
   }
-  const runtime = result.kind === 'claude-settings'
+  const runtime = ['claude-settings', 'claude-settings-stack'].includes(result.kind)
     ? 'claude'
-    : result.kind === 'codex-settings' ? 'codex' : null;
+    : ['codex-settings', 'codex-settings-stack'].includes(result.kind) ? 'codex' : null;
   if (!runtime) throw new Error('Permission posture supports Claude or Codex settings results only.');
   if (result.signals.some((signal) => !RUNTIME_SIGNALS[runtime].has(signal))) {
     throw new Error('Permission posture result contains an unsupported signal.');
@@ -234,20 +261,23 @@ export function createPermissionPostureSnapshot(result, policy = {}) {
       ? normalizeClaudeMetadata(metadata)
       : normalizeCodexMetadata(metadata)
   };
+  const isStack = result.kind.endsWith('-stack');
   const snapshot = {
-    schemaVersion: SNAPSHOT_VERSION,
+    schemaVersion: isStack ? STACK_SNAPSHOT_VERSION : SINGLE_SNAPSHOT_VERSION,
     kind: SNAPSHOT_KIND,
     createdAt: new Date().toISOString(),
     runtime,
     policyDigest: sha256Json(projectPolicy(policy, runtime)),
     posture
   };
+  if (isStack) snapshot.sources = normalizeSettingsContext(result.settingsContext, runtime);
   return { ...snapshot, digest: snapshotDigest(snapshot) };
 }
 
 function validateSnapshot(snapshot) {
   requireObject(snapshot, 'Invalid permission posture snapshot.');
-  if (snapshot.schemaVersion !== SNAPSHOT_VERSION || snapshot.kind !== SNAPSHOT_KIND) {
+  if (![SINGLE_SNAPSHOT_VERSION, STACK_SNAPSHOT_VERSION].includes(snapshot.schemaVersion) ||
+      snapshot.kind !== SNAPSHOT_KIND) {
     throw new Error('Unsupported permission posture snapshot schema.');
   }
   if (!['claude', 'codex'].includes(snapshot.runtime)) throw new Error('Invalid permission posture runtime.');
@@ -271,6 +301,14 @@ function validateSnapshot(snapshot) {
   } else {
     const normalized = normalizeCodexSnapshotMetadata(metadata);
     if (sha256Json(normalized) !== sha256Json(metadata)) throw new Error('Non-canonical Codex posture metadata.');
+  }
+  if (snapshot.schemaVersion === STACK_SNAPSHOT_VERSION) {
+    const normalized = normalizeSettingsContext(snapshot.sources, snapshot.runtime);
+    if (sha256Json(normalized) !== sha256Json(snapshot.sources)) {
+      throw new Error('Non-canonical permission posture source metadata.');
+    }
+  } else if (snapshot.sources !== undefined) {
+    throw new Error('Permission posture v1 does not support source metadata.');
   }
   if (snapshot.digest !== snapshotDigest(snapshot)) throw new Error('Permission posture snapshot digest mismatch.');
   return snapshot;
@@ -496,6 +534,29 @@ export function diffPermissionPostureSnapshots(beforeInput, afterInput) {
   if (before.runtime !== after.runtime) throw new Error('Cannot compare different permission posture runtimes.');
 
   const changes = [];
+  if (before.schemaVersion !== after.schemaVersion) {
+    addChange(
+      changes,
+      'review',
+      'value-changed',
+      'schemaVersion',
+      before.schemaVersion,
+      after.schemaVersion
+    );
+  } else if (before.schemaVersion === STACK_SNAPSHOT_VERSION) {
+    for (const field of ['sourceCount', 'activeSourceCount']) {
+      if (before.sources[field] !== after.sources[field]) {
+        addChange(changes, 'review', 'count-changed', `sources.${field}`, before.sources[field], after.sources[field]);
+      }
+    }
+    for (const scope of SOURCE_SCOPES[before.runtime]) {
+      const previous = before.sources.sourceCounts[scope];
+      const current = after.sources.sourceCounts[scope];
+      if (previous !== current) {
+        addChange(changes, 'review', 'count-changed', `sources.${scope}`, previous, current);
+      }
+    }
+  }
   if (before.policyDigest !== after.policyDigest) {
     changes.push({ impact: 'review', type: 'policy-changed', field: 'policyDigest' });
   }
@@ -529,7 +590,7 @@ export function diffPermissionPostureSnapshots(beforeInput, afterInput) {
     ? 'needs-review'
     : summary.restrictions ? 'restricted' : 'unchanged';
   return {
-    schemaVersion: SNAPSHOT_VERSION,
+    schemaVersion: Math.max(before.schemaVersion, after.schemaVersion),
     runtime: before.runtime,
     status,
     baselineDigest: before.digest,

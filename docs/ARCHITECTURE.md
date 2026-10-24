@@ -47,9 +47,12 @@ The gate is the enforcement boundary. Reports alone do not prevent an agent from
 - Network lookup is explicit and observation is not approval.
 - ALLOW is a policy result, not a safety certification.
 
-Settings inspection is currently advisory. It reads one source file at a time and does
-not calculate the merged effective runtime policy. MCP gates remain the implemented
-enforcement boundary; operating-system and runtime sandboxes enforce agent actions.
+Settings inspection is advisory. It can read one source file or an explicitly supplied
+Claude/Codex source stack and calculate the documented precedence for the supported
+security fields. It does not discover active files, profiles, environment overrides,
+requirements, or server-delivered policy, and it does not prove the reported policy is
+active. MCP gates remain the implemented enforcement boundary; operating-system and
+runtime sandboxes enforce agent actions.
 
 ## Dependency policy
 

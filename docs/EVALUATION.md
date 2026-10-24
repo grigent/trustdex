@@ -79,8 +79,19 @@ for both runtimes. `test/posture.test.mjs` requires:
 The digest checks internal consistency, not signer identity. Same-count changes inside
 redacted permission rules remain outside this structural comparison.
 
+## Merged settings stack cases
+
+`test/settings-stack.test.mjs` exercises explicit source stacks for both runtimes. It requires:
+
+- Claude permission lists to combine while managed/session/local/project/user scalar precedence is preserved
+- project or local Claude sources not to activate `auto` or `bypassPermissions` default modes
+- Codex system/managed/user/profile/project/CLI precedence and closest-project ordering
+- invalid lower-precedence input to fail even when a higher source would replace the setting
+- schema-v2 snapshots to retain only fixed scope counts and to require review when source topology changes
+- source paths, rules, domains, commands, writable paths, environment names, and values to remain absent
+
 ## What this does not measure
 
-This benchmark is intentionally narrow. It does not measure runtime behavior, sandbox escape, arbitrary malware, every form of prompt injection, publisher identity ownership, or vulnerabilities in transitive dependencies. It does not merge every Claude or Codex settings scope, inspect session command-line overrides, or prove that the reported sandbox is active. In particular, tool descriptions returned dynamically by an already-running MCP server are outside the current static configuration boundary.
+This benchmark is intentionally narrow. It does not measure runtime behavior, sandbox escape, arbitrary malware, every form of prompt injection, publisher identity ownership, or vulnerabilities in transitive dependencies. The stack cases merge only sources explicitly supplied to the test; they do not discover active settings, requirements, environment overrides, or server-managed policy, and they do not prove that the reported sandbox is active. In particular, tool descriptions returned dynamically by an already-running MCP server are outside the current static configuration boundary.
 
 The small fixture set is a regression baseline, not a statistical claim about detection accuracy. False-positive and false-negative rates require a larger, independently reviewed corpus of redacted real-world configurations.

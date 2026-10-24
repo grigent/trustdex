@@ -6,6 +6,10 @@
 
 ## Unreleased
 
+- add explicit Claude Code and Codex settings-stack inspection using documented source precedence
+- add schema-v2 merged permission posture snapshots that omit source paths and require review for source-topology drift
+- fail closed on malformed lower-precedence sources even when a higher source would override them
+
 ## 0.7.0 - 2026-10-24
 
 - add self-validating Claude and Codex permission posture snapshots and autonomy-expansion review gates
