@@ -14,6 +14,10 @@ node ../../../bin/trustdex.mjs snapshot-claude-bindings ./claude.mcp.json \
 node ../../../bin/trustdex.mjs snapshot-codex-bindings ./codex.toml \
   --trust-store ./trust-store.json \
   --out ./codex.bindings.json
+
+node ../../../bin/trustdex.mjs snapshot-runtime-tools \
+  ./claude.bindings.json ./runtime-after.json \
+  --out ./runtime.evidence.json
 ```
 
 The reviewed Claude server has a scoped grant bound to an `ALLOW` result. Its
@@ -23,3 +27,7 @@ review because `default_tools_approval_mode = "approve"` grants every tool.
 
 Generated reports intentionally omit endpoint paths, permission specifiers, tool
 names, and marker values. `expected.json` records only stable structural outcomes.
+The runtime inventories are explicit, value-free adapter outputs: they contain server
+names and tool counts, not tool names. `runtime-after.json` models a blocked configured
+server and an unexpected server becoming visible. TrustDex does not discover runtime
+state or authenticate the inventory producer.

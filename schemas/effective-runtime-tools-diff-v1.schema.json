@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/effective-runtime-tools-diff-v1.schema.json",
+  "title": "TrustDex effective runtime tool boundary diff v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "runtime", "status", "baselineDigest", "currentDigest", "summary", "changes"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "runtime": { "enum": ["claude", "codex"] },
+    "status": { "enum": ["unchanged", "restricted", "needs-review"] },
+    "baselineDigest": { "$ref": "#/$defs/digest" },
+    "currentDigest": { "$ref": "#/$defs/digest" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expansions", "restrictions", "reviews"],
+      "properties": {
+        "expansions": { "$ref": "#/$defs/count" },
+        "restrictions": { "$ref": "#/$defs/count" },
+        "reviews": { "$ref": "#/$defs/count" }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["impact", "type", "name", "field", "before", "after"],
+        "properties": {
+          "impact": { "enum": ["expansion", "restriction", "review"] },
+          "type": {
+            "enum": [
+              "bindings-changed", "capture-method-changed", "server-added", "server-removed",
+              "observation-changed", "tool-count-changed", "binding-state-changed", "server-status-changed"
+            ]
+          },
+          "name": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+          "field": { "type": "string", "minLength": 1 },
+          "before": {},
+          "after": {}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "count": { "type": "integer", "minimum": 0 }
+  }
+}

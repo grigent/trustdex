@@ -96,6 +96,24 @@ The snapshot schemas validate the stable report shape. A signed trust record can
 authenticate a reviewed snapshot, but neither the schema nor signature proves runtime
 enforcement or tool safety.
 
+## Effective runtime inventory cases
+
+`runtime-before.json`, `runtime-after.json`, and `test/runtime-evidence.test.mjs`
+exercise the opt-in runtime inventory contract. They require:
+
+- an observed ALLOW source with no review-required binding to match
+- an observed BLOCK source or unconfigured server to block the effective boundary
+- an observed ASK/broad-grant binding to require review
+- configured but unobserved servers to be restriction-only
+- newly observed servers and tool-count growth to be expansion
+- raw tool lists, duplicate server names, extra fields, invalid timestamps, and tampered evidence to fail closed
+- output to retain only server names, tool counts, fixed policy/provenance enums, and digests
+
+The fixture is adapter-shaped evidence, not a live Claude or Codex capture. TrustDex
+cannot determine whether an inventory is authentic or complete; deployments must secure
+the producer and transport separately. Same-count tool-set substitutions are invisible
+because the value-free contract intentionally omits tool names.
+
 ## Merged settings stack cases
 
 `test/settings-stack.test.mjs` exercises explicit source stacks for both runtimes. It requires:

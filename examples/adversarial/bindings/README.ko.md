@@ -13,6 +13,10 @@ node ../../../bin/trustdex.mjs snapshot-claude-bindings ./claude.mcp.json \
 node ../../../bin/trustdex.mjs snapshot-codex-bindings ./codex.toml \
   --trust-store ./trust-store.json \
   --out ./codex.bindings.json
+
+node ../../../bin/trustdex.mjs snapshot-runtime-tools \
+  ./claude.bindings.json ./runtime-after.json \
+  --out ./runtime.evidence.json
 ```
 
 검토된 Claude 서버의 범위 제한 승인은 `ALLOW` 결과와 결합됩니다. 출처를 알 수
@@ -22,3 +26,7 @@ node ../../../bin/trustdex.mjs snapshot-codex-bindings ./codex.toml \
 
 생성된 보고서는 엔드포인트 경로, 권한 지정자, 도구 이름 및 마커 값을 의도적으로
 제외합니다. `expected.json`은 안정적인 구조적 결과만 기록합니다.
+런타임 인벤토리는 명시적으로 제공되는 값 없는 어댑터 출력입니다. 도구 이름 대신
+서버 이름과 도구 개수만 포함합니다. `runtime-after.json`은 차단된 설정 서버와 예상
+밖 서버가 노출되는 상황을 모델링합니다. TrustDex는 런타임 상태를 자동으로 찾거나
+인벤토리 생성자를 인증하지 않습니다.

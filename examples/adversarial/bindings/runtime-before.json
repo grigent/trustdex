@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "agent-runtime-tool-inventory",
+  "runtime": "claude",
+  "capturedAt": "2026-10-24T00:00:00.000Z",
+  "captureMethod": "runtime-adapter",
+  "servers": [
+    {
+      "name": "reviewed",
+      "toolCount": 2
+    }
+  ]
+}

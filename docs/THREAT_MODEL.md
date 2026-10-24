@@ -26,6 +26,8 @@ TrustDex addresses one narrow question:
 - precedence changes across explicitly supplied Claude or Codex settings sources
 - automatic MCP tool grants that no longer match the server's policy/provenance result
 - wildcard, unmatched, or ambiguous grants that hide the effective tool boundary
+- explicitly reported runtime inventories that expose blocked, review-required, or unconfigured MCP servers
+- effective runtime inventories expanding by server visibility or tool count
 
 ## Trust boundaries
 
@@ -54,6 +56,8 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - authenticating the author of an unsigned permission posture snapshot
 - proving that a binding snapshot reflects the files actually loaded by a running agent
 - intercepting or enforcing individual MCP tool calls at runtime
+- authenticating an inventory producer, proving inventory completeness, or preventing a compromised adapter from lying
+- discovering live Claude/Codex sessions or reading their private state automatically
 
 ## Important failure mode
 

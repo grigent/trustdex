@@ -71,6 +71,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - verify user-supplied package bytes against npm SRI or MCP Registry SHA-256 metadata
 - bind integrity-backed trust evidence to the configured package version and block mismatches
 - bind each Claude/Codex MCP source decision and provenance state to its automatic tool grant without retaining tool names or rule values
+- reconcile explicit, value-free runtime MCP inventories with reviewed bindings and detect blocked or unexpected loaded servers
 
 ## Compatibility
 
@@ -322,6 +323,36 @@ permission specifiers, and tool names. Validate them with
 and [`schemas/tool-permission-bindings-diff-v1.schema.json`](schemas/tool-permission-bindings-diff-v1.schema.json).
 This is review evidence, not runtime permission enforcement.
 
+## Effective runtime tool evidence
+
+An authorized runtime adapter can emit a minimal inventory containing only runtime,
+capture method, server names, and tool counts. TrustDex reconciles that explicit input
+with a binding snapshot without searching private files or intercepting tool calls:
+
+```bash
+node ./bin/trustdex.mjs snapshot-runtime-tools \
+  .trustdex/claude-bindings.json \
+  ./runtime-tool-inventory.json \
+  --out .trustdex/runtime-tools.json
+
+node ./bin/trustdex.mjs diff-runtime-tools \
+  .trustdex/approved-runtime-tools.json \
+  .trustdex/current-runtime-tools.json \
+  --json
+```
+
+Observed BLOCK sources and unexpected servers produce `block`; observed ASK or broad
+automatic-grant bindings produce `needs-review`; configured servers absent from the
+inventory are restriction-only. Tool-count growth and newly observed servers require
+review. The input and output schemas are
+[`schemas/runtime-tool-inventory-v1.schema.json`](schemas/runtime-tool-inventory-v1.schema.json),
+[`schemas/effective-runtime-tools-v1.schema.json`](schemas/effective-runtime-tools-v1.schema.json),
+and [`schemas/effective-runtime-tools-diff-v1.schema.json`](schemas/effective-runtime-tools-diff-v1.schema.json).
+TrustDex validates the supplied evidence shape and digest but does not authenticate the
+adapter, prove that the inventory is complete, or enforce the runtime. Because the
+contract retains counts instead of tool names, same-count tool-set substitutions remain
+outside this comparison.
+
 ## Online provenance observations
 
 Normal inspection remains local-only. These commands perform an explicit network lookup only when invoked:
@@ -489,7 +520,7 @@ For production CI, pin the action to a reviewed commit SHA rather than a moving 
 
 ## Roadmap
 
-The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on effective-runtime evidence, additional agent-runtime adapters, reproducible controls, and real-world pilot feedback. Roadmap items are intentions, not promises.
+The public roadmap is maintained in [docs/ROADMAP.md](docs/ROADMAP.md). Near-term work focuses on authenticated runtime-evidence producers, stable opt-in adapters, reproducible controls, and real-world pilot feedback. Roadmap items are intentions, not promises.
 
 ## Security
 
