@@ -15,7 +15,7 @@ Codex 클라이언트는 `config.toml`(기본적으로 `~/.codex/` 아래)의 `[
 ### 1. 현재 설정 검사
 
 ```bash
-npx trustdex@0.7.0 inspect-codex ~/.codex/config.toml --pack strict
+npx trustdex@0.8.0 inspect-codex ~/.codex/config.toml --pack strict
 ```
 
 이 명령은 파일을 로컬에서 읽으며 네트워크 요청을 하지 않습니다. 출력에는 각 MCP 서버, 소스 유형, 신뢰 신호 및 ALLOW / ASK / BLOCK 결정이 표시됩니다. 환경 변수 이름은 표시될 수 있지만 값은 절대 표시되지 않습니다.
@@ -25,7 +25,7 @@ npx trustdex@0.7.0 inspect-codex ~/.codex/config.toml --pack strict
 ### 2. 게이트된 사본 작성
 
 ```bash
-npx trustdex@0.7.0 gate-codex ~/.codex/config.toml \
+npx trustdex@0.8.0 gate-codex ~/.codex/config.toml \
   --pack official-first \
   --trust-store ./trust-store.json \
   --out ./gated-config.toml
@@ -125,8 +125,8 @@ node ./bin/trustdex.mjs diff-permissions \
 에이전트 스킬과 플러그인 매니페스트도 같은 방법으로 검사할 수 있습니다.
 
 ```bash
-npx trustdex@0.7.0 inspect-skill ./path/to/SKILL.md --pack strict
-npx trustdex@0.7.0 inspect-plugin ./path/to/plugin.json --pack strict
+npx trustdex@0.8.0 inspect-skill ./path/to/SKILL.md --pack strict
+npx trustdex@0.8.0 inspect-plugin ./path/to/plugin.json --pack strict
 ```
 
 이 명령은 파이프로 연결된 셸 설치 프로그램, 민감한 경로 참조, 네트워크 URL 및 와일드카드 도구 범위와 같은 관찰 가능한 신호를 보고합니다. 스킬이나 플러그인이 안전하다는 것을 증명하지는 않습니다.

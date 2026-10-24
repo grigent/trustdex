@@ -10,7 +10,7 @@ upload your configuration. An ALLOW decision means the evidence matched your pol
 it does not prove that server code is safe.
 
 The Claude-specific commands are available in TrustDex 0.5.0 and later.
-Use `npx trustdex@0.7.0` in place of `node ./bin/trustdex.mjs` in the examples
+Use `npx trustdex@0.8.0` in place of `node ./bin/trustdex.mjs` in the examples
 below to run the published CLI, or use the commands directly from a source checkout.
 
 ## Supported configuration
