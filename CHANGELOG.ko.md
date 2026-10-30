@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- 검토한 Codex `config.toml`에 서명하고 Codex 고유의 도구·승인 모드 변경까지 드리프트를 재확인할 수 있도록 `snapshot-codex`, `approve-codex`, `recheck-codex` 추가
+
 - 오류 메시지가 입력 내용을 인용하지 않도록 수정: 잘못된 JSON은 파일 이름만 보고하고, Codex TOML 인라인 테이블 오류는 자격 증명이 들어 있을 수 있는 항목을 더 이상 출력하지 않음
 - 따옴표 없는 TOML 값(맨 단어, 날짜)을 문자열로 읽지 않고 거부
 

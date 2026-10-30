@@ -527,6 +527,8 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 
 The private key should never be committed.
 
+`approve`/`recheck` also exist per adapter: `approve-claude`/`recheck-claude` for Claude MCP JSON, `approve-codex`/`recheck-codex` for Codex `config.toml` (see [Codex](docs/CODEX.md)), and `approve-ide-extensions`/`recheck-ide-extensions` for editor extensions.
+
 ## GitHub Action
 
 ```yaml

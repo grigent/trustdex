@@ -510,6 +510,8 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 
 비공개 키는 절대 커밋하면 안 됩니다.
 
+`approve`/`recheck`는 어댑터별로도 있습니다. Claude MCP JSON은 `approve-claude`/`recheck-claude`, Codex `config.toml`은 `approve-codex`/`recheck-codex`([Codex](docs/CODEX.ko.md) 참고), 에디터 확장은 `approve-ide-extensions`/`recheck-ide-extensions`를 사용합니다.
+
 ## GitHub Action
 
 ```yaml

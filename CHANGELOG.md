@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- add `snapshot-codex`, `approve-codex`, and `recheck-codex` so a reviewed Codex `config.toml` can be signed and rechecked for drift, including Codex-specific tool and approval-mode changes
+
 - stop error messages from quoting input content: malformed JSON now reports only the file name, and Codex TOML inline-table errors no longer echo the entry, which could contain a credential
 - reject unquoted TOML values (bare words, dates) instead of reading them as strings
 

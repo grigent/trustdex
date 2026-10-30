@@ -45,7 +45,22 @@ TrustDex는 `config.toml`을 직접 수정하지 않습니다. 원본 파일을 
 
 패키지 버전이 올라가거나, 런처가 바뀌거나, 새 환경 변수가 전달되면 MCP 항목이 변경됩니다. `config.toml`이 변경될 때마다 `inspect-codex`와 `gate-codex`를 다시 실행하세요. dotfiles 저장소의 CI 작업 또는 pre-commit 훅이 적합합니다.
 
-[README](../README.ko.md#기능-및-출처-드리프트)의 서명된 `snapshot`, `approve`, `recheck` 드리프트 워크플로는 현재 MCP JSON만 받습니다. Codex `config.toml`로 확장하는 작업은 [로드맵](ROADMAP.ko.md)에 기록되어 있습니다.
+### 4. 서명된 검토로 검토한 설정 고정하기
+
+보호하려는 컴퓨터 밖에 보관한 서명 키로 검토한 `config.toml`을 승인하고, Codex 세션 시작 전이나 CI에서 재확인하세요.
+
+```bash
+node ./bin/trustdex.mjs approve-codex ~/.codex/config.toml \
+  --private .trustdex/private.pem --dir .trustdex/codex-review \
+  --pack strict --policy ./trustdex.policy.json
+
+node ./bin/trustdex.mjs recheck-codex ~/.codex/config.toml \
+  --review-dir .trustdex/codex-review --public .trustdex/public.pem
+```
+
+`approve-codex`는 BLOCK 판정이 포함된 설정은 승인하지 않습니다. `recheck-codex`는 모든 MCP 서버가 서명된 검토와 일치하면 `APPROVED`와 함께 `0`으로 종료합니다. 서버가 추가·제거되거나, 패키지 버전, 엔드포인트, 환경 변수·베어러 토큰 변수 이름, 헤더 이름, `enabled_tools`/`disabled_tools`, 도구 승인 모드가 바뀌면 `NEEDS_REVIEW`와 함께 `1`로 종료합니다. 검토 번들이나 그 정책이 변조되었으면 `INVALID`와 함께 `2`로 종료합니다. `snapshot-codex`는 `diff`에 쓸 같은 v3 스냅샷을 만듭니다. 검토는 어댑터별입니다. Codex 검토는 MCP JSON 파일을 재확인해서 통과할 수 없고, 그 반대도 마찬가지입니다.
+
+다른 지문과 마찬가지로 Codex 스냅샷에는 환경 변수, 헤더, 토큰 값이 들어가지 않으므로 자격 증명 값만 바꾸는 경우에는 재검토가 필요하지 않습니다.
 
 ### 안전하게 실패하는 파싱
 
