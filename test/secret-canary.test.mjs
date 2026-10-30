@@ -10,7 +10,8 @@ import { fileURLToPath } from 'node:url';
 //
 // Unique markers are planted in the value positions of inspected inputs: environment
 // and header values, URL credentials and query values, credentials inside package
-// specs (URLs, name@url, scp-like remotes, uvx --from), sensitive command-line flags,
+// specs (URLs, name@url, scp-like remotes, uvx --from and --from=, and malformed forms:
+// several "@", whitespace, "https:/" with one slash, ;params), sensitive command-line flags,
 // Claude permission specifiers, hooks, helpers and directories, Codex writable roots,
 // skill bodies, plugin manifest values, and IDE extension manifest and registry
 // fields. Each command below then runs, including the changed-state paths of diff and
@@ -74,6 +75,12 @@ function mcpServers() {
     scp: { command: 'npx', args: [`deploy:${canary()}@git.example.invalid:org/repo`] },
     from: { command: 'uvx', args: ['--from', `pkg @ https://u:${canary()}@files.example.invalid/x.whl`, 'tool'] },
     packageFlag: { command: 'npx', args: [`--package=https://u:${canary()}@registry.example.invalid/p.tgz`, 'tool'] },
+    multiAt: { command: 'npx', args: [`https://user:pa@${canary()}@registry.example.invalid/x.tgz`] },
+    spaceUserinfo: { command: 'npx', args: [`https://user:pa ${canary()}@registry.example.invalid/x.tgz`] },
+    spaceQuery: { command: 'npx', args: [`https://registry.example.invalid/x.tgz?sig=AAA ${canary()}`] },
+    singleSlash: { command: 'npx', args: [`https:/u:${canary()}@registry.example.invalid/x.tgz?sig=${canary()}`] },
+    params: { command: 'npx', args: [`https://registry.example.invalid/x.tgz;sig=${canary()}`] },
+    fromEquals: { command: 'uvx', args: [`--from=https://u:${canary()}@files.example.invalid/tool.whl?sig=${canary()}`, 'tool==1.0.0'] },
     flags: { command: 'node', args: ['s.js', `--token=${canary()}`, '--api-key', canary(), '-H', `Authorization: ${canary()}`, `https://h.invalid/?k=${canary()}`] }
   };
 }
@@ -82,7 +89,8 @@ function claudeServers() {
   return {
     http: { type: 'http', url: 'https://mcp.example.invalid/mcp', headers: { Authorization: `Bearer ${canary()}`, 'X-Key': '${API_KEY}' } },
     stdio: { type: 'stdio', command: 'node', args: ['s.js', `--secret=${canary()}`], env: { TOKEN: canary() } },
-    pkg: { type: 'stdio', command: 'npx', args: ['-y', `https://u:${canary()}@registry.example.invalid/p.tgz`] }
+    pkg: { type: 'stdio', command: 'npx', args: ['-y', `https://u:${canary()}@registry.example.invalid/p.tgz`] },
+    multiAt: { type: 'stdio', command: 'npx', args: [`pkg@https://u:pa@${canary()}@registry.example.invalid/x.tgz`] }
   };
 }
 
@@ -208,13 +216,23 @@ test('no command prints or stores a planted value', () => {
   // Changed-state paths: recheck after the reviewed input changes prints source drift.
   const changedApprovable = { mcpServers: {
     remote: { url: `https://mcp.example.invalid/other?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
-    local: { command: 'node', args: ['server2.js', `--password=${canary()}`], env: { DB_PASSWORD: canary(), NEW_TOKEN: canary() } }
+    local: { command: 'node', args: ['server2.js', `--password=${canary()}`], env: { DB_PASSWORD: canary(), NEW_TOKEN: canary() } },
+    fromEquals: { command: 'uvx', args: [`--from=https://u:${canary()}@files.example.invalid/tool.whl`, 'tool==1.0.0'] },
+    singleSlash: { command: 'npx', args: [`https:/u:${canary()}@registry.example.invalid/x.tgz`] },
+    spaceUserinfo: { command: 'npx', args: [`https://user:pa ${canary()}@registry.example.invalid/x.tgz`] }
   } };
   fs.writeFileSync(files.approvable, JSON.stringify(changedApprovable));
+  fs.writeFileSync(files.claudeApprovable, JSON.stringify({ mcpServers: {
+    http: { type: 'http', url: 'https://mcp.example.invalid/other', headers: { Authorization: `Bearer ${canary()}` } },
+    stdio: { type: 'stdio', command: 'node', args: ['s2.js', `--secret=${canary()}`], env: { TOKEN: canary(), NEW_TOKEN: canary() } },
+    pkg: { type: 'stdio', command: 'npx', args: [`https://user:pa@${canary()}@registry.example.invalid/x.tgz?sig=${canary()}`] }
+  } }));
   writeExtensions(write, 'in/ext', '1.0.0');
   for (const args of [
     ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub],
     ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub, '--json'],
+    ['recheck-claude', files.claudeApprovable, '--review-dir', o('review-claude'), '--public', pub],
+    ['recheck-claude', files.claudeApprovable, '--review-dir', o('review-claude'), '--public', pub, '--json'],
     ['recheck-ide-extensions', files.ext, '--review-dir', o('review-ide'), '--public', pub],
     ['recheck-ide-extensions', files.ext, '--review-dir', o('review-ide'), '--public', pub, '--json']
   ]) {

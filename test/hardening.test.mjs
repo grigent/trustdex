@@ -1,5 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
 import { evaluateAll } from '../src/policy.mjs';
@@ -191,4 +196,152 @@ test('package URLs with query values cannot be allowed in any pack', () => {
     const policy = { ...getPolicyPack(pack), trustedPackages: ['https://registry.example.invalid/p.tgz'], unpinnedAction: 'allow' };
     assert.equal(evaluateAll([result], policy)[0].action, 'block', pack);
   }
+});
+
+const PACKS = ['strict', 'official-first', 'development'];
+const inspectOne = (command, args) => inspectMcpConfig({ mcpServers: { s: { command, args } } })[0];
+const blockedEverywhere = (result) => PACKS.every((pack) => evaluateAll([result], getPolicyPack(pack))[0].action === 'block');
+
+test('package spec bypass forms never print credentials, are flagged, and are never pinned', () => {
+  const cases = [
+    ['https://user:pa@SECRETA@registry.example.invalid/x.tgz', 'embedded-credentials'],
+    ['pkg@https://user:pa@SECRETB@registry.example.invalid/x.tgz', 'embedded-credentials'],
+    ['https://user:pa SECRETC@registry.example.invalid/x.tgz', 'unparseable-package-spec'],
+    ['https://registry.example.invalid/x.tgz?sig=AAA SECRETD', 'unparseable-package-spec'],
+    ['https:/u:SECRETE@registry.example.invalid/x.tgz', 'embedded-credentials'],
+    ['https:\\\\u:SECRETF@registry.example.invalid/x.tgz', 'embedded-credentials'],
+    ['https:u:SECRETG@registry.example.invalid/x.tgz', 'embedded-credentials'],
+    ['https:/registry.example.invalid/x.tgz?sig=SECRETH', 'package-url-query'],
+    ['git+https:/u:SECRETI@git.example.invalid/x/y', 'unparseable-package-spec'],
+    ['github:u:SECRETJ@org/repo', 'unparseable-package-spec'],
+    ['git:SECRETK@git.example.invalid:org/repo', 'unparseable-package-spec'],
+    ['file://u:SECRETL@host.invalid/x', 'unparseable-package-spec']
+  ];
+  for (const [spec, signal] of cases) {
+    const result = inspectOne('npx', ['-y', spec]);
+    assert.ok(!/SECRET/.test(JSON.stringify(result)), spec);
+    assert.ok(result.signals.includes(signal), `${spec} -> ${signal}`);
+    assert.ok(result.signals.includes('unbounded-version'), spec);
+    assert.equal(result.source.pinned, false, spec);
+    assert.ok(blockedEverywhere(result), spec);
+    const evaluated = evaluateAll([result], getPolicyPack('development'));
+    assert.ok(!/SECRET/.test(JSON.stringify(evaluated)), spec);
+  }
+  assert.equal(inspectOne('npx', ['https://user:pa@SECRETA@registry.example.invalid/x.tgz']).source.package, 'https://registry.example.invalid/x.tgz');
+  assert.equal(inspectOne('npx', ['https:u:SECRETG@registry.example.invalid/x.tgz']).source.package, 'https://registry.example.invalid/x.tgz');
+  assert.equal(inspectOne('npx', ['https://user:pa SECRETC@registry.example.invalid/x.tgz']).source.package, '<unparseable-package-spec>');
+});
+
+test('specs TrustDex cannot parse are blocked in every pack, even when trusted by name', () => {
+  for (const spec of ['./local-pkg', 'npm:other@1.0.0', 'ftp://h.invalid/x.tgz', 'pkg@', 'name:1.0@sha256:abc']) {
+    const result = inspectOne('npx', [spec]);
+    assert.ok(result.signals.includes('unparseable-package-spec'), spec);
+    assert.equal(result.source.package, '<unparseable-package-spec>', spec);
+    for (const pack of PACKS) {
+      const policy = { ...getPolicyPack(pack), trustedPackages: ['<unparseable-package-spec>'], unpinnedAction: 'allow' };
+      assert.equal(evaluateAll([result], policy)[0].action, 'block', `${spec} in ${pack}`);
+    }
+  }
+});
+
+test('package URL ;params are treated like query values', () => {
+  const tarball = inspectOne('npx', ['https://registry.example.invalid/x.tgz;sig=SECRETP']);
+  assert.equal(tarball.source.package, 'https://registry.example.invalid/x.tgz');
+  assert.ok(tarball.signals.includes('package-url-query'));
+  const shorthand = inspectOne('npx', ['github:org/repo;sig=SECRETQ#v2']);
+  assert.equal(shorthand.source.package, 'github:org/repo#v2');
+  assert.ok(shorthand.signals.includes('package-url-query'));
+  for (const result of [tarball, shorthand]) {
+    assert.ok(!/SECRET/.test(JSON.stringify(result)));
+    assert.ok(blockedEverywhere(result));
+  }
+});
+
+test('simple registry specs pass through unchanged', () => {
+  const cases = [
+    ['name', false], ['@scope/name', false], ['name@1.2.3', true], ['@scope/name@1.2.3', true],
+    ['name==1.2.3', true], ['name@latest', false], ['tool>=1.0', false]
+  ];
+  for (const [spec, pinned] of cases) {
+    const result = inspectOne(spec.includes('=') ? 'uvx' : 'npx', [spec]);
+    assert.equal(result.source.package, spec);
+    assert.equal(result.source.pinned, pinned, spec);
+    for (const signal of ['unparseable-package-spec', 'embedded-credentials', 'package-url-query']) {
+      assert.ok(!result.signals.includes(signal), `${spec} ${signal}`);
+    }
+  }
+  assert.equal(inspectOne('npx', ['file:../local-pkg']).source.package, 'file:../local-pkg');
+  assert.equal(inspectOne('npx', ['link:../local-pkg']).source.package, 'link:../local-pkg');
+});
+
+test('an ssh username alone is not a credential, but an ssh password is', () => {
+  for (const spec of ['git+ssh://git@git.example.invalid/x/y.git', 'ssh://git@git.example.invalid/x/y.git', 'git@git.example.invalid:x/y.git#v1', 'git+ssh://git@git.example.invalid:x/y.git#v1']) {
+    const result = inspectOne('npx', [spec]);
+    assert.ok(!result.signals.includes('embedded-credentials'), spec);
+    assert.ok(!result.signals.includes('unparseable-package-spec'), spec);
+    assert.ok(!result.source.package.includes('git@'), spec);
+    assert.equal(result.source.pinned, false, spec);
+  }
+  assert.equal(inspectOne('npx', ['git+ssh://git@git.example.invalid:x/y.git#v1']).source.package, 'git+ssh://git.example.invalid:x/y.git#v1');
+  for (const spec of ['ssh://git:SECRETS@git.example.invalid/x/y.git', 'git+ssh://git:SECRETS@git.example.invalid:x/y.git', 'git+https://SECRETS@git.example.invalid/x/y.git']) {
+    const result = inspectOne('npx', [spec]);
+    assert.ok(result.signals.includes('embedded-credentials'), spec);
+    assert.ok(!/SECRET/.test(JSON.stringify(result)), spec);
+  }
+});
+
+test('credentials in any argument are flagged and kept out of the fingerprint', () => {
+  const cases = [
+    ['uvx', (secret) => [`--from=https://u:${secret}@files.example.invalid/tool.whl`, 'tool==1.0.0']],
+    ['uvx', (secret) => [`--from=https://u:pa@${secret}@files.example.invalid/tool.whl`, 'tool==1.0.0']],
+    ['uvx', (secret) => [`--from=https://u:pa ${secret}@files.example.invalid/tool.whl`, 'tool==1.0.0']],
+    ['node', (secret) => ['server.js', `postgres://u:${secret}@db.example.invalid/app`]],
+    ['node', (secret) => ['server.js', `--db=postgres://u:${secret}@db.example.invalid/app`]],
+    ['node', (secret) => ['server.js', `deploy:${secret}@git.example.invalid:org/repo`]]
+  ];
+  for (const [command, args] of cases) {
+    const first = inspectOne(command, args('SECRETONE'));
+    const second = inspectOne(command, args('SECRETTWO'));
+    assert.ok(first.signals.includes('embedded-credentials'), args('X').join(' '));
+    assert.ok(blockedEverywhere(first), args('X').join(' '));
+    assert.equal(first.fingerprint, second.fingerprint, args('X').join(' '));
+    assert.ok(!/SECRET/.test(JSON.stringify(first)));
+  }
+  const image = inspectOne('docker', ['run', '-i', 'nginx:1.25@sha256:0123abcd']);
+  assert.ok(!image.signals.includes('embedded-credentials'));
+});
+
+test('argument value changes still change the fingerprint', () => {
+  const at = (args) => inspectOne('uvx', args).fingerprint;
+  assert.notEqual(
+    at(['--from=https://files.example.invalid/tool.whl?version=1.0', 'tool==1.0.0']),
+    at(['--from=https://files.example.invalid/tool.whl?version=9.9', 'tool==1.0.0'])
+  );
+  assert.notEqual(
+    at(['--from=https://files.example.invalid/tool.whl;v=1', 'tool==1.0.0']),
+    at(['--from=https://files.example.invalid/tool.whl;v=2', 'tool==1.0.0'])
+  );
+  assert.notEqual(at(['--from=git+https://git.example.invalid/x#v1', 'tool']), at(['--from=git+https://git.example.invalid/x#v2', 'tool']));
+});
+
+test('recheck reports a changed package URL query after approval', () => {
+  const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trustdex-query-'));
+  const run = (...args) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+  const config = path.join(dir, 'mcp.json');
+  const write = (version) => fs.writeFileSync(config, JSON.stringify({ mcpServers: {
+    tool: { command: 'uvx', args: [`--from=https://files.example.invalid/tool.whl?version=${version}`, 'tool==1.0.0'] }
+  } }));
+  const priv = path.join(dir, 'private.pem');
+  const pub = path.join(dir, 'public.pem');
+  const review = path.join(dir, 'review');
+  assert.equal(run('keygen', '--private', priv, '--public', pub).status, 0);
+  write('1.0');
+  const approved = run('approve', config, '--private', priv, '--dir', review, '--pack', 'development');
+  assert.equal(approved.status, 0, approved.stderr);
+  assert.equal(run('recheck', config, '--review-dir', review, '--public', pub).status, 0);
+  write('9.9');
+  const recheck = run('recheck', config, '--review-dir', review, '--public', pub, '--json');
+  assert.equal(recheck.status, 1, recheck.stdout);
+  assert.equal(JSON.parse(recheck.stdout).status, 'needs-review');
 });
