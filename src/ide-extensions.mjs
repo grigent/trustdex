@@ -21,6 +21,18 @@ const NATIVE_MAGIC = [
   [0x4d, 0x5a] // PE ("MZ")
 ];
 const ID_RE = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9._-]*$/;
+const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const NO_FOLLOW = fs.constants?.O_NOFOLLOW ?? 0;
+const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
+const MAX_MANIFEST_BYTES = 1024 * 1024;
+
+// Integrity signals that policy overlays may not lower below BLOCK.
+export const IDE_INTEGRITY_SIGNALS = Object.freeze([
+  'ide-extension-digest-mismatch',
+  'ide-extension-external-location',
+  'ide-extension-manifest-mismatch',
+  'ide-extension-missing-manifest'
+]);
 
 function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -39,9 +51,31 @@ function insideRoot(root, target) {
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
-async function hashFile(file) {
-  const handle = await fs.open(file, 'r');
+// Read a regular file without following a final symlink. Returns null when it does
+// not exist and { nonRegular: true } when it is a symlink, FIFO, device, or directory.
+async function readRegularFile(file, maxBytes) {
+  const stat = await fs.lstat(file).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!stat) return null;
+  if (!stat.isFile()) return { nonRegular: true };
+  const handle = await fs.open(file, fs.constants.O_RDONLY | NO_FOLLOW);
   try {
+    const opened = await handle.stat();
+    if (!opened.isFile()) return { nonRegular: true };
+    if (opened.size > maxBytes) throw new Error(`${path.basename(file)} exceeds the ${maxBytes}-byte inspection limit.`);
+    return { text: await handle.readFile('utf8') };
+  } finally {
+    await handle.close();
+  }
+}
+
+async function hashFile(file) {
+  const handle = await fs.open(file, fs.constants.O_RDONLY | NO_FOLLOW);
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) return null;
     const hash = createHash('sha256');
     const header = Buffer.alloc(4);
     let headerLength = 0;
@@ -55,14 +89,20 @@ async function hashFile(file) {
       size += chunk.length;
       hash.update(chunk);
     }
-    return { digest: hash.digest('hex'), size, native: headerLength >= 2 && isNativeHeader(header) };
+    return {
+      digest: hash.digest('hex'),
+      size,
+      executable: (stat.mode & 0o111) !== 0,
+      native: headerLength >= 2 && isNativeHeader(header)
+    };
   } finally {
     await handle.close();
   }
 }
 
-// Digest every entry in the installed extension tree. Symlinks are recorded by
-// target text and never followed; other non-regular entries are recorded by type.
+// Digest every entry in the installed extension tree: relative path, size, executable
+// bit, and contents. Symlinks are recorded by target text and never followed; other
+// non-regular entries are recorded by type.
 export async function digestExtensionTree(directory) {
   const tree = createHash('sha256');
   const signals = new Set();
@@ -82,11 +122,16 @@ export async function digestExtensionTree(directory) {
         await visit(rel);
       } else if (entry.isFile()) {
         const file = await hashFile(full);
+        if (!file) {
+          signals.add('ide-extension-non-regular-files');
+          tree.update(`S\0${rel}\n`);
+          continue;
+        }
         files += 1;
         if (file.native || NATIVE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
           signals.add('ide-extension-native-code');
         }
-        tree.update(`F\0${rel}\0${file.size}\0${file.digest}\n`);
+        tree.update(`F\0${rel}\0${file.size}\0${file.executable ? 'x' : '-'}\0${file.digest}\n`);
       } else {
         signals.add('ide-extension-non-regular-files');
         tree.update(`S\0${rel}\n`);
@@ -127,13 +172,29 @@ function parseObsolete(text) {
   return new Set(Object.entries(value).filter(([, flag]) => flag === true).map(([name]) => name));
 }
 
-async function readOptional(file) {
-  try {
-    return await fs.readFile(file, 'utf8');
-  } catch (error) {
-    if (error?.code === 'ENOENT') return null;
+async function readControlFile(base, name) {
+  const result = await readRegularFile(path.join(base, name), MAX_REGISTRY_BYTES);
+  if (result?.nonRegular) throw new Error(`IDE extension ${name} must be a regular file.`);
+  return result ? result.text : null;
+}
+
+// The editor keys .obsolete by "<id>-<version>" plus "-<targetPlatform>" when one is set.
+function extensionKey(id, version, targetPlatform) {
+  const platform = targetPlatform && targetPlatform !== 'undefined' ? `-${targetPlatform}` : '';
+  return `${id}-${version}${platform}`;
+}
+
+// Resolve a location only if it is inside the extensions directory and no path
+// component (including the final one) is a symlink.
+async function containedDirectory(base, realBase, location) {
+  if (!location || !insideRoot(base, location)) return { directory: null };
+  const real = await fs.realpath(location).catch((error) => {
+    if (error?.code === 'ENOENT') return undefined;
     throw error;
-  }
+  });
+  if (real === undefined) return { directory: location, missing: true };
+  if (real !== path.join(realBase, path.relative(base, location))) return { directory: null };
+  return { directory: location };
 }
 
 function registryLocation(root, entry) {
@@ -170,8 +231,9 @@ function manifestSignals(manifest, expectedId, expectedVersion) {
   return { id, signals };
 }
 
-async function inspectInstalled(directory, registryEntry) {
+async function inspectInstalled(directory, registryEntry, options = {}) {
   const signals = new Set();
+  if (options.markedObsolete) signals.add('ide-extension-marked-obsolete');
   const expectedId = registryEntry ? normalizeIdeExtensionId(registryEntry.identifier.id) : null;
   const expectedVersion = registryEntry ? registryEntry.version : null;
   const metadata = isObject(registryEntry?.metadata) ? registryEntry.metadata : {};
@@ -188,8 +250,9 @@ async function inspectInstalled(directory, registryEntry) {
     if (!stat?.isDirectory()) {
       signals.add('ide-extension-missing-manifest');
     } else {
-      const text = await readOptional(path.join(directory, 'package.json'));
-      try { manifest = text === null ? null : JSON.parse(text); } catch { manifest = null; }
+      const file = await readRegularFile(path.join(directory, 'package.json'), MAX_MANIFEST_BYTES);
+      if (file?.nonRegular) signals.add('ide-extension-non-regular-files');
+      try { manifest = file?.text === undefined ? null : JSON.parse(file.text); } catch { manifest = null; }
       if (!isObject(manifest)) {
         manifest = null;
         signals.add('ide-extension-missing-manifest');
@@ -243,26 +306,31 @@ export async function inspectIdeExtensionsDir(root) {
   const base = path.resolve(root);
   const stat = await fs.stat(base).catch(() => null);
   if (!stat?.isDirectory()) throw new Error('inspect-ide-extensions requires an extensions directory.');
+  const realBase = await fs.realpath(base);
 
-  const registryText = await readOptional(path.join(base, REGISTRY_FILE));
+  const registryText = await readControlFile(base, REGISTRY_FILE);
   const registry = registryText === null ? [] : parseRegistry(registryText);
-  const obsoleteText = await readOptional(path.join(base, OBSOLETE_FILE));
+  const obsoleteText = await readControlFile(base, OBSOLETE_FILE);
   const obsolete = obsoleteText === null ? new Set() : parseObsolete(obsoleteText);
 
   const results = [];
   const claimed = new Set();
+  // Registry entries are always inspected. An entry also marked obsolete is reported,
+  // never dropped, so .obsolete cannot hide an extension the registry still lists.
   for (const entry of registry) {
     const location = registryLocation(base, entry);
-    const inside = location && insideRoot(base, location);
-    if (inside && obsolete.has(path.relative(base, location))) continue;
-    if (inside) claimed.add(path.relative(base, location));
-    results.push(await inspectInstalled(inside ? location : null, entry));
+    const { directory } = await containedDirectory(base, realBase, location);
+    if (directory) claimed.add(path.relative(base, directory));
+    const platform = isObject(entry.metadata) ? entry.metadata.targetPlatform : null;
+    const markedObsolete = obsolete.has(extensionKey(normalizeIdeExtensionId(entry.identifier.id), entry.version, platform));
+    results.push(await inspectInstalled(directory, entry, { markedObsolete }));
   }
 
+  // Folders the registry does not list. Hidden folders are included; only a folder
+  // whose own manifest identity is marked obsolete (pending deletion) is skipped.
   const entries = await fs.readdir(base, { withFileTypes: true });
   for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
-    // Hidden folders are inspected too; only plain files (the registry, .obsolete) are skipped.
-    if (claimed.has(entry.name) || obsolete.has(entry.name)) continue;
+    if (claimed.has(entry.name)) continue;
     if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
     const full = path.join(base, entry.name);
     if (entry.isSymbolicLink()) {
@@ -277,7 +345,16 @@ export async function inspectIdeExtensionsDir(root) {
       });
       continue;
     }
-    if ((await readOptional(path.join(full, 'package.json'))) === null) continue;
+    const file = await readRegularFile(path.join(full, 'package.json'), MAX_MANIFEST_BYTES);
+    if (file === null) continue;
+    if (!file.nonRegular) {
+      let manifest = null;
+      try { manifest = JSON.parse(file.text); } catch { manifest = null; }
+      if (isObject(manifest) && typeof manifest.version === 'string') {
+        const key = extensionKey(normalizeIdeExtensionId(`${manifest.publisher || ''}.${manifest.name || ''}`), manifest.version);
+        if ([...obsolete].some((name) => name === key || name.startsWith(`${key}-`))) continue;
+      }
+    }
     results.push(await inspectInstalled(full, null));
   }
 
@@ -298,12 +375,14 @@ export async function inspectIdeExtensionsDir(root) {
 // Policy pins are "publisher.name@version" with an optional "#sha256:<hex>" tree digest.
 // An entry without an exact version is rejected so a trusted publisher cannot
 // silently ship a different build.
+// Versions must be exact semver strings; ranges such as "1.*" or "^1.0.0" are rejected.
 // Deny-list entries may use "@*" to match every version.
 export function parseIdeExtensionPin(value, listName = 'trustedIdeExtensions') {
   const text = String(value || '').trim();
   const match = text.match(/^([^@#\s]+)@([^@#\s]+)(?:#(sha256:[0-9a-fA-F]{64}))?$/);
   const wildcardAllowed = listName === 'blockedIdeExtensions';
-  if (!match || !ID_RE.test(normalizeIdeExtensionId(match[1])) || (match[2] === '*' && !wildcardAllowed)) {
+  const versionOk = match && (VERSION_RE.test(match[2]) || (match[2] === '*' && wildcardAllowed && !match[3]));
+  if (!match || !ID_RE.test(normalizeIdeExtensionId(match[1])) || !versionOk) {
     throw new Error(`${listName} entry "${text}" must be "publisher.name@exact-version" (optionally "#sha256:<digest>").`);
   }
   return {

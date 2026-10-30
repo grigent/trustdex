@@ -174,7 +174,7 @@ node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
   --review-dir .trustdex/ide-review --public trustdex-public.pem
 ```
 
-고정한 `2.1.312`가 `2.1.313`으로 바뀌는 것처럼 검토하지 않은 업데이트는 정책에서 차단되고, `recheck-ide-extensions`에서 `NEEDS_REVIEW`로 보고됩니다. 아무것도 실행하지 않으며 네트워크 요청도 하지 않습니다. 신호, 정책 필드, 한계는 [IDE 확장](docs/IDE_EXTENSIONS.ko.md)을 참고하세요.
+고정한 `2.1.312`가 `2.1.313`으로 바뀌는 것처럼 검토하지 않은 업데이트는 절대 ALLOW가 되지 않고(`strict`, `official-first`는 BLOCK, `development`는 ASK), `recheck-ide-extensions`에서 `NEEDS_REVIEW`로 보고됩니다. 아무것도 실행하지 않으며 네트워크 요청도 하지 않습니다. 신호, 정책 필드, 한계는 [IDE 확장](docs/IDE_EXTENSIONS.ko.md)을 참고하세요.
 
 ## Codex config.toml
 

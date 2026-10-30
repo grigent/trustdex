@@ -174,7 +174,7 @@ node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
   --review-dir .trustdex/ide-review --public trustdex-public.pem
 ```
 
-An unreviewed update, such as a pinned `2.1.312` becoming `2.1.313`, is blocked by policy and reported as `NEEDS_REVIEW` by `recheck-ide-extensions`. Nothing is executed and no network request is made. See [IDE extensions](docs/IDE_EXTENSIONS.md) for signals, policy fields, and limits.
+An unreviewed update, such as a pinned `2.1.312` becoming `2.1.313`, is never ALLOW (BLOCK under `strict` and `official-first`, ASK under `development`) and is reported as `NEEDS_REVIEW` by `recheck-ide-extensions`. Nothing is executed and no network request is made. See [IDE extensions](docs/IDE_EXTENSIONS.md) for signals, policy fields, and limits.
 
 ## Codex config.toml
 

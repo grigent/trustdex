@@ -342,3 +342,141 @@ test('bundled example inventory demonstrates pinned, updated, and sideloaded ext
     'example.sideloaded-ext': 'block'
   });
 });
+
+// Regression tests for bypasses found in independent review.
+
+async function trySymlink(target, link, type = 'dir') {
+  try { await fs.symlink(target, link, type); return true; } catch { return false; }
+}
+
+test('.obsolete cannot hide an extension the registry still lists', async () => {
+  const root = await tempDir();
+  await addExtension(root, 'evil-folder', { publisher: 'evil', name: 'ext', version: '1.0.0' });
+  await addExtension(root, 'evil.ext2-1.0.0', { publisher: 'evil', name: 'ext2', version: '1.0.0' });
+  await writeRegistry(root, [
+    entry('evil.ext', '1.0.0', 'evil-folder'),
+    entry('evil.ext2', '1.0.0', 'evil.ext2-1.0.0', { source: 'gallery', targetPlatform: 'linux-x64' })
+  ]);
+  await fs.writeFile(path.join(root, '.obsolete'), JSON.stringify({
+    'evil-folder': true, 'evil.ext-1.0.0': true, 'evil.ext2-1.0.0-linux-x64': true
+  }));
+  const results = await inspectIdeExtensionsDir(root);
+  assert.deepEqual(results.map((result) => result.name).sort(), ['evil.ext', 'evil.ext2']);
+  for (const result of results) assert.ok(result.signals.includes('ide-extension-marked-obsolete'));
+});
+
+test('unregistered folders are skipped only when their own key is marked obsolete', async () => {
+  const root = await singleExtension();
+  await addExtension(root, 'acme.tool-0.9.0', { publisher: 'acme', name: 'tool', version: '0.9.0' });
+  await addExtension(root, 'renamed-folder', { publisher: 'acme', name: 'other', version: '2.0.0' });
+  await fs.writeFile(path.join(root, '.obsolete'), JSON.stringify({
+    'acme.tool-0.9.0-linux-x64': true, 'renamed-folder': true
+  }));
+  const names = (await inspectIdeExtensionsDir(root)).map((result) => result.name).sort();
+  assert.deepEqual(names, ['acme.other', 'acme.tool']);
+});
+
+test('recheck flags an extension added alongside an .obsolete entry', async () => {
+  const root = await tempDir();
+  await writeRegistry(root, []);
+  const work = await tempDir();
+  const priv = path.join(work, 'private.pem');
+  const pub = path.join(work, 'public.pem');
+  const review = path.join(work, 'review');
+  execFileSync(process.execPath, [cli, 'keygen', '--private', priv, '--public', pub]);
+  execFileSync(process.execPath, [cli, 'approve-ide-extensions', root, '--private', priv, '--dir', review]);
+  await addExtension(root, 'evil-folder', { publisher: 'evil', name: 'ext', version: '1.0.0' });
+  await writeRegistry(root, [entry('evil.ext', '1.0.0', 'evil-folder')]);
+  await fs.writeFile(path.join(root, '.obsolete'), JSON.stringify({ 'evil-folder': true }));
+  const recheck = spawnSync(process.execPath, [cli, 'recheck-ide-extensions', root, '--review-dir', review, '--public', pub], { encoding: 'utf8' });
+  assert.equal(recheck.status, 1);
+  assert.match(recheck.stdout, /server-added: evil\.ext/);
+});
+
+test('registry locations that pass through a symlinked folder are not read', async (t) => {
+  const root = await tempDir();
+  const outside = await tempDir();
+  await addExtension(outside, 'realext', { publisher: 'good', name: 'ext', version: '1.0.0' });
+  if (!(await trySymlink(outside, path.join(root, 'linkdir')))) return t.skip('symlinks unavailable');
+  await writeRegistry(root, [entry('good.ext', '1.0.0', 'linkdir/realext')]);
+  await fs.writeFile(path.join(root, '.obsolete'), JSON.stringify({ linkdir: true }));
+  const results = evaluateAll(await inspectIdeExtensionsDir(root), strictWith({ trustedIdeExtensions: ['good.ext@1.0.0'] }));
+  const good = results.find((result) => result.name === 'good.ext');
+  assert.ok(good.signals.includes('ide-extension-external-location'));
+  assert.equal(good.fingerprint, null);
+  assert.equal(good.action, 'block');
+});
+
+test('a symlinked package.json is never read', async (t) => {
+  const root = await tempDir();
+  const outside = await tempDir();
+  const secret = path.join(outside, 'secret.json');
+  await fs.writeFile(secret, JSON.stringify({ publisher: 'acme', name: 'tool', version: '1.0.0', displayName: 'SECRET_TOKEN=abc123' }));
+  const dir = path.join(root, 'acme.tool-1.0.0');
+  await fs.mkdir(dir);
+  if (!(await trySymlink(secret, path.join(dir, 'package.json'), 'file'))) return t.skip('symlinks unavailable');
+  await writeRegistry(root, [entry('acme.tool', '1.0.0', 'acme.tool-1.0.0')]);
+  const [result] = evaluateAll(await inspectIdeExtensionsDir(root), strictWith({ trustedIdeExtensions: ['acme.tool@1.0.0'] }));
+  assert.ok(!JSON.stringify(result).includes('SECRET_TOKEN'));
+  assert.ok(result.signals.includes('ide-extension-missing-manifest'));
+  assert.ok(result.signals.includes('ide-extension-non-regular-files'));
+  assert.equal(result.action, 'block');
+});
+
+test('symlinked registry or .obsolete files fail closed', async (t) => {
+  const root = await tempDir();
+  const outside = await tempDir();
+  await fs.writeFile(path.join(outside, 'registry.json'), '[]');
+  if (!(await trySymlink(path.join(outside, 'registry.json'), path.join(root, 'extensions.json'), 'file'))) {
+    return t.skip('symlinks unavailable');
+  }
+  await assert.rejects(inspectIdeExtensionsDir(root), /extensions\.json must be a regular file/);
+  await fs.rm(path.join(root, 'extensions.json'));
+  await trySymlink(path.join(outside, 'registry.json'), path.join(root, '.obsolete'), 'file');
+  await assert.rejects(inspectIdeExtensionsDir(root), /\.obsolete must be a regular file/);
+});
+
+test('version ranges are rejected in trusted and blocked lists', () => {
+  for (const version of ['1.*', '^1.0.0', '~1.0.0', 'latest', '1.0', '>=1.0.0', '1.0.0 || 2.0.0']) {
+    assert.throws(() => parseIdeExtensionPin(`acme.tool@${version}`), /exact-version/, version);
+    assert.throws(() => parseIdeExtensionPin(`acme.tool@${version}`, 'blockedIdeExtensions'), /exact-version/, version);
+  }
+  assert.throws(() => parseIdeExtensionPin(`acme.tool@*#sha256:${'a'.repeat(64)}`, 'blockedIdeExtensions'), /exact-version/);
+  assert.deepEqual(parseIdeExtensionPin('acme.tool@1.0.0-beta.1+build.5').version, '1.0.0-beta.1+build.5');
+});
+
+test('malformed IDE extension lists fail closed even without IDE extensions', () => {
+  const mcp = [{ name: 'x', source: { type: 'remote', host: 'example.com' }, signals: [] }];
+  assert.throws(() => evaluateAll(mcp, strictWith({ blockedIdeExtensions: ['evil.ext@1.*'] })), /exact-version/);
+});
+
+test('an unknownAction overlay cannot allow an unpinned IDE extension', async () => {
+  const inspected = await inspectIdeExtensionsDir(await singleExtension());
+  const [result] = evaluateAll(inspected, strictWith({ unknownAction: 'allow' }));
+  assert.equal(result.action, 'ask');
+});
+
+test('signal overlays cannot lower IDE integrity signals below BLOCK', async () => {
+  const root = await tempDir();
+  await addExtension(root, 'acme.tool-2.0.0', { publisher: 'acme', name: 'tool', version: '2.0.0' });
+  await writeRegistry(root, [entry('acme.tool', '1.0.0', 'acme.tool-2.0.0')]);
+  const [result] = evaluateAll(await inspectIdeExtensionsDir(root), strictWith({
+    trustedIdeExtensions: ['acme.tool@1.0.0'],
+    signalActions: {
+      'ide-extension-manifest-mismatch': 'allow',
+      'ide-extension-missing-manifest': 'allow',
+      'ide-extension-external-location': 'allow',
+      'ide-extension-digest-mismatch': 'allow'
+    }
+  }));
+  assert.equal(result.action, 'block');
+});
+
+test('changing a file to executable changes the fingerprint', async (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX file modes only');
+  const root = await singleExtension();
+  const [before] = await inspectIdeExtensionsDir(root);
+  await fs.chmod(path.join(root, 'acme.tool-1.0.0', 'extension.js'), 0o755);
+  const [after] = await inspectIdeExtensionsDir(root);
+  assert.notEqual(after.fingerprint, before.fingerprint);
+});

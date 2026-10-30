@@ -52,6 +52,7 @@ const BASE_SIGNALS = {
   'ide-extension-digest-mismatch': 'block',
   'ide-extension-external-location': 'block',
   'ide-extension-unregistered': 'ask',
+  'ide-extension-marked-obsolete': 'ask',
   'ide-extension-non-gallery-source': 'ask',
   'ide-extension-prerelease': 'ask',
   'ide-extension-startup-activation': 'ask',

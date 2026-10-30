@@ -20,12 +20,14 @@ TrustDex treats an installed extension the same way it treats an MCP server: not
 
 For that directory TrustDex:
 
-- reads `extensions.json` (the editor's install registry) and fails closed if it is malformed;
-- skips folders listed in `.obsolete` (pending deletion by the editor);
+- reads `extensions.json` (the editor's install registry) and `.obsolete`, and fails closed if either is malformed, oversized, or not a regular file;
+- always inspects every registry entry. An entry whose `<id>-<version>[-<platform>]` key is also in `.obsolete` is reported with `ide-extension-marked-obsolete`, never dropped;
+- skips an unregistered folder only when its own manifest key is marked obsolete (pending deletion by the editor);
 - reads each extension's `package.json` and compares its publisher, name, and version with the registry;
 - reports extension folders that contain a `package.json` but are missing from the registry, including hidden folders;
-- computes a SHA-256 digest over every file in the installed extension (paths, sizes, and contents). Symlinks are recorded by target text and never followed;
-- never executes extension code, never reads outside the supplied directory, and makes no network requests.
+- computes a SHA-256 digest over every file in the installed extension (relative paths, sizes, executable bits, and contents). Symlinks are recorded by target text and never followed;
+- treats a registry location as outside the directory when any path component is a symlink, and does not read it; manifests and control files are opened without following symlinks;
+- never executes extension code and makes no network requests.
 
 Results contain the extension ID, version, recorded install source (`gallery`, `vsix`, ...), target platform, digest, and signals. Absolute paths are not included in results or snapshots.
 
@@ -36,8 +38,9 @@ Results contain the extension ID, version, recorded install source (`gallery`, `
 | `ide-extension-missing-manifest` | BLOCK | the registered folder is missing or is a symlink, or its `package.json` is missing or unparseable |
 | `ide-extension-manifest-mismatch` | BLOCK | `package.json` publisher/name/version differ from the registry, or are invalid |
 | `ide-extension-digest-mismatch` | BLOCK | installed files differ from a `#sha256:` digest pinned in policy |
-| `ide-extension-external-location` | BLOCK | the registry points outside the supplied directory (not read) |
+| `ide-extension-external-location` | BLOCK | the registry points outside the supplied directory or through a symlink (not read) |
 | `ide-extension-unregistered` | ASK | an extension folder exists that the registry does not list |
+| `ide-extension-marked-obsolete` | ASK | the registry lists the extension but `.obsolete` marks it for deletion |
 | `ide-extension-non-gallery-source` | ASK | the registry does not record a marketplace (`gallery`) install, for example a `.vsix` |
 | `ide-extension-prerelease` | ASK | a pre-release build is installed |
 | `ide-extension-startup-activation` | ASK | the extension activates on startup (`*` or `onStartupFinished`) without a user action |
@@ -62,11 +65,11 @@ A `gallery` install source only means the editor recorded a marketplace install.
 }
 ```
 
-- `trustedIdeExtensions` entries must name an exact version. An entry without a version is rejected, so trusting a publisher never trusts its next update automatically.
+- `trustedIdeExtensions` entries must name an exact semver version. Entries without a version, or with a range such as `1.*`, `^1.0.0`, or `latest`, are rejected, so trusting a publisher never trusts its next update automatically. Malformed IDE entries fail every evaluation, not only IDE inspections.
 - An optional `#sha256:<digest>` pin also requires the installed files to match byte-for-byte; a mismatch blocks the extension.
 - `blockedIdeExtensions` entries match an exact version or `@*` for every version, and always win over a pin. Policy overlays add to the deny-list; they cannot remove base entries.
-- Extensions that are not pinned use the pack's `unknownAction` (BLOCK in `strict` and `official-first`, ASK in `development`).
-- Signals still raise a pinned extension to ASK or BLOCK.
+- Extensions that are not pinned use the pack's `unknownAction` (BLOCK in `strict` and `official-first`, ASK in `development`), but never better than ASK: only an exact pin produces ALLOW.
+- Signals still raise a pinned extension to ASK or BLOCK. The four BLOCK integrity signals (missing manifest, manifest mismatch, digest mismatch, external location) stay BLOCK even if a policy overlay sets their `signalActions` lower.
 
 If your editor installs from a marketplace that distributed a known-bad build, add that exact version to `blockedIdeExtensions`, for example `"anthropic.claude-code@2.1.313"` for editors that use the Cursor extension marketplace. Use the vendor's own advisory to decide which versions and marketplaces are affected.
 
