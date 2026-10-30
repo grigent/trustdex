@@ -147,3 +147,20 @@ test('Codex parser fails closed on unsupported MCP keys and subsections', () => 
     /Unsupported or invalid Codex MCP key|Unsupported Codex MCP/
   );
 });
+
+test('package URLs drop credentials, query, and fragment and are never treated as pinned', () => {
+  const results = inspectMcpConfig({ mcpServers: {
+    tarball: { command: 'npx', args: ['-y', 'https://user:pw@registry.example.invalid/pkg-1.0.0.tgz?sig=x'] },
+    git: { command: 'uvx', args: ['git+https://token@git.example.invalid/x/y#v1.0.0'] },
+    ssh: { command: 'npx', args: ['git+ssh://git@git.example.invalid/x/y.git'] }
+  } });
+  const [tarball, git, ssh] = ['tarball', 'git', 'ssh'].map((name) => results.find((result) => result.name === name));
+  assert.deepEqual(tarball.source, { type: 'package', runner: 'npx', package: 'https://registry.example.invalid/pkg-1.0.0.tgz', pinned: false });
+  assert.ok(tarball.signals.includes('embedded-credentials'));
+  assert.ok(tarball.signals.includes('url-query-parameters'));
+  assert.ok(tarball.signals.includes('unbounded-version'));
+  assert.equal(git.source.package, 'git+https://git.example.invalid/x/y');
+  assert.ok(git.signals.includes('embedded-credentials'));
+  assert.equal(ssh.source.package, 'git+ssh://git.example.invalid/x/y.git');
+  assert.ok(!ssh.signals.includes('embedded-credentials'));
+});

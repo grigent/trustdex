@@ -93,6 +93,23 @@ function fingerprintArgs(args) {
   return sanitized;
 }
 
+// Package specs can be URLs (tarballs, git remotes) carrying credentials or tokens.
+// Report only scheme, host, and path; never userinfo, query, or fragment.
+function sanitizePackageSpec(spec) {
+  if (!spec || !/^[a-z][a-z0-9+.-]*:\/\//i.test(spec)) return { spec, url: false, credentials: false };
+  try {
+    const url = new URL(spec);
+    return {
+      spec: `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${url.pathname}`,
+      url: true,
+      credentials: Boolean(url.password) || (Boolean(url.username) && !url.protocol.includes('ssh')),
+      query: Boolean(url.search)
+    };
+  } catch {
+    return { spec: '<unparseable-url>', url: true, credentials: false };
+  }
+}
+
 function extractRemoteEndpoint(server) {
   const candidate = server?.url || server?.endpoint;
   if (!candidate) return null;
@@ -119,7 +136,9 @@ function normalizeServer(name, server = {}) {
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
   const env = server.env && typeof server.env === 'object' ? server.env : {};
   const envKeys = Object.keys(env).sort();
-  const packageSpec = firstPackageArg(command, args);
+  const packageArg = firstPackageArg(command, args);
+  const sanitizedPackage = sanitizePackageSpec(packageArg);
+  const packageSpec = sanitizedPackage.spec;
   const remote = extractRemoteEndpoint(server);
   const remoteHost = remote?.host || null;
   const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
@@ -128,9 +147,13 @@ function normalizeServer(name, server = {}) {
   if (remote && ['http:', 'ws:'].includes(remote.protocol)) signals.add('insecure-transport');
   if (remote?.hasEmbeddedCredentials) signals.add('embedded-credentials');
   if (remote?.hasQuery) signals.add('url-query-parameters');
+  if (sanitizedPackage.credentials) signals.add('embedded-credentials');
+  if (sanitizedPackage.query) signals.add('url-query-parameters');
   if (SHELLS.has(executableName(command))) signals.add('shell-execution');
   if (RUNNERS.has(executableName(command))) signals.add('install-on-run');
-  if (packageSpec && !isPinnedPackage(packageSpec)) signals.add('unbounded-version');
+  // A URL package spec is never treated as pinned: its "@" belongs to the URL, not a version.
+  const pinned = Boolean(packageSpec) && !sanitizedPackage.url && isPinnedPackage(packageSpec);
+  if (packageSpec && !pinned) signals.add('unbounded-version');
   if (args.some(looksLikePath)) signals.add('filesystem-path');
   if (envKeys.some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
 
@@ -143,7 +166,7 @@ function normalizeServer(name, server = {}) {
       protocol: remote.protocol
     };
   }
-  else if (packageSpec) source = { type: 'package', runner: executableName(command), package: packageSpec, pinned: isPinnedPackage(packageSpec) };
+  else if (packageSpec) source = { type: 'package', runner: executableName(command), package: packageSpec, pinned };
   else if (command) source = { type: 'local', command };
 
   const fingerprint = sha256Json({

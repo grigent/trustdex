@@ -57,12 +57,19 @@ Potential TrustDex vulnerabilities that could put users at risk should follow [S
 
 Public reports must remove credentials, private endpoints, proprietary prompts, personal data, and exploit details that would create unnecessary risk. Research notes should prefer the minimum evidence needed to reproduce and fix the issue.
 
+## Output redaction contract
+
+TrustDex may report **names**: server names, setting keys, environment-variable names, header names, signal names, and extension IDs. It must never report **values**: environment and header values, URL credentials and query values, permission specifiers, hook and helper commands, directory and writable-root paths, and content quoted from a malformed input. This applies to stdout and stderr in every output mode (human, `--json`, `--decisions`) and to every file TrustDex writes, except gated MCP and Codex outputs, which intentionally preserve the original allowed entries.
+
+`test/secret-canary.test.mjs` enforces this rule. It plants a unique canary in every value position of each supported input format (MCP JSON, Claude MCP JSON, Claude settings, Codex TOML, Codex settings, skills, plugin manifests, IDE extensions). It then runs every inspection, snapshot, binding, gate, approve, and recheck command and fails if any canary appears. A second pass does the same for malformed inputs. When a new input format or command is added, extend the sweep in the same change.
+
 ## Current reproducible evidence
 
 - [Adversarial MCP fixtures](../examples/adversarial/README.md)
 - [Claude Code permission fixture](../examples/claude.settings.json)
 - [Codex permission fixture](../examples/codex.permissions.toml)
 - [Adversarial Claude and Codex permission posture fixtures](../examples/adversarial/permissions/README.md)
+- [Output canary sweep](../test/secret-canary.test.mjs)
 - [Evaluation record](EVALUATION.md)
 - [Defensive AI-agent security use case](DEFENSIVE_USE_CASE.md)
 - [Threat model](THREAT_MODEL.md)
