@@ -14,6 +14,20 @@ const KEY_ID_PATTERN = /^[a-f0-9]{64}$/;
 // Exactly one SPKI "PUBLIC KEY" block. Private keys, certificates, and other PEM labels
 // are rejected even though Node could derive a public key from some of them.
 const PEM_PATTERN = /^-----BEGIN PUBLIC KEY-----\r?\n((?:[A-Za-z0-9+/=]+\r?\n)+)-----END PUBLIC KEY-----\r?\n?$/;
+// Exactly the form toISOString() produces for years 0000-9999; extended years are rejected.
+const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+// Small-order points (and their non-canonical encodings), compared with the sign bit
+// cleared. A public key on this list accepts forged signatures, so it is never usable.
+const SMALL_ORDER_POINTS = [
+  '0000000000000000000000000000000000000000000000000000000000000000',
+  '0100000000000000000000000000000000000000000000000000000000000000',
+  '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05',
+  'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a',
+  'ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f',
+  'edffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f',
+  'eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f'
+];
+const ED25519_P = (1n << 255n) - 19n;
 const MAX_KEYS = 256;
 const MAX_REVOKED = 4096;
 
@@ -41,10 +55,75 @@ function optionalString(value, where) {
   if (value !== undefined && typeof value !== 'string') fail(`${where} must be a string.`);
 }
 
+/** True for a UTC timestamp written exactly as 2026-01-01T00:00:00.000Z. */
+export function isStrictTimestamp(value) {
+  return typeof value === 'string' && TIMESTAMP_PATTERN.test(value) && !Number.isNaN(Date.parse(value)) &&
+    new Date(value).toISOString() === value;
+}
+
+/** True for an Ed25519 public key of small order or with a non-canonical encoding. */
+export function isWeakEd25519Key(keyObject) {
+  const raw = Buffer.from(keyObject.export({ format: 'jwk' }).x, 'base64url');
+  if (raw.length !== 32) return true;
+  const masked = Buffer.from(raw);
+  masked[31] &= 0x7f;
+  if (SMALL_ORDER_POINTS.includes(masked.toString('hex'))) return true;
+  const y = BigInt(`0x${Buffer.from(masked).reverse().toString('hex')}`);
+  return y >= ED25519_P;
+}
+
+/**
+ * Throws when a JSON text repeats a member name inside one object. JSON.parse keeps the
+ * last value silently, which would let a later "revoked": [] erase an earlier revocation.
+ * Call only on text that JSON.parse accepts.
+ */
+export function rejectDuplicateJsonMembers(text, where = 'JSON input') {
+  const stack = [];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '"') {
+      let end = index + 1;
+      while (text[end] !== '"') end += text[end] === '\\' ? 2 : 1;
+      const top = stack[stack.length - 1];
+      if (top?.expectKey) {
+        const name = JSON.parse(text.slice(index, end + 1));
+        if (top.names.has(name)) throw new Error(`${where} repeats a field name.`);
+        top.names.add(name);
+        top.expectKey = false;
+      }
+      index = end;
+    } else if (char === '{') {
+      stack.push({ names: new Set(), expectKey: true });
+    } else if (char === '[') {
+      stack.push({ names: null, expectKey: false });
+    } else if (char === '}' || char === ']') {
+      stack.pop();
+    } else if (char === ',') {
+      const top = stack[stack.length - 1];
+      if (top?.names) top.expectKey = true;
+    }
+  }
+}
+
+/** Parse keyset JSON text: duplicate member names are rejected before validation. */
+export function parseKeysetText(text) {
+  let input;
+  try {
+    input = JSON.parse(text);
+  } catch {
+    fail('not valid JSON.');
+  }
+  try {
+    rejectDuplicateJsonMembers(text, 'keyset');
+  } catch (error) {
+    fail(error.message.replace(/^keyset /, ''));
+  }
+  return parseKeyset(input);
+}
+
 function optionalTimestamp(value, where) {
   if (value === undefined) return null;
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value)) ||
-      new Date(value).toISOString() !== value) {
+  if (!isStrictTimestamp(value)) {
     fail(`${where} must be a UTC timestamp like 2026-01-01T00:00:00.000Z.`);
   }
   return Date.parse(value);
@@ -76,6 +155,7 @@ export function parseEd25519PublicKeyPem(pem, where = 'public key') {
   if (!key.export({ type: 'spki', format: 'der' }).equals(der)) {
     throw new Error(`${where} is not canonical SPKI.`);
   }
+  if (isWeakEd25519Key(key)) throw new Error(`${where} is a small-order or non-canonical Ed25519 key.`);
   return key;
 }
 
@@ -106,8 +186,7 @@ class Keyset {
     if (!KEY_PURPOSES.includes(purpose)) return { ok: false, key: null, reason: 'has an unsupported purpose' };
     const entry = this.#keys.find((candidate) => candidate.id === keyId);
     if (!entry) return { ok: false, key: null, reason: 'is not in the keyset' };
-    const parsed = typeof signedAt === 'string' ? Date.parse(signedAt) : Number.NaN;
-    const signedMs = Number.isFinite(parsed) && new Date(parsed).toISOString() === signedAt ? parsed : null;
+    const signedMs = isStrictTimestamp(signedAt) ? Date.parse(signedAt) : null;
     if (signedMs === null) return { ok: false, key: null, reason: 'cannot be checked without a valid signed time' };
     if (this.#revoked.has(keyId)) {
       const revokedAt = this.#revoked.get(keyId);

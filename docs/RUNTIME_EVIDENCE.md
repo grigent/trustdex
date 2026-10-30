@@ -166,10 +166,17 @@ A keyset is a versioned, operator-written allowlist
 3. Switch the signer (`approve`, `sign`) or the runtime producer
    (`sign-runtime-inventory`) to the new private key.
 4. Close the old key: set its `notAfter` to the cutover time so existing reviews keep
-   verifying while new signatures are refused, or remove it once every review has been
-   re-approved. Runtime attestations live at most 24 hours, so an old producer key can be
-   removed one maximum attestation lifetime after the cutover.
-5. If the old key may be compromised, add it to `revoked` without `revokedAt` instead.
+   verifying, or remove it once every review has been re-approved. Runtime attestations
+   live at most 24 hours, so an old producer key can be removed one maximum attestation
+   lifetime after the cutover.
+5. If the old key may be compromised, remove it or add it to `revoked` without
+   `revokedAt` instead.
+
+`notAfter` and `revokedAt` stop only honest signers. The signed time is chosen by whoever
+holds the private key, so a holder of the old key can sign a new review dated before the
+cutoff, and trust records do not expire. To stop a key holder, remove the key or revoke it
+without `revokedAt`. For runtime-producer keys, backdating is bounded by the 24-hour
+maximum attestation lifetime.
 
 ### Revocation hook
 

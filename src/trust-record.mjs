@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { canonicalJson, sha256Json } from './canonical.mjs';
-import { isKeyset } from './keyset.mjs';
+import { isKeyset, isStrictTimestamp, isWeakEd25519Key } from './keyset.mjs';
 
 const MAX_FUTURE_SKEW_SECONDS = 300;
 
@@ -53,15 +53,32 @@ export function verifyTrustRecord(record, publicKeyPem, options = {}) {
   }
 
   const message = Buffer.from(canonicalJson(payloadFromRecord(record)));
+  const signature = decodeSignature(record.signature);
   if (isKeyset(publicKeyPem)) {
-    if (typeof record.signature !== 'string') {
-      return { valid: false, reason: 'unsupported or incomplete trust record', keyId: null };
-    }
-    return verifyWithKeyset(record, message, Buffer.from(record.signature, 'base64'), publicKeyPem, options);
+    if (!signature) return { valid: false, reason: 'unsupported or incomplete trust record', keyId: null };
+    return verifyWithKeyset(record, message, signature, publicKeyPem, options);
   }
 
-  const valid = crypto.verify(null, message, publicKeyPem, Buffer.from(record.signature, 'base64'));
+  if (!signature) return { valid: false, reason: 'signature verification failed' };
+  let key;
+  try {
+    key = crypto.createPublicKey(publicKeyPem);
+  } catch {
+    return { valid: false, reason: 'invalid public key' };
+  }
+  if (key.asymmetricKeyType !== 'ed25519' || isWeakEd25519Key(key)) {
+    return { valid: false, reason: 'unsupported or weak public key' };
+  }
+  const valid = verifiesWith(message, key, signature);
   return { valid, reason: valid ? null : 'signature verification failed' };
+}
+
+// An Ed25519 signature is exactly 64 bytes in canonical base64; Node's decoder would
+// otherwise skip junk characters.
+function decodeSignature(value) {
+  if (typeof value !== 'string') return null;
+  const bytes = Buffer.from(value, 'base64');
+  return bytes.length === 64 && bytes.toString('base64') === value ? bytes : null;
 }
 
 function verifiesWith(message, key, signature) {
@@ -77,8 +94,7 @@ function verifiesWith(message, key, signature) {
 // cutoffs are evaluated against it; a record without a valid createdAt fails closed.
 function verifyWithKeyset(record, message, signature, keyset, options) {
   const createdAt = record.createdAt;
-  if (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt)) ||
-      new Date(createdAt).toISOString() !== createdAt) {
+  if (!isStrictTimestamp(createdAt)) {
     return { valid: false, reason: 'trust record has no valid signed creation time', keyId: null };
   }
   const nowMs = options.now === undefined ? Date.now() : Date.parse(options.now);

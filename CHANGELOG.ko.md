@@ -25,7 +25,8 @@
 - 심볼릭 링크를 따라가지 않고 설치된 모든 확장 파일(내용과 실행 권한)의 다이제스트를 계산하고, `.obsolete`가 등록된 확장을 숨기지 못하게 하며, 잘못되었거나 일반 파일이 아닌 설치 기록, 누락된 매니페스트, 설치 기록과 매니페스트 불일치, 버전 범위, 지정 디렉터리 밖이나 심볼릭 링크를 거치는 위치에 대해 실패 시 차단
 - 정책 오버레이와 관계없이 고정되지 않은 IDE 확장은 ASK 이상, IDE 무결성 신호는 BLOCK으로 유지
 - 릴리스 및 배포 워크플로가 사용하는 npm CLI를 정확한 버전으로 고정
-- `verify`, 모든 `recheck*` 명령, `verify-runtime-inventory`, `snapshot-runtime-tools`에 `--public` 대신 쓸 수 있는 `--keyset keyset.json` 추가: SHA-256 SPKI 키 ID, 필수 `purposes`(`review`, `runtime-producer` 또는 둘 다, 기본값 없음), 서명된 `createdAt` 시점에 검사하는 `notBefore`/`notAfter` 유효 기간, 교체를 위한 여러 활성 키, 같은 파일 안의 폐기 목록을 갖추고 엄격하게 검증되는 `trustdex-keyset` v1 허용 목록(스키마 공개). 두 플래그를 함께 주면 오류이며 `--public`은 바뀌지 않음
+- `verify`, 모든 `recheck*` 명령, `verify-runtime-inventory`, `snapshot-runtime-tools`에 `--public` 대신 쓸 수 있는 `--keyset keyset.json` 추가: SHA-256 SPKI 키 ID, 필수 `purposes`(`review`, `runtime-producer` 또는 둘 다, 기본값 없음), 서명된 `createdAt` 시점에 검사하는 `notBefore`/`notAfter` 유효 기간, 교체를 위한 여러 활성 키, 같은 파일 안의 폐기 목록을 갖추고 엄격하게 검증되는 `trustdex-keyset` v1 허용 목록(스키마 공개). 두 플래그를 함께 주거나, 한 플래그를 두 번 주거나, `--flag=값` 형식을 쓰면 오류이며, 필드 이름이 반복된 키셋 JSON은 거부
+- 위조 서명을 받아들이는 소차수·비정규 Ed25519 공개 키와 신뢰 기록의 비정규 base64 서명을 거부(`--public` 사용 시 포함)
 - `revokedAt`이 없는 폐기는 전면 폐기(그 키의 모든 서명이 INVALID)로 처리하고, `revokedAt`이 있으면 그보다 엄격히 이전에 서명된 증거만 유지하며, 이 시각은 키 보유자가 주장하는 값임을 문서화
 - 키셋 모드에서 유효한 서명된 `createdAt`이 없거나 5분보다 먼 미래인 신뢰 기록을 거부하고 서명 키 ID만 출력. 공개 키의 ID를 출력하는 `key-id` 추가
 

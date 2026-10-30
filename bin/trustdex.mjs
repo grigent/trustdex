@@ -48,7 +48,7 @@ import {
 import { gateMcpConfig } from '../src/gate.mjs';
 import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
-import { parseEd25519PublicKeyPem, parseKeyset, spkiKeyId } from '../src/keyset.mjs';
+import { parseEd25519PublicKeyPem, parseKeysetText, spkiKeyId } from '../src/keyset.mjs';
 import {
   generateTrustKeyPair,
   createTrustRecord,
@@ -222,13 +222,18 @@ function getIntegerFlag(args, name, fallback = undefined) {
 // Verifying commands take exactly one key source: a pinned --public PEM or a validated
 // --keyset allowlist. Returns null when neither is given so callers can name the command.
 async function loadVerifier(args) {
+  // "--keyset=x" and "--public=x" are not supported forms; rejecting them keeps a key
+  // source from being silently ignored next to another one.
+  if (args.some((arg) => /^--(?:keyset|public)=/.test(arg))) {
+    throw new Error('Write --public and --keyset as separate arguments: --keyset <file>.');
+  }
   const keysetPaths = getFlags(args, '--keyset');
-  const hasPublic = hasFlag(args, '--public');
-  if (keysetPaths.length && hasPublic) throw new Error('Use either --public or --keyset, not both.');
+  const publicPaths = getFlags(args, '--public');
+  if (keysetPaths.length && publicPaths.length) throw new Error('Use either --public or --keyset, not both.');
   if (keysetPaths.length > 1) throw new Error('--keyset may be given only once.');
-  if (keysetPaths.length) return parseKeyset(await readJson(keysetPaths[0]));
-  const publicPath = getFlag(args, '--public');
-  return publicPath ? fs.readFile(publicPath, 'utf8') : null;
+  if (publicPaths.length > 1) throw new Error('--public may be given only once.');
+  if (keysetPaths.length) return parseKeysetText(await fs.readFile(keysetPaths[0], 'utf8'));
+  return publicPaths.length ? fs.readFile(publicPaths[0], 'utf8') : null;
 }
 
 function hasVerifier(verifier) {

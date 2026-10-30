@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { createToolPermissionBindingSnapshot } from '../src/bindings.mjs';
 import { canonicalJson } from '../src/canonical.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
-import { KEY_PURPOSES, parseKeyset, spkiKeyId } from '../src/keyset.mjs';
+import { KEY_PURPOSES, parseKeyset, parseKeysetText, spkiKeyId } from '../src/keyset.mjs';
 import { assessReview } from '../src/review.mjs';
 import {
   createRuntimeInventoryAttestation,
@@ -306,7 +306,7 @@ test('malformed keysets fail closed', () => {
 test('an unvalidated keyset-shaped object is never treated as a keyset', () => {
   const keys = keyPair();
   const raw = keyset([entry(keys)]);
-  assert.throws(() => verifyTrustRecord(signRecord(keys.privateKey), raw, { now }));
+  assert.equal(verifyTrustRecord(signRecord(keys.privateKey), raw, { now }).valid, false);
   const runtime = verifyRuntimeInventoryAttestation(inventory(), attest(keys), raw, { now });
   assert.equal(runtime.valid, false);
 });
@@ -467,4 +467,73 @@ test('--help lists --keyset and key-id', () => {
   const help = run('--help').stdout;
   assert.match(help, /--keyset keyset\.json/);
   assert.match(help, /trustdex key-id <public\.pem>/);
+});
+
+// SPKI DER for an Ed25519 public key with the given 32 raw bytes.
+function rawKeyPem(hex) {
+  const der = Buffer.concat([Buffer.from('302a300506032b6570032100', 'hex'), Buffer.from(hex, 'hex')]);
+  return `-----BEGIN PUBLIC KEY-----\n${der.toString('base64')}\n-----END PUBLIC KEY-----\n`;
+}
+
+test('small-order and non-canonical Ed25519 public keys are never usable', () => {
+  const identity = `01${'00'.repeat(31)}`;
+  // R = identity, s = 0 verifies for any message under the identity public key.
+  const forged = { ...signRecord(keyPair().privateKey), signature: Buffer.from(`${identity}${'00'.repeat(32)}`, 'hex').toString('base64') };
+  assert.equal(verifyTrustRecord(forged, rawKeyPem(identity)).valid, false);
+  for (const hex of [identity, `01${'00'.repeat(30)}80`, '00'.repeat(32), `ec${'ff'.repeat(30)}7f`, `ed${'ff'.repeat(30)}7f`,
+    `ee${'ff'.repeat(30)}7f`, `ef${'ff'.repeat(30)}7f`, '26e8958fc2b227b045c3f489f2ef98f0d5dfac05d3c63339b13802886d53fc05',
+    'c7176a703d4dd84fba3c0b760d10670f2a2053fa2c39ccc64ec7fd7792ac037a']) {
+    const pem = rawKeyPem(hex);
+    const id = spkiKeyId(crypto.createPublicKey(pem));
+    assert.throws(() => parseKeyset(keyset([{ id, publicKey: pem, purposes: BOTH }])), /small-order or non-canonical/, hex);
+  }
+});
+
+test('keyset JSON with a repeated field name fails closed', () => {
+  const keys = keyPair();
+  const member = JSON.stringify(entry(keys)).slice(1, -1);
+  const id = JSON.stringify(keys.id);
+  for (const text of [
+    `{"schemaVersion":1,"kind":"trustdex-keyset","keys":[{${member}}],"revoked":[{"id":${id}}],"revoked":[]}`,
+    `{"schemaVersion":1,"kind":"trustdex-keyset","keys":[{${member},"purposes":["review"]}]}`,
+    `{"schemaVersion":1,"kind":"trustdex-keyset","keys":[{${member}}],"revoked":[{"id":${id},"\\u0069d":${id}}]}`
+  ]) {
+    assert.throws(() => parseKeysetText(text), /Invalid keyset: repeats a field name/);
+  }
+  const ok = `{"schemaVersion":1,"kind":"trustdex-keyset","note":"a \\" {\\"keys\\":1} ,","keys":[{${member}}],"revoked":[{"id":${id}}]}`;
+  assert.equal(parseKeysetText(ok).size, 1);
+  assert.throws(() => parseKeysetText('{"keys":'), /Invalid keyset: not valid JSON/);
+});
+
+test('signatures and signed times must be canonical', () => {
+  const keys = keyPair();
+  const set = parseKeyset(keyset([entry(keys)]));
+  const record = signRecord(keys.privateKey);
+  for (const signature of [`${record.signature}!!!AAAA`, ` ${record.signature}`, record.signature.replace(/=+$/, '')]) {
+    assert.equal(verifyTrustRecord({ ...record, signature }, set, { now }).valid, false, signature);
+    assert.equal(verifyTrustRecord({ ...record, signature }, keys.publicKey).valid, false, signature);
+  }
+  assert.equal(verifyTrustRecord(record, keys.publicKey).valid, true);
+  for (const value of ['-000001-01-01T00:00:00.000Z', '+010000-01-01T00:00:00.000Z']) {
+    assert.equal(verifyTrustRecord(signRecord(keys.privateKey, { createdAt: value }), set, { now }).valid, false, value);
+    assert.throws(() => parseKeyset(keyset([entry(keys, { notAfter: value })])), /must be a UTC timestamp/, value);
+  }
+});
+
+test('CLI: --keyset=, --public=, and repeated --public are rejected', (t) => {
+  const { write } = workspace(t);
+  const a = keyPair();
+  const b = keyPair();
+  const record = write('record.json', signRecord(a.privateKey));
+  const aPub = write('a.pem', a.publicKey);
+  const bSet = write('b.json', keyset([entry(b)]));
+  for (const args of [
+    ['verify', record, `--keyset=${bSet}`, '--public', aPub],
+    ['verify', record, `--public=${aPub}`],
+    ['verify', record, '--public', aPub, '--public', aPub]
+  ]) {
+    const result = run(...args);
+    assert.equal(result.status, 2, args.join(' '));
+    assert.doesNotMatch(result.stdout, /VALID/);
+  }
 });

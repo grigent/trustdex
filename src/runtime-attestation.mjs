@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 
 import { canonicalJson, sha256Json } from './canonical.mjs';
-import { isKeyset, spkiKeyId } from './keyset.mjs';
+import { isKeyset, isWeakEd25519Key, spkiKeyId } from './keyset.mjs';
 import {
   normalizeRuntimeToolInventory,
   runtimeToolInventoryDigest
@@ -44,7 +44,7 @@ function requireTimestamp(value, field) {
 
 function publicKeyId(publicKey) {
   const key = publicKey?.type === 'public' ? publicKey : crypto.createPublicKey(publicKey);
-  if (key.asymmetricKeyType !== 'ed25519') {
+  if (key.asymmetricKeyType !== 'ed25519' || isWeakEd25519Key(key)) {
     throw new Error('Runtime inventory attestations require an Ed25519 key.');
   }
   return spkiKeyId(key);
