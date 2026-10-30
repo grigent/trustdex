@@ -9,31 +9,121 @@ function executableName(command = '') {
   return name.replace(/\.(?:bat|cmd|exe)$/i, '');
 }
 
-function firstPackageArg(command, args) {
-  const cmd = executableName(command);
-  if (!RUNNERS.has(cmd)) return null;
+// Runner options, per runner. Value options consume the next argument unless written as
+// --flag=value. "package" options name what is installed; "extra" options add more
+// packages; "source" options change where packages, configuration, or already-installed
+// binaries come from; "shell" options run a shell command or inline code. An option not
+// listed here makes the package identity ambiguous.
+const RUNNER_OPTIONS = {
+  npm: {
+    package: ['-p', '--package'],
+    extra: [],
+    // --prefix and --workspace run binaries already installed in that project, and a
+    // cache with --offline can stand in for the registry.
+    source: ['--registry', '--userconfig', '--cache', '--prefix', '-w', '--workspace'],
+    shell: ['-c', '--call', '--node-options'],
+    value: [],
+    // "--no" is not listed: npx expands it to --no-yes and then reads the package as its
+    // value, so every option after the package is parsed by npm.
+    flags: ['-y', '--yes', '-q', '--quiet', '--silent', '--no-install', '--ignore-existing', '--prefer-offline', '--prefer-online', '--offline']
+  },
+  uv: {
+    package: ['--from'],
+    extra: ['--with', '--with-editable', '--with-requirements'],
+    // Configuration files, constraints, and overrides can redirect a requirement to any
+    // index or URL; a keyring provider runs a helper program.
+    source: ['--index', '--index-url', '--extra-index-url', '--default-index', '-i', '--find-links', '-f',
+      '--config-file', '--env-file', '-c', '--constraint', '--override', '--build-constraint', '--cache-dir',
+      '--keyring-provider'],
+    shell: [],
+    value: ['-p', '--python', '--directory', '--project', '--index-strategy', '--resolution', '--prerelease',
+      '--exclude-newer', '--link-mode', '--python-preference', '--color'],
+    flags: ['-q', '--quiet', '-v', '--verbose', '--isolated', '--no-cache', '-n', '--offline', '--refresh', '-U', '--upgrade',
+      '--no-config', '--no-progress', '--native-tls', '--no-python-downloads', '--no-build-isolation', '--no-sources',
+      '--managed-python', '--no-managed-python', '--compile-bytecode']
+  }
+};
+const RUNNER_FAMILY = { npx: 'npm', pnpx: 'npm', bunx: 'npm', uvx: 'uv' };
+// A Python request such as "3.12", "cpython@3.12", or "pypy3.10"; anything else (a path
+// or a program name) selects an interpreter outside the reviewed package.
+const PYTHON_REQUEST_RE = /^(?:(?:cpython|pypy|graalpy|python)[-@]?)?\d+(?:\.\d+){0,2}t?$/i;
+
+// The executable a package option is expected to provide: the package name without a
+// scope, version, or extras.
+function packageCommandName(spec) {
+  if (!isRegistrySpec(spec)) return null;
+  const value = String(spec).replace(/^npm:/i, '');
+  const unscoped = value.startsWith('@') ? value.slice(value.indexOf('/') + 1) : value;
+  return unscoped.split(/[@=<>!~[\s]/)[0] || null;
+}
+
+// Returns the installed package spec plus identity signals for a runner command.
+function analyzeRunner(command, args) {
+  const family = RUNNER_FAMILY[executableName(command)];
+  if (!family) return { spec: null, signals: [] };
+  const options = RUNNER_OPTIONS[family];
+  const has = (list, name) => list.includes(name);
   const values = Array.isArray(args) ? args.map(String) : [];
+  const packages = [];
+  const signals = new Set();
+  let positional = null;
   for (let i = 0; i < values.length; i += 1) {
     const arg = values[i];
-    if (arg === '--package' || arg === '-p') return values[i + 1] || null;
-    if (arg.startsWith('--package=')) return arg.slice('--package='.length) || null;
-    if (arg.startsWith('-p=')) return arg.slice('-p='.length) || null;
-    if (arg.startsWith('-')) continue;
-    return arg;
+    if (arg === '--') { positional = values[i + 1] ?? null; break; }
+    if (!arg.startsWith('-') || arg === '-') { positional = arg; break; }
+    const eq = arg.indexOf('=');
+    const name = eq > 0 ? arg.slice(0, eq) : arg;
+    const takesValue = has(options.package, name) || has(options.extra, name) || has(options.source, name) ||
+      has(options.shell, name) || has(options.value, name);
+    let value = null;
+    if (takesValue) {
+      value = eq > 0 ? arg.slice(eq + 1) : values[i + 1] ?? null;
+      if (eq < 0) i += 1;
+    } else if (!has(options.flags, name) || eq > 0) {
+      // A flag given "=value" is not a documented form: npm expands "-y=x" into "--yes x",
+      // which makes x the package to run.
+      signals.add('ambiguous-runner-arguments');
+      continue;
+    }
+    if (has(options.package, name) && value !== null) packages.push(value);
+    if (has(options.extra, name)) signals.add('additional-packages');
+    if (has(options.source, name)) signals.add('package-source-override');
+    if (has(options.shell, name)) signals.add('shell-execution');
+    if (family === 'uv' && (name === '-p' || name === '--python') && !PYTHON_REQUEST_RE.test(value ?? '')) {
+      signals.add('package-source-override');
+    }
   }
-  return null;
+  if (packages.length > 1) signals.add('additional-packages');
+  // With a package option, the positional argument is the command to run. It is looked
+  // up on PATH as well as in the package, so anything other than the package's own name
+  // ("sh", "python", another tool) runs something the package identity does not describe.
+  if (packages.length > 0 && (positional === null || positional !== packageCommandName(packages[0]))) {
+    signals.add('runner-command-mismatch');
+  }
+  const spec = packages[0] ?? positional;
+  return { spec: spec || null, signals: [...signals] };
 }
+
+// Environment variables that configure a package runner, the interpreter it starts, or
+// where commands are found. In an MCP server's env block they can change the registry,
+// the package, or the code that runs without changing the arguments.
+const RUNNER_ENV_RE = /^(?:npm_config_.*|uv_.*|bun_.*|pnpm_.*|yarn_.*|corepack_.*|pip_.*|node_options|node_path|python(?:path|startup|home|userbase|safepath)|ld_preload|ld_library_path|ld_audit|dyld_.*|path|pathext|home|userprofile|xdg_(?:config|cache|data)_home|appdata|virtual_env|conda_prefix|node_tls_reject_unauthorized|node_extra_ca_certs|ssl_cert_(?:file|dir)|requests_ca_bundle)$/i;
+
+// An exact version: a full semantic version after "@" (npm treats "1.2" or "^1.2.3" as a
+// range), or a PEP 440 version without wildcards after "==".
+const EXACT_SEMVER_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const EXACT_PEP440_RE = /^(?:\d+!)?\d+(?:\.\d+)*(?:[-_.]?(?:a|b|c|rc|alpha|beta|pre|preview)[-_.]?\d*)?(?:[-_.]?(?:post|rev|r)[-_.]?\d*)?(?:[-_.]?dev[-_.]?\d*)?(?:\+[a-z0-9]+(?:[-_.][a-z0-9]+)*)?$/i;
 
 export function isPinnedPackage(spec) {
   if (!spec) return false;
   const value = String(spec).trim();
-  if (!value || /@(latest|next|canary|beta|alpha)$/i.test(value)) return false;
-  if (value.startsWith('@')) {
-    const slash = value.indexOf('/');
-    if (slash < 0) return false;
-    return value.indexOf('@', slash) > slash;
-  }
-  return value.lastIndexOf('@') > 0 || /==[^=\s]+$/.test(value);
+  // "==" pins only a PEP 508 name; npm reads "name@x||1==1.0.0" as a range.
+  const pep440 = value.match(/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?(?:\[[A-Za-z0-9._,-]*\])?===?([^=]+)$/);
+  if (pep440) return EXACT_PEP440_RE.test(pep440[1]);
+  const at = value.lastIndexOf('@');
+  if (at <= 0) return false;
+  if (value.startsWith('@') && value.indexOf('/') > at) return false;
+  return EXACT_SEMVER_RE.test(value.slice(at + 1));
 }
 
 function looksLikePath(value) {
@@ -181,6 +271,14 @@ function analyzeEmbeddedUrl(value) {
 // Classifies a package spec. Simple registry specs ("name", "@scope/name", "name@1.2.3",
 // "name==1.2.3") pass through; anything else is shown only as a credential-free URL or
 // remote, is never pinned, and is otherwise unparseable.
+// True for registry specs whose name can be matched against a trust policy:
+// "name", "@scope/name", "name@1.2.3", "name==1.2.3", and "npm:" aliases of those.
+export function isRegistrySpec(spec) {
+  const value = String(spec || '');
+  const alias = value.match(/^npm:(.+)$/i);
+  return SIMPLE_SPEC_RE.test(alias ? alias[1] : value);
+}
+
 export function analyzePackageSpec(spec) {
   const value = String(spec);
   if (SIMPLE_SPEC_RE.test(value)) {
@@ -251,13 +349,18 @@ function normalizeServer(name, server = {}) {
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
   const env = server.env && typeof server.env === 'object' ? server.env : {};
   const envKeys = Object.keys(env).sort();
-  const packageArg = firstPackageArg(command, args);
+  const runner = analyzeRunner(command, args);
+  const packageArg = runner.spec;
   const pkg = packageArg ? analyzePackageSpec(packageArg) : null;
   const packageSpec = pkg?.display || null;
   const remote = extractRemoteEndpoint(server);
   const remoteHost = remote?.host || null;
   const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
+  runner.signals.forEach((signal) => signals.add(signal));
 
+  // A server with both a command and an endpoint is judged as remote below, while a
+  // client may launch the command instead.
+  if (command && (server.url || server.endpoint)) signals.add('ambiguous-server-transport');
   if (remote) signals.add('network-endpoint');
   if (remote && ['http:', 'ws:'].includes(remote.protocol)) signals.add('insecure-transport');
   if (remote?.hasEmbeddedCredentials) signals.add('embedded-credentials');
@@ -267,6 +370,9 @@ function normalizeServer(name, server = {}) {
   if (pkg?.unparseable) signals.add('unparseable-package-spec');
   if (SHELLS.has(executableName(command))) signals.add('shell-execution');
   if (RUNNERS.has(executableName(command))) signals.add('install-on-run');
+  if (RUNNERS.has(executableName(command)) && envKeys.some((key) => RUNNER_ENV_RE.test(key))) {
+    signals.add('runner-environment-override');
+  }
   // Only a simple registry spec can be pinned: in a URL, "@" belongs to the URL, not a version.
   const pinned = Boolean(pkg?.pinned);
   if (packageSpec && !pinned) signals.add('unbounded-version');

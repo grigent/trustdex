@@ -63,6 +63,7 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - discovering live Claude/Codex sessions or reading their private state automatically
 - preventing an editor from installing an extension update, or undoing changes an installed extension already made to the host
 - extensions loaded from directories other than the one supplied to TrustDex
+- files in the directory a package runner is launched from, or its parents (`.npmrc`, `package.json`, `node_modules/.bin`), and user- or host-level runner configuration (`~/.npmrc`, uv's user configuration, the launching shell's environment); TrustDex inspects the runner arguments and the server's own `env` block, not the launch directory or the host
 
 ## Important failure mode
 

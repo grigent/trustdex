@@ -1,9 +1,13 @@
+import { isRegistrySpec } from './inspect.mjs';
+
 function normalizeHost(value) {
   return String(value || '').trim().toLowerCase().replace(/\.$/, '');
 }
 
 function normalizePackage(value) {
   const spec = String(value || '').trim();
+  // A URL, remote, or path is matched only as a whole, never by a name prefix before "@".
+  if (!isRegistrySpec(spec)) return spec;
   if (spec.startsWith('@')) {
     const slash = spec.indexOf('/');
     if (slash < 0) return spec;

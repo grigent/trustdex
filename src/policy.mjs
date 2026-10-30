@@ -1,3 +1,4 @@
+import { isRegistrySpec } from './inspect.mjs';
 import { IDE_INTEGRITY_SIGNALS, normalizeIdeExtensionId, parseIdeExtensionPin } from './ide-extensions.mjs';
 
 const IDE_HARD_BLOCK = new Set(IDE_INTEGRITY_SIGNALS);
@@ -11,6 +12,8 @@ function normalizeAction(value, fallback) {
 
 function packageName(spec = '') {
   const value = String(spec);
+  // A URL, remote, or path is matched only as a whole, never by a name prefix before "@".
+  if (!isRegistrySpec(value)) return value;
   if (value.startsWith('@')) {
     const slash = value.indexOf('/');
     if (slash < 0) return value;

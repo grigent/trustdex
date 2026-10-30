@@ -162,7 +162,7 @@ test('no command prints or stores a planted value', () => {
   // BLOCK-free inputs so approve can write full review bundles.
   const approvable = (servers) => write(`in/approvable-${counter}.json`, { mcpServers: servers });
   files.approvable = approvable({
-    gitRef: { command: 'uvx', args: [`--from=https://files.example.invalid/x.whl?sig=${canary()}`, 'tool==1.0.0', '--with', `git+https://git.example.invalid/x#v1`] },
+    gitRef: { command: 'uvx', args: [`--with=https://files.example.invalid/x.whl?sig=${canary()}`, '--with', 'git+https://git.example.invalid/x#v1', 'tool==1.0.0'] },
     remote: { url: `https://mcp.example.invalid/mcp?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
     local: { command: 'node', args: ['server.js', `--password=${canary()}`], env: { DB_PASSWORD: canary() } }
   });
