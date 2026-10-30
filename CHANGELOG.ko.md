@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- **보안:** 줄 단위 Codex TOML 처리를 TOML 렉서로 교체. 이전에는 공백이나 따옴표가 들어간 헤더(`[mcp_servers . x]`, `["mcp_servers".x]`)나 루트 수준 점 키로 작성한 MCP 서버를 `inspect-codex`가 건너뛰었고, 이 서버가 검사 없이 `gate-codex`를 통과했음. 백슬래시로 끝나는 리터럴 문자열이 뒤따르는 테이블을 숨길 수 있었고, 따옴표가 들어간 설정 헤더가 `inspect-codex-settings`에서 샌드박스·승인 설정을 숨길 수 있었음. 이제 이 경우들은 모두 검사하거나 거부함
+- Codex MCP 환경 변수마다 정적 값인지, 호스트에서 전달되는지(`source` 포함), 베어러 토큰인지, 그리고 `env_http_headers` 헤더마다 어떤 호스트 변수를 읽는지 기록. 잘못된 `env_vars`, 중복 키, 반복된 서버 테이블, 테이블 배열, 제어 문자, 잘못된 맨 값을 거부(**호환성:** 모든 Codex MCP 지문이 한 번 바뀌므로 기존 Codex 스냅샷과 결합은 지문 변경을 보고하며 한 번 재검토가 필요함)
 - 패키지 지정(URL, `name@url`, scp 형식 원격, uvx `--from`)에 포함된 자격 증명, 쿼리 값, `;params`를 출력·스냅샷에 남기지 않도록 수정. 단순한 레지스트리 지정, `npm:` 별칭, 로컬 경로는 그대로 보여 주고, 그 밖의 지정은 WHATWG URL 파서(알려진 스킴만)나 scp 형식 원격으로 해석해 스킴, 호스트, 경로, git ref만 보여 주며, 해석할 수 없는 지정은 `<unparseable-package-spec>`으로 표시하고 모든 팩에서 BLOCK(`unparseable-package-spec`). 단순한 지정만 고정 버전으로 인정하고, 쿼리 값이나 `;params`가 있는 패키지 URL은 보여 줄 수도 추적할 수도 없으므로 모든 팩에서 BLOCK(`package-url-query`)
 - `--flag=URL` 값을 포함한 모든 명령줄 인수의 URL·scp 형식 자격 증명에 `embedded-credentials`를 표시하고, 그 인수는 자격 증명을 뺀 형태로 지문에 넣음. 쿼리 값을 비롯한 다른 인수 값의 변경은 계속 지문을 바꿈
 - IDE 확장의 설치 출처와 대상 플랫폼은 알려진 값만 보고하고, 신뢰할 수 없는 `displayName`은 결과에서 제외
@@ -17,7 +19,6 @@
 - 판정 보고서, 정책 파일, v3 신뢰 스냅샷의 JSON 스키마를 공개하고 에이전트 연동 및 운영 규칙 문서화
 - 오류 메시지가 입력 내용을 인용하지 않도록 수정: 잘못된 JSON은 파일 이름만 보고하고, Codex TOML 인라인 테이블 오류는 자격 증명이 들어 있을 수 있는 항목을 더 이상 출력하지 않음
 - 따옴표 없는 TOML 값(맨 단어, 날짜)을 문자열로 읽지 않고 거부
-
 - VS Code 호환 에디터 확장 디렉터리(VS Code, Cursor)를 위한 `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, `recheck-ide-extensions` 추가
 - IDE 확장은 정확한 버전의 `trustedIdeExtensions` 고정(선택적으로 설치 파일 다이제스트 포함)으로만 허용하고, 정책 오버레이가 줄일 수 없는 `blockedIdeExtensions` 차단 목록 추가
 - 심볼릭 링크를 따라가지 않고 설치된 모든 확장 파일(내용과 실행 권한)의 다이제스트를 계산하고, `.obsolete`가 등록된 확장을 숨기지 못하게 하며, 잘못되었거나 일반 파일이 아닌 설치 기록, 누락된 매니페스트, 설치 기록과 매니페스트 불일치, 버전 범위, 지정 디렉터리 밖이나 심볼릭 링크를 거치는 위치에 대해 실패 시 차단
