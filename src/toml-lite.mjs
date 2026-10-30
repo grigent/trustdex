@@ -9,8 +9,17 @@ const ESCAPES = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '
 
 class Lexer {
   constructor(text) {
-    this.text = String(text || '');
+    // A leading byte-order mark is allowed and ignored, as TOML parsers do.
+    this.text = String(text || '').replace(/^\uFEFF/, '');
     this.i = 0;
+    // Control characters other than tab, and a carriage return that does not start a
+    // CRLF line ending, are invalid anywhere in TOML; rejecting them up front prevents
+    // a hidden line break from moving text out of a comment or string.
+    const invalid = this.text.search(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]|\r(?!\n)/);
+    if (invalid >= 0) {
+      this.i = invalid;
+      this.fail('control character');
+    }
   }
 
   get done() { return this.i >= this.text.length; }
@@ -200,7 +209,10 @@ class Lexer {
     const start = this.i;
     while (!this.done && !/[\s,\]}#]/.test(this.peek())) this.i += 1;
     if (this.i === start) this.fail('expected a value');
-    return { kind: 'bare', value: this.text.slice(start, this.i) };
+    const value = this.text.slice(start, this.i);
+    // Numbers, booleans, and dates only contain these characters.
+    if (!/^[A-Za-z0-9_:.+-]+$/.test(value)) this.fail('invalid value');
+    return { kind: 'bare', value };
   }
 }
 

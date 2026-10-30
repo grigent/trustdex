@@ -156,3 +156,38 @@ test('the TOML lexer decodes strings exactly and rejects invalid escapes', () =>
   assert.throws(() => parseTomlStatements('a = 1 b = 2\n'), /end of line/);
   assert.throws(() => parseTomlStatements('[table\n'), /table header/);
 });
+
+test('pointing an env header at a different host secret changes the fingerprint', () => {
+  const fingerprint = (variable) => inspectMcpConfig(parseCodexMcpToml(
+    `[mcp_servers.x]\nurl = "https://mcp.example.invalid/mcp"\nenv_http_headers = { Authorization = "${variable}" }\n`
+  ))[0].fingerprint;
+  assert.notEqual(fingerprint('GH_TOKEN'), fingerprint('AWS_SECRET_ACCESS_KEY'));
+  assert.throws(() => parseCodexMcpToml('[mcp_servers.x]\nurl = "https://h.invalid/"\nenv_http_headers = { A = 1 }\n'), /variable names/);
+});
+
+test('a static env value keeps its origin regardless of file order', () => {
+  const origins = (toml) => parseCodexMcpToml(toml).mcpServers.x._trustdexFingerprintData.envOrigins;
+  const a = origins('[mcp_servers.x]\ncommand = "node"\nenv_vars = ["T"]\nenv = { T = "v" }\n');
+  const b = origins('[mcp_servers.x]\ncommand = "node"\nenv = { T = "v" }\nenv_vars = ["T"]\n');
+  assert.deepEqual(a, b);
+  assert.equal(a.T, 'static');
+});
+
+test('control characters, lone carriage returns, and malformed bare values are rejected', () => {
+  for (const toml of ['# x\r[mcp_servers.evil]\ncommand = "bash"\n', 'a = "x\u0000y"\n', '# \u0007\n', 'k = [1, 2[[]\n', 'k = 1)\n']) {
+    assert.throws(() => parseTomlStatements(toml), /Unsupported TOML/, JSON.stringify(toml));
+  }
+});
+
+test('a byte-order mark and a subtable before its server table are accepted', () => {
+  assert.deepEqual(names(`\uFEFF${FILES}`), ['files']);
+  const toml = '[mcp_servers.x.env]\nA = "1"\n\n[mcp_servers.x]\ncommand = "node"\n';
+  assert.equal(parseCodexMcpToml(toml).mcpServers.x.command, 'node');
+  assert.throws(() => parseCodexMcpToml('[mcp_servers.x.env]\nA = "1"\n[mcp_servers.x.env]\nB = "2"\n'), /more than once/);
+});
+
+test('an empty granular approval table is reported like its inline form', () => {
+  const table = inspectCodexSettingsText('[approval_policy.granular]\n');
+  const inline = inspectCodexSettingsText('approval_policy = { granular = {} }\n');
+  assert.deepEqual(table.metadata.approvalPolicy, inline.metadata.approvalPolicy);
+});

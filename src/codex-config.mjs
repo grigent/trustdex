@@ -20,9 +20,19 @@ function envEntries(value) {
   });
 }
 
+// env_http_headers maps a header to the name of a host variable. The variable name is
+// recorded so pointing a header at a different secret changes the fingerprint.
+function recordEnvHeader(server, header, variable) {
+  if (typeof variable !== 'string' || !variable) throw new Error('Codex env_http_headers values must be variable names.');
+  server._trustdexFingerprintData.envHttpHeaderKeys.push(header);
+  server._trustdexFingerprintData.envHttpHeaderSources[header] = variable;
+}
+
 const ENV_PLACEHOLDERS = { static: '<redacted>', 'bearer-token': '<bearer-token>' };
 
 function recordEnv(server, name, origin) {
+  // A static value wins over forwarding in Codex, so keep it regardless of file order.
+  if (server._trustdexFingerprintData.envOrigins[name] === 'static' && origin !== 'static') return;
   server.env[name] = ENV_PLACEHOLDERS[origin] || '<forwarded>';
   server._trustdexFingerprintData.envOrigins[name] = origin;
 }
@@ -40,7 +50,7 @@ function applyAssignment(server, nested, key, value) {
     return;
   }
   if (nested === 'env_http_headers') {
-    server._trustdexFingerprintData.envHttpHeaderKeys.push(key);
+    recordEnvHeader(server, key, value);
     signals.add('env-http-headers');
     return;
   }
@@ -68,7 +78,7 @@ function applyAssignment(server, nested, key, value) {
     server._trustdexFingerprintData.httpHeaderKeys.push(...Object.keys(value));
     if (Object.keys(value).length) signals.add('static-http-headers');
   } else if (key === 'env_http_headers' && value && typeof value === 'object') {
-    server._trustdexFingerprintData.envHttpHeaderKeys.push(...Object.keys(value));
+    for (const [header, variable] of Object.entries(value)) recordEnvHeader(server, header, variable);
     if (Object.keys(value).length) signals.add('env-http-headers');
   } else if (key === 'http_headers_helper' && typeof value === 'string') {
     server._trustdexFingerprintData.httpHeadersHelper = value;
@@ -102,6 +112,7 @@ function newServer() {
       envOrigins: Object.create(null),
       httpHeaderKeys: [],
       envHttpHeaderKeys: [],
+      envHttpHeaderSources: Object.create(null),
       httpHeadersHelper: null,
       enabledTools: [],
       disabledTools: [],
@@ -127,6 +138,7 @@ export function parseCodexMcpTomlWithSpans(text) {
   const servers = Object.create(null);
   const spans = [];
   const assigned = new Set();
+  const declaredTables = new Set();
 
   for (const statement of statements) {
     const span = { start: statement.start, end: statement.end };
@@ -140,12 +152,10 @@ export function parseCodexMcpTomlWithSpans(text) {
       if (rest.length || (nested !== undefined && !CODEX_MCP_NESTED_SECTIONS.has(nested))) {
         throw new Error(`Unsupported Codex MCP subsection "${[nested, ...rest].join('.')}".`);
       }
-      if (nested === undefined) {
-        if (servers[name]) throw new Error('Unsupported Codex TOML: a server table is defined more than once.');
-        servers[name] = newServer();
-      } else if (!servers[name]) {
-        servers[name] = newServer();
-      }
+      const tableId = statement.path.join('\u0000');
+      if (declaredTables.has(tableId)) throw new Error('Unsupported Codex TOML: a server table is defined more than once.');
+      declaredTables.add(tableId);
+      if (!servers[name]) servers[name] = newServer();
       spans.push({ name, header: true, ...span });
       continue;
     }
@@ -173,6 +183,7 @@ export function parseCodexMcpTomlWithSpans(text) {
     const data = server._trustdexFingerprintData;
     data.httpHeaderKeys = [...new Set(data.httpHeaderKeys)].sort();
     data.envHttpHeaderKeys = [...new Set(data.envHttpHeaderKeys)].sort();
+    data.envHttpHeaderSources = Object.fromEntries(Object.entries(data.envHttpHeaderSources).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
     data.envOrigins = Object.fromEntries(Object.entries(data.envOrigins).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
   }
 
@@ -196,11 +207,21 @@ export function gateCodexToml(text, results, options = {}) {
   const { spans, statements } = parseCodexMcpTomlWithSpans(source);
   const remove = [];
   const headers = statements.filter((statement) => statement.type === 'table' || statement.type === 'array-table');
+  const headerStarts = headers.map((statement) => statement.start);
+  const nextHeader = (start) => {
+    let low = 0;
+    let high = headerStarts.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (headerStarts[mid] > start) high = mid;
+      else low = mid + 1;
+    }
+    return low < headerStarts.length ? headerStarts[low] : source.length;
+  };
   for (const span of spans) {
     if (keep(span.name)) continue;
     if (span.header) {
-      const next = headers.find((statement) => statement.start > span.start);
-      remove.push([span.start, next ? next.start : source.length]);
+      remove.push([span.start, nextHeader(span.start)]);
     } else {
       remove.push([span.start, span.end]);
     }

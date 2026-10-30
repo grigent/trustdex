@@ -118,6 +118,7 @@ tool_timeout_sec = 60
     format: 'codex-toml',
     cwd: null,
     envOrigins: {},
+    envHttpHeaderSources: {},
     httpHeaderKeys: [],
     envHttpHeaderKeys: [],
     httpHeadersHelper: null,

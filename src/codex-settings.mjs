@@ -78,6 +78,7 @@ function parseTomlAssignments(text) {
   const agents = Object.create(null);
   const approvalGranular = Object.create(null);
   const sections = new Set();
+  let granularDeclared = false;
   const put = (target, key, value, label) => {
     if (Object.hasOwn(target, key)) throw new Error(`Duplicate Codex ${label} setting: ${key}`);
     target[key] = value;
@@ -101,6 +102,7 @@ function parseTomlAssignments(text) {
       if (second !== 'granular') throw new Error(`Unsupported Codex security section: ${path.slice(0, 2).join('.')}`);
       if (third === undefined) {
         if (node.kind !== 'table') throw new Error('Unsupported Codex approval_policy.granular value.');
+        granularDeclared = true;
         for (const entry of node.value) assign([head, second, ...entry.path], entry.value, inTable);
         return;
       }
@@ -134,6 +136,7 @@ function parseTomlAssignments(text) {
       if (statement.type === 'array-table' && ['sandbox_workspace_write', 'approval_policy', 'agents'].includes(statement.path[0])) {
         throw new Error(`Unsupported Codex security section: ${section}`);
       }
+      if (section === 'approval_policy.granular') granularDeclared = true;
       sections.add(section);
       continue;
     }
@@ -142,7 +145,7 @@ function parseTomlAssignments(text) {
     assign(statement.path, statement.value, statement.table.length > 0);
   }
 
-  if (Object.keys(approvalGranular).length) {
+  if (granularDeclared || Object.keys(approvalGranular).length) {
     if (root.approval_policy !== undefined) {
       throw new Error('Codex approval_policy cannot be declared in more than one form.');
     }
