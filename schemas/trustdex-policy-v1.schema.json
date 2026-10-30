@@ -20,11 +20,11 @@
     "allowedRemoteHosts": { "$ref": "#/$defs/stringList" },
     "trustedIdeExtensions": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[^@#\\s]+@\\d+\\.\\d+\\.\\d+[^@#\\s]*(#sha256:[0-9a-fA-F]{64})?$" }
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*\\.[A-Za-z0-9][A-Za-z0-9._-]*@\\d+\\.\\d+\\.\\d+[^@#\\s]*(#sha256:[0-9a-fA-F]{64})?$" }
     },
     "blockedIdeExtensions": {
       "type": "array",
-      "items": { "type": "string", "pattern": "^[^@#\\s]+@(\\*|\\d+\\.\\d+\\.\\d+[^@#\\s]*(#sha256:[0-9a-fA-F]{64})?)$" }
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*\\.[A-Za-z0-9][A-Za-z0-9._-]*@(\\*|\\d+\\.\\d+\\.\\d+[^@#\\s]*(#sha256:[0-9a-fA-F]{64})?)$" }
     },
     "signalActions": {
       "type": "object",

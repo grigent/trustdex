@@ -477,6 +477,10 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
+  if (hasFlag(args, '--decisions') && !DECISION_COMMANDS.has(command)) {
+    throw new Error(`--decisions is supported only by inspection commands, not ${command || 'no command'}.`);
+  }
+
   if (!command || command === '-h' || command === '--help') {
     usage();
     return;
@@ -485,10 +489,6 @@ async function main() {
   if (command === '--version' || command === '-V') {
     console.log(VERSION);
     return;
-  }
-
-  if (hasFlag(args, '--decisions') && !DECISION_COMMANDS.has(command)) {
-    throw new Error(`--decisions is supported only by inspection commands, not ${command}.`);
   }
 
   if (command === 'policy') {

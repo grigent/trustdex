@@ -200,7 +200,9 @@ test('--decisions is rejected by commands that do not implement it', () => {
   for (const args of [
     ['gate', example('mcp.json'), '--out', path.join(work, 'g.json')],
     ['snapshot', example('mcp.json'), '--out', path.join(work, 's.json')],
-    ['policy', 'strict']
+    ['policy', 'strict'],
+    ['--help'],
+    ['--version']
   ]) {
     const result = run(...args, '--decisions');
     assert.equal(result.status, 2, args[0]);

@@ -47,7 +47,7 @@ It prints one JSON object described by [`schemas/trustdex-decisions-v1.schema.js
 
 - `decision` is the most restrictive item action; `exitCode` is `0` for allow, `1` for ask, and `2` for block, and matches the process exit code.
 - Items carry names, actions, signal names, reasons, and fingerprints. Reasons may name packages, hosts, repositories, extension IDs, and trust-store publishers. They never contain values such as credentials, environment or header values, or provenance evidence. Item metadata and environment-variable names are not included.
-- If inspection fails (missing file, malformed input, invalid policy), the command still prints a report with `"decision": "block"`, `"exitCode": 2`, an empty `items` list, and a fixed `error` string. Details go to stderr. They may name a field but never quote input values.
+- If inspection fails (missing file, malformed input, invalid policy), the command still prints a report with `"decision": "block"`, `"exitCode": 2`, an empty `items` list, and a fixed `error` string. Details go to stderr. They may name a field, server, signal, or policy entry, but never quote configuration values such as credentials, headers, or environment values.
 - An empty inventory (for example `{}`, an empty TOML file, or an empty extensions directory) is reported as `"ask"` with exit code `1`. Nothing was evaluated, which usually means the wrong file was inspected.
 - Only inspection commands accept `--decisions`. Any other command given `--decisions` fails with a BLOCK report and exit code `2`, so the flag can never be silently ignored.
 - `digest` is stable for the same results and policy, so a harness can record exactly which decision it acted on.
