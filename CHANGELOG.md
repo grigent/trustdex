@@ -6,6 +6,11 @@
 
 ## Unreleased
 
+- add `--decisions` to every inspection command: a versioned, value-free `trustdex-decisions` JSON report whose exit code matches the decision and which reports BLOCK when inspection fails
+- validate `--policy` files strictly and reject unknown fields, unsupported versions, and invalid actions instead of silently falling back (**compatibility:** a policy with a misspelled field now errors)
+- report an empty inventory as ASK in `--decisions` mode, reject `--decisions` on commands that do not implement it, and fail closed on MCP entries that are not objects instead of dropping them
+- reject unknown signal names in `signalActions` and IDE extension entries without an exact version when a policy file is loaded
+- publish JSON schemas for decision reports, policy files, and v3 trust snapshots, and document agent integration and operating rules
 - stop error messages from quoting input content: malformed JSON now reports only the file name, and Codex TOML inline-table errors no longer echo the entry, which could contain a credential
 - reject unquoted TOML values (bare words, dates) instead of reading them as strings
 
