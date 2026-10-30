@@ -31,12 +31,13 @@ function recordEnvHeader(server, header, variable) {
 const ENV_PLACEHOLDERS = { static: '<redacted>', 'bearer-token': '<bearer-token>' };
 
 // A variable can be declared more than once (for example a static value and a bearer
-// token variable); record every origin, sorted, so the result does not depend on order.
+// token variable); record every origin as a sorted list so the result does not depend
+// on order and distinct origins cannot collide.
 function recordEnv(server, name, origin) {
   const origins = server._trustdexFingerprintData.envOrigins;
-  const all = new Set(origins[name] ? origins[name].split('+') : []);
+  const all = new Set(origins[name] || []);
   all.add(origin);
-  origins[name] = [...all].sort().join('+');
+  origins[name] = [...all].sort();
   server.env[name] = all.has('static') ? ENV_PLACEHOLDERS.static : ENV_PLACEHOLDERS[origin] || '<forwarded>';
 }
 

@@ -170,9 +170,14 @@ test('a static env value keeps its origin regardless of file order', () => {
   const a = origins('[mcp_servers.x]\ncommand = "node"\nenv_vars = ["T"]\nenv = { T = "v" }\n');
   const b = origins('[mcp_servers.x]\ncommand = "node"\nenv = { T = "v" }\nenv_vars = ["T"]\n');
   assert.deepEqual(a, b);
-  assert.equal(a.T, 'host+static');
+  assert.deepEqual(a.T, ['host', 'static']);
   const bearer = origins('[mcp_servers.x]\nurl = "https://h.invalid/"\nenv = { T = "v" }\nbearer_token_env_var = "T"\n');
-  assert.equal(bearer.T, 'bearer-token+static');
+  assert.deepEqual(bearer.T, ['bearer-token', 'static']);
+  const collide = (toml) => inspectMcpConfig(parseCodexMcpToml(toml))[0].fingerprint;
+  assert.notEqual(
+    collide('[mcp_servers.x]\ncommand = "node"\nenv_vars = [{ name = "T", source = "a+static" }]\n'),
+    collide('[mcp_servers.x]\ncommand = "node"\nenv_vars = [{ name = "T", source = "a" }]\nenv = { T = "v" }\n')
+  );
 });
 
 test('control characters, lone carriage returns, and malformed bare values are rejected', () => {
