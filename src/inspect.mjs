@@ -109,6 +109,7 @@ const SIMPLE_SPEC_RE = new RegExp(`^${SPEC_NAME}(?:@${SPEC_PART})?$`);
 const URL_PREFIX_RE = new RegExp(`^(${SPEC_NAME}(?:@| @ ))([A-Za-z][A-Za-z0-9+.-]*:[^]*)$`);
 const SCHEME_RE = /^([A-Za-z][A-Za-z0-9+.-]*):/;
 const UNSAFE_CHAR_RE = /[\s\x00-\x1f\x7f]/;
+const LOCAL_PATH_RE = /^(?:\.{1,2}[\\/]|[\\/]|~[\\/]|[A-Za-z]:[\\/])/;
 // user[:password]@host:path[#ref]; "name:tag@sha256:digest" image references are not remotes.
 const SCP_RE = /^(?!.*@sha\d+:)([^\s@/:\\]+)(?::([^\s@/\\]+))?@([^\s@/:\\?#;]+):([^\s@\\?#;]+)(#\S*)?$/;
 // ssh://user[:password]@host:path[#ref], which npm documents but URL parsers reject.
@@ -170,6 +171,16 @@ export function analyzePackageSpec(spec) {
   const value = String(spec);
   if (SIMPLE_SPEC_RE.test(value)) {
     return { unparseable: false, display: value, credentials: false, query: false, pinned: isPinnedPackage(value) };
+  }
+  // npm aliases ("npm:name@1.2.3") are registry specs; pin them like the aliased spec.
+  const alias = value.match(/^npm:(.+)$/i);
+  if (alias && SIMPLE_SPEC_RE.test(alias[1])) {
+    return { unparseable: false, display: value, credentials: false, query: false, pinned: isPinnedPackage(alias[1]) };
+  }
+  // Local directories and tarballs ("./pkg", "../pkg.tgz", "/opt/pkg") are shown as
+  // given, as before, and are never pinned.
+  if (LOCAL_PATH_RE.test(value) && !/[@?#;]/.test(value) && !UNSAFE_CHAR_RE.test(value)) {
+    return { unparseable: false, display: value, credentials: false, query: false, pinned: false };
   }
   const embedded = analyzeEmbeddedUrl(value) || UNPARSEABLE;
   return { unparseable: false, ...embedded, pinned: false };

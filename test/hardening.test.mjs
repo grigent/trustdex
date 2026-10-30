@@ -233,7 +233,7 @@ test('package spec bypass forms never print credentials, are flagged, and are ne
 });
 
 test('specs TrustDex cannot parse are blocked in every pack, even when trusted by name', () => {
-  for (const spec of ['./local-pkg', 'npm:other@1.0.0', 'ftp://h.invalid/x.tgz', 'pkg@', 'name:1.0@sha256:abc']) {
+  for (const spec of ['ftp://h.invalid/x.tgz', 'pkg@', 'name:1.0@sha256:abc', 'npm:a b', './x?sig=1']) {
     const result = inspectOne('npx', [spec]);
     assert.ok(result.signals.includes('unparseable-package-spec'), spec);
     assert.equal(result.source.package, '<unparseable-package-spec>', spec);
@@ -344,4 +344,20 @@ test('recheck reports a changed package URL query after approval', () => {
   const recheck = run('recheck', config, '--review-dir', review, '--public', pub, '--json');
   assert.equal(recheck.status, 1, recheck.stdout);
   assert.equal(JSON.parse(recheck.stdout).status, 'needs-review');
+});
+
+test('npm aliases and local package paths are not reported as unparseable', () => {
+  const results = inspectMcpConfig({ mcpServers: {
+    alias: { command: 'npx', args: ['-y', 'npm:real-pkg@1.2.3'] },
+    floating: { command: 'npx', args: ['npm:real-pkg'] },
+    local: { command: 'npx', args: ['./packages/tool'] },
+    tarball: { command: 'npx', args: ['../dist/tool-1.0.0.tgz'] }
+  } });
+  const by = Object.fromEntries(results.map((result) => [result.name, result]));
+  assert.equal(by.alias.source.package, 'npm:real-pkg@1.2.3');
+  assert.equal(by.alias.source.pinned, true);
+  assert.equal(by.floating.source.pinned, false);
+  assert.equal(by.local.source.package, './packages/tool');
+  assert.equal(by.tarball.source.pinned, false);
+  for (const result of results) assert.ok(!result.signals.includes('unparseable-package-spec'), result.name);
 });
