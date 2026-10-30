@@ -18,6 +18,11 @@ const BASE_SIGNALS = {
   'url-query-parameters': 'ask',
   // TrustDex cannot show or track signed query values in a package URL, so it cannot be approved.
   'package-url-query': 'block',
+  // The installed package cannot be determined, comes from another registry, or brings
+  // extra packages, so a trusted name no longer describes what runs.
+  'ambiguous-runner-arguments': 'block',
+  'package-source-override': 'block',
+  'additional-packages': 'ask',
   // A package spec TrustDex cannot parse can be neither shown nor reviewed.
   'unparseable-package-spec': 'block',
   'artifact-version-mismatch': 'block',

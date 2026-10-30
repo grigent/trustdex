@@ -6,6 +6,9 @@
 
 ## 미출시
 
+- 러너 옵션으로 실제 설치되는 패키지를 판단: `uvx --from`과 `npx -p/--package`가 패키지를 지정하며, `uvx --python 3.12` 같은 옵션 값을 더 이상 패키지로 오인하지 않음. 레지스트리 재지정(`--registry`, `--userconfig`, `--index-url`, `--extra-index-url`, `--find-links` 등)은 `package-source-override`(BLOCK), 추가 패키지(`uvx --with`, 반복된 `-p`)는 `additional-packages`(ASK), `npx -c/--call`은 `shell-execution`, 인식하지 못한 러너 옵션은 `ambiguous-runner-arguments`(BLOCK)를 추가
+- `trustedPackages`와 신뢰 저장소 패키지 주장은 레지스트리 지정에서만 이름으로 일치시키고, 신뢰한 이름으로 시작하는 URL·원격·경로(예: `trusted@https://...`)는 전체가 같을 때만 일치
+
 - **보안:** 줄 단위 Codex TOML 처리를 TOML 렉서로 교체. 이전에는 공백이나 따옴표가 들어간 헤더(`[mcp_servers . x]`, `["mcp_servers".x]`)나 루트 수준 점 키로 작성한 MCP 서버를 `inspect-codex`가 건너뛰었고, 이 서버가 검사 없이 `gate-codex`를 통과했음. 백슬래시로 끝나는 리터럴 문자열이 뒤따르는 테이블을 숨길 수 있었고, 따옴표가 들어간 설정 헤더가 `inspect-codex-settings`에서 샌드박스·승인 설정을 숨길 수 있었음. 이제 이 경우들은 모두 검사하거나 거부함
 - Codex MCP 환경 변수마다 정적 값인지, 호스트에서 전달되는지(`source` 포함), 베어러 토큰인지, 그리고 `env_http_headers` 헤더마다 어떤 호스트 변수를 읽는지 기록. 잘못된 `env_vars`, 중복 키, 반복된 서버 테이블, 테이블 배열, 제어 문자, 잘못된 맨 값을 거부(**호환성:** 모든 Codex MCP 지문이 한 번 바뀌므로 기존 Codex 스냅샷과 결합은 지문 변경을 보고하며 한 번 재검토가 필요함)
 - 패키지 지정(URL, `name@url`, scp 형식 원격, uvx `--from`)에 포함된 자격 증명, 쿼리 값, `;params`를 출력·스냅샷에 남기지 않도록 수정. 단순한 레지스트리 지정, `npm:` 별칭, 로컬 경로는 그대로 보여 주고, 그 밖의 지정은 WHATWG URL 파서(알려진 스킴만)나 scp 형식 원격으로 해석해 스킴, 호스트, 경로, git ref만 보여 주며, 해석할 수 없는 지정은 `<unparseable-package-spec>`으로 표시하고 모든 팩에서 BLOCK(`unparseable-package-spec`). 단순한 지정만 고정 버전으로 인정하고, 쿼리 값이나 `;params`가 있는 패키지 URL은 보여 줄 수도 추적할 수도 없으므로 모든 팩에서 BLOCK(`package-url-query`)

@@ -9,19 +9,64 @@ function executableName(command = '') {
   return name.replace(/\.(?:bat|cmd|exe)$/i, '');
 }
 
-function firstPackageArg(command, args) {
-  const cmd = executableName(command);
-  if (!RUNNERS.has(cmd)) return null;
+// Runner options, per runner. Value options consume the next argument unless written as
+// --flag=value. "package" options name what is installed; "extra" options add more
+// packages; "source" options change where packages come from; "shell" options run a
+// shell command. An option not listed here makes the package identity ambiguous.
+const RUNNER_OPTIONS = {
+  npm: {
+    package: ['-p', '--package'],
+    extra: [],
+    source: ['--registry', '--userconfig'],
+    shell: ['-c', '--call'],
+    value: ['--cache', '--prefix', '-w', '--workspace', '--node-options'],
+    flags: ['-y', '--yes', '--no', '-q', '--quiet', '--silent', '--no-install', '--ignore-existing', '--prefer-offline', '--prefer-online', '--offline']
+  },
+  uv: {
+    package: ['--from'],
+    extra: ['--with', '--with-editable', '--with-requirements'],
+    source: ['--index', '--index-url', '--extra-index-url', '--default-index', '-i', '--find-links', '-f'],
+    shell: [],
+    value: ['-p', '--python', '--cache-dir', '--directory', '--project', '--config-file', '--env-file', '-c', '--constraint', '--override', '--build-constraint', '--index-strategy', '--keyring-provider', '--resolution', '--prerelease', '--exclude-newer', '--link-mode', '--compile-bytecode', '--python-preference', '--color'],
+    flags: ['-q', '--quiet', '-v', '--verbose', '--isolated', '--no-cache', '-n', '--offline', '--refresh', '-U', '--upgrade', '--no-config', '--no-progress', '--native-tls', '--no-python-downloads', '--no-build-isolation', '--no-sources', '--managed-python', '--no-managed-python']
+  }
+};
+const RUNNER_FAMILY = { npx: 'npm', pnpx: 'npm', bunx: 'npm', uvx: 'uv' };
+
+// Returns the installed package spec plus identity signals for a runner command.
+function analyzeRunner(command, args) {
+  const family = RUNNER_FAMILY[executableName(command)];
+  if (!family) return { spec: null, signals: [] };
+  const options = RUNNER_OPTIONS[family];
+  const has = (list, name) => list.includes(name);
   const values = Array.isArray(args) ? args.map(String) : [];
+  const packages = [];
+  const signals = new Set();
+  let positional = null;
   for (let i = 0; i < values.length; i += 1) {
     const arg = values[i];
-    if (arg === '--package' || arg === '-p') return values[i + 1] || null;
-    if (arg.startsWith('--package=')) return arg.slice('--package='.length) || null;
-    if (arg.startsWith('-p=')) return arg.slice('-p='.length) || null;
-    if (arg.startsWith('-')) continue;
-    return arg;
+    if (arg === '--') { positional = values[i + 1] ?? null; break; }
+    if (!arg.startsWith('-') || arg === '-') { positional = arg; break; }
+    const eq = arg.indexOf('=');
+    const name = eq > 0 ? arg.slice(0, eq) : arg;
+    const takesValue = has(options.package, name) || has(options.extra, name) || has(options.source, name) ||
+      has(options.shell, name) || has(options.value, name);
+    let value = null;
+    if (takesValue) {
+      value = eq > 0 ? arg.slice(eq + 1) : values[i + 1] ?? null;
+      if (eq < 0) i += 1;
+    } else if (!has(options.flags, name)) {
+      signals.add('ambiguous-runner-arguments');
+      continue;
+    }
+    if (has(options.package, name) && value !== null) packages.push(value);
+    if (has(options.extra, name)) signals.add('additional-packages');
+    if (has(options.source, name)) signals.add('package-source-override');
+    if (has(options.shell, name)) signals.add('shell-execution');
   }
-  return null;
+  if (packages.length > 1) signals.add('additional-packages');
+  const spec = packages[0] ?? positional;
+  return { spec: spec || null, signals: [...signals] };
 }
 
 export function isPinnedPackage(spec) {
@@ -181,6 +226,14 @@ function analyzeEmbeddedUrl(value) {
 // Classifies a package spec. Simple registry specs ("name", "@scope/name", "name@1.2.3",
 // "name==1.2.3") pass through; anything else is shown only as a credential-free URL or
 // remote, is never pinned, and is otherwise unparseable.
+// True for registry specs whose name can be matched against a trust policy:
+// "name", "@scope/name", "name@1.2.3", "name==1.2.3", and "npm:" aliases of those.
+export function isRegistrySpec(spec) {
+  const value = String(spec || '');
+  const alias = value.match(/^npm:(.+)$/i);
+  return SIMPLE_SPEC_RE.test(alias ? alias[1] : value);
+}
+
 export function analyzePackageSpec(spec) {
   const value = String(spec);
   if (SIMPLE_SPEC_RE.test(value)) {
@@ -251,12 +304,14 @@ function normalizeServer(name, server = {}) {
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
   const env = server.env && typeof server.env === 'object' ? server.env : {};
   const envKeys = Object.keys(env).sort();
-  const packageArg = firstPackageArg(command, args);
+  const runner = analyzeRunner(command, args);
+  const packageArg = runner.spec;
   const pkg = packageArg ? analyzePackageSpec(packageArg) : null;
   const packageSpec = pkg?.display || null;
   const remote = extractRemoteEndpoint(server);
   const remoteHost = remote?.host || null;
   const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
+  runner.signals.forEach((signal) => signals.add(signal));
 
   if (remote) signals.add('network-endpoint');
   if (remote && ['http:', 'ws:'].includes(remote.protocol)) signals.add('insecure-transport');
