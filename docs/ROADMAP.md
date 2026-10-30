@@ -49,7 +49,6 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Later: expand interoperability
 
-- extend signed snapshot, approval, and recheck workflows to Codex `config.toml`
 - add adapters for additional agent runtimes and registries
 - publish a compatibility matrix backed by tests
 - explore organization-managed trust stores and review-key rotation

@@ -45,7 +45,22 @@ TrustDex never edits `config.toml` in place. Replacing the original file, or poi
 
 MCP entries change when a package version is bumped, a launcher is swapped, or a new environment variable is passed. Re-run `inspect-codex` and `gate-codex` whenever `config.toml` changes; a CI job or a pre-commit hook in a dotfiles repository works well for this.
 
-The signed `snapshot`, `approve`, and `recheck` drift workflow in the [README](../README.md#capability-and-provenance-drift) currently accepts MCP JSON only. Extending it to Codex `config.toml` is tracked in the [roadmap](ROADMAP.md).
+### 4. Lock a reviewed configuration with a signed review
+
+Approve the reviewed `config.toml` with a signing key kept off the machine you are protecting, then recheck it before each Codex session or in CI:
+
+```bash
+node ./bin/trustdex.mjs approve-codex ~/.codex/config.toml \
+  --private .trustdex/private.pem --dir .trustdex/codex-review \
+  --pack strict --policy ./trustdex.policy.json
+
+node ./bin/trustdex.mjs recheck-codex ~/.codex/config.toml \
+  --review-dir .trustdex/codex-review --public .trustdex/public.pem
+```
+
+`approve-codex` refuses configurations that contain BLOCK decisions. `recheck-codex` exits `0` with `APPROVED` when every MCP server still matches the signed review. It exits `1` with `NEEDS_REVIEW` when a server is added or removed, or when a package version, endpoint, environment variable name or origin (static, forwarded, bearer token), header name or the host variable it reads, `enabled_tools`/`disabled_tools`, or tool approval mode changes. It exits `2` with `INVALID` when the review bundle or its policy was altered. `snapshot-codex` writes the same v3 snapshot for use with `diff`. Recheck with the same adapter you approved with: the Codex adapter fingerprints Codex-specific fields, so rechecking an equivalent MCP JSON file reports `NEEDS_REVIEW` instead of `APPROVED`.
+
+Like the other fingerprints, Codex snapshots omit environment, header, and token values, so rotating a credential value alone does not require re-review.
 
 ### Fail-closed parsing
 

@@ -17,6 +17,7 @@
 - report an empty inventory as ASK in `--decisions` mode, reject `--decisions` on commands that do not implement it, and fail closed on MCP entries that are not objects instead of dropping them
 - reject unknown signal names in `signalActions` and IDE extension entries without an exact version when a policy file is loaded
 - publish JSON schemas for decision reports, policy files, and v3 trust snapshots, and document agent integration and operating rules
+- add `snapshot-codex`, `approve-codex`, and `recheck-codex` so a reviewed Codex `config.toml` can be signed and rechecked for drift, including Codex-specific tool and approval-mode changes
 - stop error messages from quoting input content: malformed JSON now reports only the file name, and Codex TOML inline-table errors no longer echo the entry, which could contain a credential
 - reject unquoted TOML values (bare words, dates) instead of reading them as strings
 - add `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, and `recheck-ide-extensions` for VS Code-compatible editor extension directories (VS Code, Cursor)

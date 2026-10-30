@@ -84,6 +84,9 @@ Usage:
       [--trust-store trust-store.json] [--include-ask] [--json]
   trustdex gate-codex <config.toml> --out gated.toml [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--include-ask]
+  trustdex snapshot-codex <config.toml> --out snapshot.json [--pack ...]
+  trustdex approve-codex <config.toml> --private key.pem --dir review [--pack ...]
+  trustdex recheck-codex <config.toml> --review-dir review --public key.pem [--json]
 
   trustdex inspect-claude <.mcp.json> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-claude-settings <settings.json> [--pack ...] [--policy policy.json] [--json]
@@ -307,6 +310,13 @@ async function evaluateIdeExtensions(directory, args) {
     store: null,
     results: evaluateAll(await inspectIdeExtensionsDir(directory), policy)
   };
+}
+
+// Signed snapshot, approve, and recheck share one engine; the command suffix picks the adapter.
+async function evaluateForReview(command, input, args) {
+  if (command.endsWith('-ide-extensions')) return evaluateIdeExtensions(input, args);
+  if (command.endsWith('-codex')) return evaluateCodex(input, args);
+  return evaluateMcp(input, args);
 }
 
 async function inspectSingle(item, args) {
@@ -829,7 +839,7 @@ async function main() {
     return;
   }
 
-  if (command === 'approve' || command === 'approve-claude' || command === 'approve-ide-extensions') {
+  if (['approve', 'approve-claude', 'approve-codex', 'approve-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const privatePath = getFlag(args, '--private');
     const reviewDir = getFlag(args, '--dir');
@@ -837,9 +847,7 @@ async function main() {
       throw new Error('approve requires <mcp.json>, --private <key.pem>, and --dir <review-directory>.');
     }
 
-    const { policy, store, results } = command === 'approve-ide-extensions'
-      ? await evaluateIdeExtensions(configPath, args)
-      : await evaluateMcp(configPath, args);
+    const { policy, store, results } = await evaluateForReview(command, configPath, args);
     if (results.some((result) => result.action === 'block')) {
       throw new Error('Refusing to approve a configuration containing BLOCK decisions. Fix the policy or source first.');
     }
@@ -863,7 +871,7 @@ async function main() {
     return;
   }
 
-  if (command === 'recheck' || command === 'recheck-claude' || command === 'recheck-ide-extensions') {
+  if (['recheck', 'recheck-claude', 'recheck-codex', 'recheck-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const reviewDir = getFlag(args, '--review-dir');
     const publicPath = getFlag(args, '--public');
@@ -881,9 +889,7 @@ async function main() {
     if (trustStoreExists && !getFlag(args, '--trust-store')) {
       evalArgs.push('--trust-store', storedTrustStore);
     }
-    const { results } = command === 'recheck-ide-extensions'
-      ? await evaluateIdeExtensions(configPath, evalArgs)
-      : await evaluateMcp(configPath, evalArgs);
+    const { results } = await evaluateForReview(command, configPath, evalArgs);
     const current = createSnapshot(results);
     const verdict = assessReview({
       record,
@@ -910,14 +916,12 @@ async function main() {
     return;
   }
 
-  if (command === 'snapshot' || command === 'snapshot-claude' || command === 'snapshot-ide-extensions') {
+  if (['snapshot', 'snapshot-claude', 'snapshot-codex', 'snapshot-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const out = getFlag(args, '--out');
     if (!configPath || !out) throw new Error('snapshot requires <mcp.json> and --out <snapshot.json>.');
 
-    const { results } = command === 'snapshot-ide-extensions'
-      ? await evaluateIdeExtensions(configPath, args)
-      : await evaluateMcp(configPath, args);
+    const { results } = await evaluateForReview(command, configPath, args);
     const snapshot = createSnapshot(results);
     await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
     console.log(`Wrote ${out}\nDigest: ${snapshot.digest}`);
