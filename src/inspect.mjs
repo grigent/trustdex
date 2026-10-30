@@ -48,7 +48,9 @@ function fingerprintUrl(value) {
     return {
       origin: `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}`,
       pathname: url.pathname,
-      queryKeys: [...new Set(url.searchParams.keys())].sort()
+      queryKeys: [...new Set(url.searchParams.keys())].sort(),
+      // A fragment selects a git ref; keep it so a changed ref changes the fingerprint.
+      ...(url.hash ? { fragment: url.hash } : {})
     };
   } catch {
     return { invalid: true };
@@ -111,7 +113,9 @@ const SCHEME_RE = /^([A-Za-z][A-Za-z0-9+.-]*):/;
 const UNSAFE_CHAR_RE = /[\s\x00-\x1f\x7f]/;
 const LOCAL_PATH_RE = /^(?:\.{1,2}[\\/]|[\\/]|~[\\/]|[A-Za-z]:[\\/])/;
 // user[:password]@host:path[#ref]; "name:tag@sha256:digest" image references are not remotes.
-const SCP_RE = /^(?!.*@sha\d+:)([^\s@/:\\]+)(?::([^\s@/\\]+))?@([^\s@/:\\?#;]+):([^\s@\\?#;]+)(#\S*)?$/;
+const SCP_RE = /^([^\s@/:\\]+)(?::([^\s@/\\]+))?@([^\s@/:\\?#;]+):([^\s@\\?#;]+)(#\S*)?$/;
+// "name[:tag]@sha256:<hex>" container image references, matched exactly.
+const IMAGE_DIGEST_RE = /^[^\s@:]+(?::[^\s@:]+)?@sha\d+:[0-9a-f]+$/i;
 // ssh://user[:password]@host:path[#ref], which npm documents but URL parsers reject.
 const SSH_SCP_URL_RE = /^([A-Za-z+]+):\/\/(?:([^\s@/:\\]+)(?::([^\s@/\\]+))?@)?([^\s@/:\\?#;]+):([^\s@\\?#;:]+)(#\S*)?$/;
 export const UNPARSEABLE_PACKAGE_SPEC = '<unparseable-package-spec>';
@@ -131,7 +135,7 @@ function parseKnownUrl(prefix, value, scheme) {
     const ssh = SSH_SCHEMES.has(scheme) ? value.match(SSH_SCP_URL_RE) : null;
     if (!ssh) return UNPARSEABLE;
     return {
-      display: `${prefix}${scheme}://${ssh[4]}:${ssh[5]}${ssh[6] || ''}`,
+      display: `${prefix}${scheme}://${ssh[2] && ssh[3] === undefined ? `${ssh[2]}@` : ''}${ssh[4]}:${ssh[5]}${ssh[6] || ''}`,
       credentials: ssh[3] !== undefined,
       query: false
     };
@@ -140,9 +144,15 @@ function parseKnownUrl(prefix, value, scheme) {
   // Without an authority there is no userinfo field, so an "@" left in the path is an
   // unparsed credential (for example "git+https:/user:pw@host/x").
   if (!authority && url.pathname.includes('@')) return UNPARSEABLE;
+  // "scheme:///user:pw@host/x" parses with an empty host and the userinfo in the path.
+  if (authority && !url.host && scheme !== 'file') return UNPARSEABLE;
+  if (authority && url.pathname.includes('@') && !url.host) return UNPARSEABLE;
   const pathname = url.pathname.replace(/;[^/]*/g, '');
+  // An ssh username selects the account (and its home directory), so it stays visible;
+  // it is not a credential. Every other userinfo is removed.
+  const sshUser = SSH_SCHEMES.has(scheme) && url.username && !url.password ? `${url.username}@` : '';
   return {
-    display: `${prefix}${url.protocol}${authority ? `//${url.host}` : ''}${pathname}${url.hash}`,
+    display: `${prefix}${url.protocol}${authority ? `//${sshUser}${url.host}` : ''}${pathname}${url.hash}`,
     credentials: Boolean(url.password) || (Boolean(url.username) && !SSH_SCHEMES.has(scheme)),
     query: Boolean(url.search) || url.pathname.includes(';')
   };
@@ -159,8 +169,12 @@ function analyzeEmbeddedUrl(value) {
   }
   const scheme = rest.match(SCHEME_RE)?.[1].toLowerCase();
   if (scheme && KNOWN_SCHEMES.has(scheme)) return parseKnownUrl(prefix, rest, scheme);
+  if (IMAGE_DIGEST_RE.test(rest)) return null;
   const scp = rest.match(SCP_RE);
-  if (scp) return { display: `${scp[3]}:${scp[4]}${scp[5] || ''}`, credentials: scp[2] !== undefined, query: false };
+  if (scp) {
+    const user = scp[2] === undefined ? `${scp[1]}@` : '';
+    return { display: `${user}${scp[3]}:${scp[4]}${scp[5] || ''}`, credentials: scp[2] !== undefined, query: false };
+  }
   return null;
 }
 
@@ -196,13 +210,14 @@ function argumentCredentials(arg) {
   if (embedded?.credentials) return `${flag}${embedded.display}`;
   // A recognised URL that cannot be parsed may still carry userinfo.
   if (embedded?.unparseable && value.includes('@')) return `${flag}${UNPARSEABLE_PACKAGE_SPEC}`;
-  if (!embedded && /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value)) {
-    try {
-      const url = new URL(value);
-      if (url.password) return `${flag}${url.protocol}//${url.host}${url.pathname}`;
-    } catch {
-      // Not a URL: nothing to redact.
-    }
+  // Any "scheme://userinfo@" anywhere in the argument (jdbc:postgresql://, -ehttps://,
+  // wss://token@, or a URL whose port makes the parser throw) is treated as a credential
+  // unless it is an ssh username alone.
+  for (const match of arg.matchAll(/([A-Za-z][A-Za-z0-9+.-]*):\/\/([^\s/@?#]*)@/g)) {
+    const [, scheme, userinfo] = match;
+    if (!userinfo) continue;
+    if (!userinfo.includes(':') && /ssh/i.test(scheme)) continue;
+    return arg.replace(/([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^\s/@?#]*@/g, '$1');
   }
   return null;
 }

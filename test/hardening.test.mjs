@@ -171,7 +171,7 @@ test('package URLs drop credentials and query values, keep git refs, and are nev
   assert.ok(by.tarball.signals.includes('unbounded-version'));
   assert.equal(by.git.source.package, 'git+https://git.example.invalid/x/y#v1.0.0');
   assert.ok(by.git.signals.includes('embedded-credentials'));
-  assert.equal(by.ssh.source.package, 'git+ssh://git.example.invalid/x/y.git');
+  assert.equal(by.ssh.source.package, 'git+ssh://git@git.example.invalid/x/y.git');
   assert.ok(!by.ssh.signals.includes('embedded-credentials'));
   assert.equal(by.alias.source.package, 'pkg@https://registry.example.invalid/x.tgz');
   assert.equal(by.scp.source.package, 'git.example.invalid:org/repo');
@@ -279,10 +279,10 @@ test('an ssh username alone is not a credential, but an ssh password is', () => 
     const result = inspectOne('npx', [spec]);
     assert.ok(!result.signals.includes('embedded-credentials'), spec);
     assert.ok(!result.signals.includes('unparseable-package-spec'), spec);
-    assert.ok(!result.source.package.includes('git@'), spec);
+    assert.ok(result.source.package.includes('git@'), `${spec}: the ssh account stays visible`);
     assert.equal(result.source.pinned, false, spec);
   }
-  assert.equal(inspectOne('npx', ['git+ssh://git@git.example.invalid:x/y.git#v1']).source.package, 'git+ssh://git.example.invalid:x/y.git#v1');
+  assert.equal(inspectOne('npx', ['git+ssh://git@git.example.invalid:x/y.git#v1']).source.package, 'git+ssh://git@git.example.invalid:x/y.git#v1');
   for (const spec of ['ssh://git:SECRETS@git.example.invalid/x/y.git', 'git+ssh://git:SECRETS@git.example.invalid:x/y.git', 'git+https://SECRETS@git.example.invalid/x/y.git']) {
     const result = inspectOne('npx', [spec]);
     assert.ok(result.signals.includes('embedded-credentials'), spec);
@@ -360,4 +360,24 @@ test('npm aliases and local package paths are not reported as unparseable', () =
   assert.equal(by.local.source.package, './packages/tool');
   assert.equal(by.tarball.source.pinned, false);
   for (const result of results) assert.ok(!result.signals.includes('unparseable-package-spec'), result.name);
+});
+
+test('round 3: empty-host URLs, ssh account changes, and argument credential forms', () => {
+  for (const spec of ['git+https:///deploy:SECRET9@git.example.invalid/org/tool.git#v1', 'ssh:///u:SECRET9@h/x', 'pkg@git+https:///d:SECRET9@h/x', 'github:///u:SECRET9@h/x']) {
+    const result = inspectOne('npx', ['-y', spec]);
+    assert.ok(!JSON.stringify(result).includes('SECRET9'), spec);
+    assert.ok(result.signals.includes('unparseable-package-spec'), spec);
+    assert.ok(blockedEverywhere(result), spec);
+  }
+  const account = (user) => inspectOne('npx', [`git+ssh://${user}@git.example.invalid/~/tool.git#v1`]).source;
+  assert.notDeepEqual(account('alice'), account('mallory'));
+  const scpAccount = (user) => inspectOne('npx', [`${user}@git.example.invalid:tool.git`]).source;
+  assert.notDeepEqual(scpAccount('alice'), scpAccount('mallory'));
+  for (const arg of ['wss://TOKEN9@h.invalid/x', 'postgres://u:pw9@h.invalid:99999/db', 'jdbc:postgresql://u:pw9@h.invalid/db', '-ehttps://u:pw9@h.invalid', 'u:pw9@h.invalid:r#@sha1:x']) {
+    const result = inspectOne('node', ['s.js', arg]);
+    assert.ok(result.signals.includes('embedded-credentials'), arg);
+  }
+  assert.ok(!inspectOne('node', ['s.js', 'ghcr.io/org/img:1.0@sha256:abc123']).signals.includes('embedded-credentials'));
+  const withRef = (ref) => inspectOne('uvx', ['tool==1.0.0', '--with', `git+https://git.example.invalid/x#${ref}`]).fingerprint;
+  assert.notEqual(withRef('v1'), withRef('attacker'));
 });

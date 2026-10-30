@@ -74,6 +74,9 @@ function mcpServers() {
     alias: { command: 'npx', args: [`pkg@https://u:${canary()}@registry.example.invalid/x.tgz`] },
     scp: { command: 'npx', args: [`deploy:${canary()}@git.example.invalid:org/repo`] },
     from: { command: 'uvx', args: ['--from', `pkg @ https://u:${canary()}@files.example.invalid/x.whl`, 'tool'] },
+    tripleSlash: { command: 'npx', args: ['-y', `git+https:///deploy:${canary()}@git.example.invalid/x.git#v1`] },
+    wssToken: { command: 'node', args: ['s.js', `wss://${canary()}@h.invalid/x`] },
+    jdbc: { command: 'node', args: ['s.js', `jdbc:postgresql://u:${canary()}@h.invalid/db`] },
     packageFlag: { command: 'npx', args: [`--package=https://u:${canary()}@registry.example.invalid/p.tgz`, 'tool'] },
     multiAt: { command: 'npx', args: [`https://user:pa@${canary()}@registry.example.invalid/x.tgz`] },
     spaceUserinfo: { command: 'npx', args: [`https://user:pa ${canary()}@registry.example.invalid/x.tgz`] },
@@ -159,6 +162,7 @@ test('no command prints or stores a planted value', () => {
   // BLOCK-free inputs so approve can write full review bundles.
   const approvable = (servers) => write(`in/approvable-${counter}.json`, { mcpServers: servers });
   files.approvable = approvable({
+    gitRef: { command: 'uvx', args: [`--from=https://files.example.invalid/x.whl?sig=${canary()}`, 'tool==1.0.0', '--with', `git+https://git.example.invalid/x#v1`] },
     remote: { url: `https://mcp.example.invalid/mcp?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
     local: { command: 'node', args: ['server.js', `--password=${canary()}`], env: { DB_PASSWORD: canary() } }
   });
