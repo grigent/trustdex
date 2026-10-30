@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- **security:** replace the line-based Codex TOML handling with a TOML lexer. Before this change, an MCP server written with a spaced or quoted header (`[mcp_servers . x]`, `["mcp_servers".x]`) or as root-level dotted keys was skipped by `inspect-codex` and passed through `gate-codex` uninspected. A literal string ending in a backslash could also hide following tables. Quoted settings headers could hide sandbox and approval settings from `inspect-codex-settings`. All of these are now inspected or rejected.
+- record whether each Codex MCP environment variable is a static value, forwarded from the host (with its `source`), or a bearer token, and reject malformed `env_vars`, duplicate keys, repeated server tables, and arrays of tables
+
 - add `--decisions` to every inspection command: a versioned, value-free `trustdex-decisions` JSON report whose exit code matches the decision and which reports BLOCK when inspection fails
 - validate `--policy` files strictly and reject unknown fields, unsupported versions, and invalid actions instead of silently falling back (**compatibility:** a policy with a misspelled field now errors)
 - report an empty inventory as ASK in `--decisions` mode, reject `--decisions` on commands that do not implement it, and fail closed on MCP entries that are not objects instead of dropping them
