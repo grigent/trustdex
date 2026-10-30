@@ -489,3 +489,15 @@ test('changing a file to executable changes the fingerprint', async (t) => {
   const [after] = await inspectIdeExtensionsDir(root);
   assert.notEqual(after.fingerprint, before.fingerprint);
 });
+
+test('a FIFO manifest is reported without blocking the inspection', async (t) => {
+  if (process.platform === 'win32') return t.skip('POSIX FIFOs only');
+  const root = await tempDir();
+  const dir = path.join(root, 'acme.tool-1.0.0');
+  await fs.mkdir(dir);
+  if (spawnSync('mkfifo', [path.join(dir, 'package.json')]).status !== 0) return t.skip('mkfifo unavailable');
+  await writeRegistry(root, [entry('acme.tool', '1.0.0', 'acme.tool-1.0.0')]);
+  const [result] = await inspectIdeExtensionsDir(root);
+  assert.ok(result.signals.includes('ide-extension-missing-manifest'));
+  assert.ok(result.signals.includes('ide-extension-non-regular-files'));
+});

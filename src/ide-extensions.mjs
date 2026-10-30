@@ -23,6 +23,10 @@ const NATIVE_MAGIC = [
 const ID_RE = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9._-]*$/;
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const NO_FOLLOW = fs.constants?.O_NOFOLLOW ?? 0;
+// Opening a FIFO without O_NONBLOCK would wait for a writer.
+const NON_BLOCK = fs.constants?.O_NONBLOCK ?? 0;
+const OPEN_FLAGS = fs.constants.O_RDONLY | NO_FOLLOW | NON_BLOCK;
+const NON_REGULAR_OPEN_ERRORS = new Set(['ELOOP', 'EISDIR', 'EMLINK', 'ENXIO', 'EOPNOTSUPP']);
 // Target platforms the editor appends to extension keys.
 const TARGET_PLATFORMS = Object.freeze([
   'win32-x64', 'win32-arm64', 'linux-x64', 'linux-arm64', 'linux-armhf',
@@ -56,19 +60,38 @@ function insideRoot(root, target) {
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
-// Read a regular file without following a final symlink. Returns null when it does
-// not exist and { nonRegular: true } when it is a symlink, FIFO, device, or directory.
-async function readRegularFile(file, maxBytes) {
-  const stat = await fs.lstat(file).catch((error) => {
-    if (error?.code === 'ENOENT') return null;
-    throw error;
-  });
-  if (!stat) return null;
-  if (!stat.isFile()) return { nonRegular: true };
-  const handle = await fs.open(file, fs.constants.O_RDONLY | NO_FOLLOW);
+// Open first, then verify the open handle: it must be a regular file and the same
+// inode as the path itself (not a symlink target), so the check cannot race the read.
+async function openRegular(file) {
+  let handle;
   try {
-    const opened = await handle.stat();
-    if (!opened.isFile()) return { nonRegular: true };
+    handle = await fs.open(file, OPEN_FLAGS);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    if (NON_REGULAR_OPEN_ERRORS.has(error?.code)) return { nonRegular: true };
+    throw error;
+  }
+  try {
+    const opened = await handle.stat({ bigint: true });
+    const linked = await fs.lstat(file, { bigint: true });
+    if (!opened.isFile() || !linked.isFile() || opened.ino !== linked.ino || opened.dev !== linked.dev) {
+      await handle.close();
+      return { nonRegular: true };
+    }
+    return { handle, size: Number(opened.size), mode: Number(opened.mode) };
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
+}
+
+// Read a regular file without following a symlink. Returns null when it does not
+// exist and { nonRegular: true } when it is a symlink, FIFO, device, or directory.
+async function readRegularFile(file, maxBytes) {
+  const opened = await openRegular(file);
+  if (!opened || opened.nonRegular) return opened;
+  const { handle } = opened;
+  try {
     if (opened.size > maxBytes) throw new Error(`${path.basename(file)} exceeds the ${maxBytes}-byte inspection limit.`);
     return { text: await handle.readFile('utf8') };
   } finally {
@@ -77,10 +100,10 @@ async function readRegularFile(file, maxBytes) {
 }
 
 async function hashFile(file) {
-  const handle = await fs.open(file, fs.constants.O_RDONLY | NO_FOLLOW);
+  const opened = await openRegular(file);
+  if (!opened || opened.nonRegular) return null;
+  const { handle } = opened;
   try {
-    const stat = await handle.stat();
-    if (!stat.isFile()) return null;
     const hash = createHash('sha256');
     const header = Buffer.alloc(4);
     let headerLength = 0;
@@ -97,7 +120,7 @@ async function hashFile(file) {
     return {
       digest: hash.digest('hex'),
       size,
-      executable: (stat.mode & 0o111) !== 0,
+      executable: (opened.mode & 0o111) !== 0,
       native: headerLength >= 2 && isNativeHeader(header)
     };
   } finally {
