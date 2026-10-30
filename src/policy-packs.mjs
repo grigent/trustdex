@@ -18,11 +18,15 @@ const BASE_SIGNALS = {
   'url-query-parameters': 'ask',
   // TrustDex cannot show or track signed query values in a package URL, so it cannot be approved.
   'package-url-query': 'block',
-  // The installed package cannot be determined, comes from another registry, or brings
-  // extra packages, so a trusted name no longer describes what runs.
+  // The installed package cannot be determined, comes from another registry or
+  // configuration, brings extra packages that can replace its executables, runs a command
+  // other than the package's own, or is redirected by the server's environment, so a
+  // trusted name no longer describes what runs.
   'ambiguous-runner-arguments': 'block',
   'package-source-override': 'block',
-  'additional-packages': 'ask',
+  'additional-packages': 'block',
+  'runner-command-mismatch': 'block',
+  'runner-environment-override': 'block',
   // A package spec TrustDex cannot parse can be neither shown nor reviewed.
   'unparseable-package-spec': 'block',
   'artifact-version-mismatch': 'block',
@@ -129,6 +133,8 @@ export const POLICY_PACKS = Object.freeze({
     signalActions: {
       ...BASE_SIGNALS,
       'shell-execution': 'ask',
+      'additional-packages': 'ask',
+      'runner-command-mismatch': 'ask',
       'insecure-transport': 'ask',
       'claude-broad-auto-approve': 'ask',
       'claude-shell-auto-approve': 'ask',

