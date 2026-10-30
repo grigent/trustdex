@@ -23,6 +23,11 @@ const NATIVE_MAGIC = [
 const ID_RE = /^[a-z0-9][a-z0-9-]*\.[a-z0-9][a-z0-9._-]*$/;
 const VERSION_RE = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 const NO_FOLLOW = fs.constants?.O_NOFOLLOW ?? 0;
+// Target platforms the editor appends to extension keys.
+const TARGET_PLATFORMS = Object.freeze([
+  'win32-x64', 'win32-arm64', 'linux-x64', 'linux-arm64', 'linux-armhf',
+  'alpine-x64', 'alpine-arm64', 'darwin-x64', 'darwin-arm64', 'web', 'universal'
+]);
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 
@@ -352,7 +357,7 @@ export async function inspectIdeExtensionsDir(root) {
       try { manifest = JSON.parse(file.text); } catch { manifest = null; }
       if (isObject(manifest) && typeof manifest.version === 'string') {
         const key = extensionKey(normalizeIdeExtensionId(`${manifest.publisher || ''}.${manifest.name || ''}`), manifest.version);
-        if ([...obsolete].some((name) => name === key || name.startsWith(`${key}-`))) continue;
+        if ([key, ...TARGET_PLATFORMS.map((platform) => `${key}-${platform}`)].some((name) => obsolete.has(name))) continue;
       }
     }
     results.push(await inspectInstalled(full, null));

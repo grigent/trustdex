@@ -22,7 +22,7 @@ For that directory TrustDex:
 
 - reads `extensions.json` (the editor's install registry) and `.obsolete`, and fails closed if either is malformed, oversized, or not a regular file;
 - always inspects every registry entry. An entry whose `<id>-<version>[-<platform>]` key is also in `.obsolete` is reported with `ide-extension-marked-obsolete`, never dropped;
-- skips an unregistered folder only when its own manifest key is marked obsolete (pending deletion by the editor);
+- skips an unregistered folder only when `.obsolete` contains its exact manifest key, optionally followed by a known target platform (pending deletion by the editor);
 - reads each extension's `package.json` and compares its publisher, name, and version with the registry;
 - reports extension folders that contain a `package.json` but are missing from the registry, including hidden folders;
 - computes a SHA-256 digest over every file in the installed extension (relative paths, sizes, executable bits, and contents). Symlinks are recorded by target text and never followed;
@@ -108,5 +108,5 @@ TrustDex inspects what is installed; it cannot stop an editor from installing an
 
 - Static inspection does not prove an extension is safe. A pinned, digest-matched extension can still be malicious; the pin only proves it is the build you reviewed.
 - TrustDex does not detect or remove changes an extension has already made elsewhere on the host (for example SSH keys or services). If a known-bad build was installed, follow the vendor's remediation guidance.
-- TrustDex trusts the local host enough to read the extensions directory. A fully compromised host can falsify what TrustDex reads.
+- TrustDex trusts the local host enough to read the extensions directory. A fully compromised host can falsify what TrustDex reads, and a process that swaps files while an inspection is running can race it.
 - Only the directory you supply is inspected. Editors can load extensions from other locations (for example built-in or `--extensions-dir` folders).

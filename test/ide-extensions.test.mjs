@@ -376,6 +376,15 @@ test('unregistered folders are skipped only when their own key is marked obsolet
   assert.deepEqual(names, ['acme.other', 'acme.tool']);
 });
 
+test('.obsolete keys with an unknown suffix do not hide an unregistered folder', async () => {
+  const root = await tempDir();
+  await addExtension(root, 'g1', { publisher: 'evil', name: 'ext', version: '1.0.0' });
+  await fs.writeFile(path.join(root, '.obsolete'), JSON.stringify({ 'evil.ext-1.0.0-not-a-platform': true }));
+  const results = await inspectIdeExtensionsDir(root);
+  assert.deepEqual(results.map((result) => result.name), ['evil.ext']);
+  assert.ok(results[0].signals.includes('ide-extension-unregistered'));
+});
+
 test('recheck flags an extension added alongside an .obsolete entry', async () => {
   const root = await tempDir();
   await writeRegistry(root, []);
