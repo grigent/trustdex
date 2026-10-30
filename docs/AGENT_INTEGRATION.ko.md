@@ -13,7 +13,7 @@ AI 에이전트는 점점 더 스스로 도구를 설치하고 호출합니다. 
 
 ## 판정 계약
 
-모든 검사 명령(`inspect`, `inspect-claude`, `inspect-skill`, `inspect-plugin`, `inspect-codex`, `inspect-claude-settings[-stack]`, `inspect-codex-settings[-stack]`, `inspect-ide-extensions`)은 `--decisions`를 받습니다(현재 `main`에 있으며 0.11.0 다음 릴리스부터 포함).
+모든 검사 명령(`inspect`, `inspect-claude`, `inspect-skill`, `inspect-plugin`, `inspect-codex`, `inspect-claude-settings[-stack]`, `inspect-codex-settings[-stack]`, `inspect-ide-extensions`)은 `--decisions`를 받습니다(TrustDex 0.12.0 이상).
 
 ```bash
 npx trustdex@<exact-version> inspect ./.mcp.json --pack strict --policy ./trustdex.policy.json --decisions

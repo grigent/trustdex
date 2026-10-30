@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.12.0 - 2026-10-30
+
 - 러너 옵션으로 실제 설치되는 패키지를 판단: `uvx --from`과 `npx -p/--package`가 패키지를 지정하며, `uvx --python 3.12` 같은 옵션 값을 더 이상 패키지로 오인하지 않음. 레지스트리 재지정(`--registry`, `--userconfig`, `--index-url`, `--extra-index-url`, `--find-links` 등)은 `package-source-override`(BLOCK), 추가 패키지(`uvx --with`, 반복된 `-p`)는 `additional-packages`(BLOCK, `development`에서는 ASK), `npx -c/--call`과 `--node-options`는 `shell-execution`, 인식하지 못한 러너 옵션이나 `=값`을 붙인 플래그(npm은 `-y=x`를 `--yes x`로 펼침)는 `ambiguous-runner-arguments`(BLOCK)를 추가
 - 패키지·설정·설치된 실행 파일의 출처를 바꾸는 러너 옵션을 `package-source-override`(BLOCK)로 처리: npm `--cache`, `--prefix`, `--workspace`, uv `--config-file`, `--env-file`, `--constraint`, `--override`, `--build-constraint`, `--cache-dir`, `--keyring-provider`, 그리고 버전이 아닌 경로나 프로그램 이름을 준 `--python`
 - `npx -p`/`uvx --from`이 패키지 자신의 이름이 아닌 명령(`sh`, `python` 등, 검토한 패키지가 아니라 PATH에서 찾음)을 실행하면 `runner-command-mismatch`(BLOCK, `development`에서는 ASK) 추가

@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.12.0 - 2026-10-30
+
 - determine the installed package from runner options: `uvx --from` names the package, `npx -p/--package` too, and option values such as `uvx --python 3.12` are no longer mistaken for the package; registry overrides (`--registry`, `--userconfig`, `--index-url`, `--extra-index-url`, `--find-links`, ...) add `package-source-override` (BLOCK), extra packages (`uvx --with`, repeated `-p`) add `additional-packages` (BLOCK; ASK in `development`), `npx -c/--call` and `--node-options` add `shell-execution`, and an unrecognised runner option, or a flag written with `=value` (npm expands `-y=x` into `--yes x`), adds `ambiguous-runner-arguments` (BLOCK)
 - treat runner options that change where packages, configuration, or installed binaries come from as `package-source-override` (BLOCK): npm `--cache`, `--prefix`, `--workspace`; uv `--config-file`, `--env-file`, `--constraint`, `--override`, `--build-constraint`, `--cache-dir`, `--keyring-provider`, and a `--python` value that is a path or program name rather than a version
 - add `runner-command-mismatch` (BLOCK; ASK in `development`) when `npx -p`/`uvx --from` runs a command other than the package's own name, such as `sh` or `python`, which is found on PATH rather than in the reviewed package

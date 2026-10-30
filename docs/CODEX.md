@@ -15,7 +15,7 @@ Codex clients read MCP server definitions from `[mcp_servers.<name>]` tables in 
 ### 1. Inspect the current configuration
 
 ```bash
-npx trustdex@0.11.0 inspect-codex ~/.codex/config.toml --pack strict
+npx trustdex@0.12.0 inspect-codex ~/.codex/config.toml --pack strict
 ```
 
 This reads the file locally and makes no network request. The output lists each MCP server, its source type, trust signals, and an ALLOW / ASK / BLOCK decision. Environment variable names may appear; their values never do.
@@ -25,7 +25,7 @@ Use `--json` for machine-readable output and `--trust-store ./trust-store.json` 
 ### 2. Write a gated copy
 
 ```bash
-npx trustdex@0.11.0 gate-codex ~/.codex/config.toml \
+npx trustdex@0.12.0 gate-codex ~/.codex/config.toml \
   --pack official-first \
   --trust-store ./trust-store.json \
   --out ./gated-config.toml
@@ -195,8 +195,8 @@ in [Authenticated runtime evidence](RUNTIME_EVIDENCE.md).
 Agent skills and plugin manifests can be inspected the same way:
 
 ```bash
-npx trustdex@0.11.0 inspect-skill ./path/to/SKILL.md --pack strict
-npx trustdex@0.11.0 inspect-plugin ./path/to/plugin.json --pack strict
+npx trustdex@0.12.0 inspect-skill ./path/to/SKILL.md --pack strict
+npx trustdex@0.12.0 inspect-plugin ./path/to/plugin.json --pack strict
 ```
 
 These report observable signals such as piped shell installers, references to sensitive paths, network URLs, and wildcard tool scopes. They do not prove a skill or plugin is safe.
