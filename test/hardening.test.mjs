@@ -489,7 +489,12 @@ test('runner options that change the source or run code are not value options', 
     ['npx', ['-y', '--node-options=--import=data:text/javascript,console.log(1)', 'trusted@1.0.0'], 'shell-execution'],
     ['npx', ['--cache', './cache', '--offline', 'trusted@1.0.0'], 'package-source-override'],
     ['npx', ['--prefix', './repo', 'trusted@1.0.0'], 'package-source-override'],
-    ['npx', ['-w', 'pkg', 'trusted@1.0.0'], 'package-source-override']
+    ['npx', ['-w', 'pkg', 'trusted@1.0.0'], 'package-source-override'],
+    ['npx', ['-y=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
+    ['npx', ['-q=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
+    ['npx', ['--yes=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
+    ['pnpx', ['--silent=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
+    ['uvx', ['-q=evil', 'trusted==1.0.0'], 'ambiguous-runner-arguments']
   ];
   for (const [command, args, signal] of cases) {
     assertNeverAllowed({ command, args }, signal, `${command} ${args.join(' ')}`);

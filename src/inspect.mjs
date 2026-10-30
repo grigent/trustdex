@@ -77,7 +77,9 @@ function analyzeRunner(command, args) {
     if (takesValue) {
       value = eq > 0 ? arg.slice(eq + 1) : values[i + 1] ?? null;
       if (eq < 0) i += 1;
-    } else if (!has(options.flags, name)) {
+    } else if (!has(options.flags, name) || eq > 0) {
+      // A flag given "=value" is not a documented form: npm expands "-y=x" into "--yes x",
+      // which makes x the package to run.
       signals.add('ambiguous-runner-arguments');
       continue;
     }
