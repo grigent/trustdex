@@ -74,6 +74,7 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - 명시적으로 제공된 값 없는 런타임 MCP 인벤토리를 검토된 연결과 대조해 차단되거나 예상 밖으로 로드된 서버 감지
 - 수명이 짧은 런타임 인벤토리를 Ed25519 생성자 증명, 만료 및 선택적 캡처 나이 제한으로 인증
 - VS Code 호환 에디터 확장(VS Code, Cursor)을 정확한 버전과 설치 파일 다이제스트로 검사하고, 확장이 추가·업데이트·변경되면 재검토 요구
+- 에이전트와 자동화를 위한 버전 있는 실패 시 차단 JSON 판정 계약을 출력하고, 공개 스키마에 맞춰 정책 파일을 엄격하게 검증
 
 ## 호환성
 
@@ -175,6 +176,10 @@ node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
 ```
 
 고정한 `2.1.312`가 `2.1.313`으로 바뀌는 것처럼 검토하지 않은 업데이트는 절대 ALLOW가 되지 않고(`strict`, `official-first`는 BLOCK, `development`는 ASK), `recheck-ide-extensions`에서 `NEEDS_REVIEW`로 보고됩니다. 아무것도 실행하지 않으며 네트워크 요청도 하지 않습니다. 신호, 정책 필드, 한계는 [IDE 확장](docs/IDE_EXTENSIONS.ko.md)을 참고하세요.
+
+## 에이전트와 자동화에서 사용
+
+검사 명령은 `--decisions`로 버전이 있고 값이 없는 JSON 판정 보고서(`schemas/trustdex-decisions-v1.schema.json`)를 출력합니다. 종료 코드는 항상 판정과 일치하고, 검사가 실패해도 BLOCK 보고서를 출력하므로 하네스가 실패 시 허용될 수 없습니다. 정책 파일은 엄격하게 검증하여 알 수 없는 필드와 잘못된 판정 값을 거부합니다. 보고서를 안전하게 읽는 법과 정책·신뢰 저장소·서명 키를 에이전트 손이 닿지 않게 두는 법은 [에이전트 연동](docs/AGENT_INTEGRATION.ko.md)을 참고하세요.
 
 ## Codex config.toml
 

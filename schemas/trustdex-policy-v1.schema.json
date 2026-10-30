@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/trustdex-policy-v1.schema.json",
+  "title": "TrustDex policy file v1",
+  "description": "A --policy file is merged over the selected policy pack. Unknown fields and invalid values are rejected. blockedIdeExtensions entries are added to the pack's list, never replace it.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1 },
+    "note": { "type": "string" },
+    "unknownAction": { "$ref": "#/$defs/action" },
+    "localAction": { "$ref": "#/$defs/action" },
+    "verifiedPublisherAction": { "$ref": "#/$defs/action" },
+    "sensitiveAction": { "$ref": "#/$defs/action" },
+    "unpinnedAction": { "$ref": "#/$defs/action" },
+    "shellAction": { "$ref": "#/$defs/action" },
+    "trustedPackages": { "$ref": "#/$defs/stringList" },
+    "trustedRepositories": { "$ref": "#/$defs/stringList" },
+    "allowedRemoteHosts": { "$ref": "#/$defs/stringList" },
+    "trustedIdeExtensions": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[^@#\\s]+@\\d+\\.\\d+\\.\\d+[^@#\\s]*(#sha256:[0-9a-fA-F]{64})?$" }
+    },
+    "blockedIdeExtensions": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[^@#\\s]+@(\\*|\\d+\\.\\d+\\.\\d+[^@#\\s]*(#sha256:[0-9a-fA-F]{64})?)$" }
+    },
+    "signalActions": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/action" }
+    }
+  },
+  "$defs": {
+    "action": { "enum": ["allow", "ask", "block"] },
+    "stringList": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}

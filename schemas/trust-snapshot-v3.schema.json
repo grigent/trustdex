@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/trust-snapshot-v3.schema.json",
+  "title": "TrustDex trust snapshot v3",
+  "description": "Written by snapshot, approve, and their -claude and -ide-extensions variants. digest is SHA-256 over the canonical JSON of servers; createdAt is not covered by the digest.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "createdAt", "digest", "servers"],
+  "properties": {
+    "schemaVersion": { "const": 3 },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "servers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "source", "provenance", "fingerprint", "signals", "action"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "source": {
+            "type": "object",
+            "required": ["type"],
+            "properties": { "type": { "type": "string" } }
+          },
+          "provenance": {
+            "type": "object",
+            "required": ["status"],
+            "properties": { "status": { "enum": ["unknown", "verified", "mismatch"] } }
+          },
+          "fingerprint": { "type": ["string", "null"] },
+          "signals": { "type": "array", "items": { "type": "string" } },
+          "action": { "enum": ["allow", "ask", "block"] }
+        }
+      }
+    }
+  }
+}

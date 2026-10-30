@@ -6,6 +6,10 @@
 
 ## 미출시
 
+- 모든 검사 명령에 `--decisions` 추가: 종료 코드가 판정과 일치하고 검사 실패 시 BLOCK을 보고하는, 버전이 있고 값이 없는 `trustdex-decisions` JSON 보고서
+- `--policy` 파일을 엄격하게 검증하여 알 수 없는 필드, 지원하지 않는 버전, 잘못된 판정 값을 조용히 대체하지 않고 거부(**호환성:** 필드 이름에 오타가 있는 정책은 이제 오류가 남)
+- 판정 보고서, 정책 파일, v3 신뢰 스냅샷의 JSON 스키마를 공개하고 에이전트 연동 및 운영 규칙 문서화
+
 - VS Code 호환 에디터 확장 디렉터리(VS Code, Cursor)를 위한 `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, `recheck-ide-extensions` 추가
 - IDE 확장은 정확한 버전의 `trustedIdeExtensions` 고정(선택적으로 설치 파일 다이제스트 포함)으로만 허용하고, 정책 오버레이가 줄일 수 없는 `blockedIdeExtensions` 차단 목록 추가
 - 심볼릭 링크를 따라가지 않고 설치된 모든 확장 파일(내용과 실행 권한)의 다이제스트를 계산하고, `.obsolete`가 등록된 확장을 숨기지 못하게 하며, 잘못되었거나 일반 파일이 아닌 설치 기록, 누락된 매니페스트, 설치 기록과 매니페스트 불일치, 버전 범위, 지정 디렉터리 밖이나 심볼릭 링크를 거치는 위치에 대해 실패 시 차단

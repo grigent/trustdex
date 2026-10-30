@@ -6,6 +6,10 @@
 
 ## Unreleased
 
+- add `--decisions` to every inspection command: a versioned, value-free `trustdex-decisions` JSON report whose exit code matches the decision and which reports BLOCK when inspection fails
+- validate `--policy` files strictly and reject unknown fields, unsupported versions, and invalid actions instead of silently falling back (**compatibility:** a policy with a misspelled field now errors)
+- publish JSON schemas for decision reports, policy files, and v3 trust snapshots, and document agent integration and operating rules
+
 - add `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, and `recheck-ide-extensions` for VS Code-compatible editor extension directories (VS Code, Cursor)
 - allow IDE extensions only through exact-version `trustedIdeExtensions` pins with optional installed-file digests; add a `blockedIdeExtensions` deny-list that policy overlays cannot shrink
 - digest every installed extension file (contents and executable bit) without following symlinks, never let `.obsolete` hide a registered extension, and fail closed on malformed or non-regular registries, missing manifests, registry/manifest mismatches, version ranges, and locations outside the supplied directory or through symlinks

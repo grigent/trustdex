@@ -16,7 +16,7 @@ import {
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { inspectIdeExtensionsDir } from '../src/ide-extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
-import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
+import { getPolicyPack, mergePolicy, validatePolicyOverlay } from '../src/policy-packs.mjs';
 import { parseTrustStore, attachProvenanceAll } from '../src/provenance.mjs';
 import {
   inspectGitHubRepository,
@@ -46,6 +46,7 @@ import {
   verifyRuntimeInventoryAttestation
 } from '../src/runtime-attestation.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
+import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
 import {
   generateTrustKeyPair,
@@ -139,6 +140,9 @@ Usage:
   trustdex verify <trust-record.json> --public trustdex-public.pem
       [--snapshot snapshot.json] [--policy policy.json]
 
+Inspection commands (inspect, inspect-*) accept --decisions to print the versioned
+trustdex-decisions JSON contract for agents and automation (see docs/AGENT_INTEGRATION.md).
+
 Most commands are local-only. The provenance and trust-source commands perform explicit
 network lookups to GitHub or npm when you invoke them.`);
 }
@@ -200,7 +204,7 @@ function label(action) {
 async function loadPolicy(args) {
   const pack = getPolicyPack(getFlag(args, '--pack') || 'strict');
   const policyPath = getFlag(args, '--policy');
-  return policyPath ? mergePolicy(pack, await readJson(policyPath)) : pack;
+  return policyPath ? mergePolicy(pack, validatePolicyOverlay(await readJson(policyPath))) : pack;
 }
 
 async function loadTrustStore(args) {
@@ -222,6 +226,20 @@ function printResults(results, asJson = false) {
     if (result.signals?.length) console.log(`      signals: ${result.signals.join(', ')}`);
     for (const reason of result.reasons || []) console.log(`      - ${reason}`);
   }
+}
+
+// --decisions prints the versioned agent decision contract instead of human output.
+async function emitInspection(results, args) {
+  if (hasFlag(args, '--decisions')) {
+    const report = createDecisionReport(results, {
+      command: args[0],
+      trustdexVersion: VERSION,
+      policy: await loadPolicy(args)
+    });
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+  printResults(results, hasFlag(args, '--json'));
 }
 
 function setInspectExitCode(results) {
@@ -279,7 +297,7 @@ async function evaluateIdeExtensions(directory, args) {
 
 async function inspectSingle(item, args) {
   const results = evaluateAll([item], await loadPolicy(args));
-  printResults(results, hasFlag(args, '--json'));
+  await emitInspection(results, args);
   setInspectExitCode(results);
 }
 
@@ -464,7 +482,7 @@ async function main() {
     const directory = args[1];
     if (!directory) throw new Error('inspect-ide-extensions requires an extensions directory.');
     const { results } = await evaluateIdeExtensions(directory, args);
-    printResults(results, hasFlag(args, '--json'));
+    await emitInspection(results, args);
     setInspectExitCode(results);
     return;
   }
@@ -474,7 +492,7 @@ async function main() {
     if (!configPath) throw new Error('inspect requires a path to an MCP JSON file.');
 
     const { results } = await evaluateMcp(configPath, args);
-    printResults(results, hasFlag(args, '--json'));
+    await emitInspection(results, args);
     setInspectExitCode(results);
     return;
   }
@@ -497,14 +515,14 @@ async function main() {
     const settingsPath = args[1];
     if (!settingsPath) throw new Error('inspect-claude-settings requires a path to Claude settings JSON.');
     const { result } = await evaluateClaudeSettings(settingsPath, args);
-    printResults([result], hasFlag(args, '--json'));
+    await emitInspection([result], args);
     setInspectExitCode([result]);
     return;
   }
 
   if (command === 'inspect-claude-settings-stack') {
     const { result } = await evaluateClaudeSettingsStack(args);
-    printResults([result], hasFlag(args, '--json'));
+    await emitInspection([result], args);
     setInspectExitCode([result]);
     return;
   }
@@ -513,7 +531,7 @@ async function main() {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex requires a path to Codex config.toml.');
     const { results } = await evaluateCodex(configPath, args);
-    printResults(results, hasFlag(args, '--json'));
+    await emitInspection(results, args);
     setInspectExitCode(results);
     return;
   }
@@ -522,14 +540,14 @@ async function main() {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex-settings requires a path to Codex config.toml.');
     const { result } = await evaluateCodexSettings(configPath, args);
-    printResults([result], hasFlag(args, '--json'));
+    await emitInspection([result], args);
     setInspectExitCode([result]);
     return;
   }
 
   if (command === 'inspect-codex-settings-stack') {
     const { result } = await evaluateCodexSettingsStack(args);
-    printResults([result], hasFlag(args, '--json'));
+    await emitInspection([result], args);
     setInspectExitCode([result]);
     return;
   }
@@ -969,6 +987,9 @@ async function main() {
 }
 
 main().catch((error) => {
+  if (process.argv.includes('--decisions')) {
+    console.log(JSON.stringify(createDecisionError({ command: process.argv[2], trustdexVersion: VERSION }), null, 2));
+  }
   console.error(`trustdex: ${error.message}`);
   process.exitCode = 2;
 });
