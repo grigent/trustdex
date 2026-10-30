@@ -9,6 +9,8 @@
 - add `--decisions` to every inspection command: a versioned, value-free `trustdex-decisions` JSON report whose exit code matches the decision and which reports BLOCK when inspection fails
 - validate `--policy` files strictly and reject unknown fields, unsupported versions, and invalid actions instead of silently falling back (**compatibility:** a policy with a misspelled field now errors)
 - publish JSON schemas for decision reports, policy files, and v3 trust snapshots, and document agent integration and operating rules
+- stop error messages from quoting input content: malformed JSON now reports only the file name, and Codex TOML inline-table errors no longer echo the entry, which could contain a credential
+- reject unquoted TOML values (bare words, dates) instead of reading them as strings
 
 - add `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, and `recheck-ide-extensions` for VS Code-compatible editor extension directories (VS Code, Cursor)
 - allow IDE extensions only through exact-version `trustedIdeExtensions` pins with optional installed-file digests; add a `blockedIdeExtensions` deny-list that policy overlays cannot shrink

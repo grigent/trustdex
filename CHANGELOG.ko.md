@@ -9,6 +9,8 @@
 - 모든 검사 명령에 `--decisions` 추가: 종료 코드가 판정과 일치하고 검사 실패 시 BLOCK을 보고하는, 버전이 있고 값이 없는 `trustdex-decisions` JSON 보고서
 - `--policy` 파일을 엄격하게 검증하여 알 수 없는 필드, 지원하지 않는 버전, 잘못된 판정 값을 조용히 대체하지 않고 거부(**호환성:** 필드 이름에 오타가 있는 정책은 이제 오류가 남)
 - 판정 보고서, 정책 파일, v3 신뢰 스냅샷의 JSON 스키마를 공개하고 에이전트 연동 및 운영 규칙 문서화
+- 오류 메시지가 입력 내용을 인용하지 않도록 수정: 잘못된 JSON은 파일 이름만 보고하고, Codex TOML 인라인 테이블 오류는 자격 증명이 들어 있을 수 있는 항목을 더 이상 출력하지 않음
+- 따옴표 없는 TOML 값(맨 단어, 날짜)을 문자열로 읽지 않고 거부
 
 - VS Code 호환 에디터 확장 디렉터리(VS Code, Cursor)를 위한 `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, `recheck-ide-extensions` 추가
 - IDE 확장은 정확한 버전의 `trustedIdeExtensions` 고정(선택적으로 설치 파일 다이제스트 포함)으로만 허용하고, 정책 오버레이가 줄일 수 없는 `blockedIdeExtensions` 차단 목록 추가

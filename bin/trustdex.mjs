@@ -147,8 +147,17 @@ Most commands are local-only. The provenance and trust-source commands perform e
 network lookups to GitHub or npm when you invoke them.`);
 }
 
+// JSON.parse messages can quote part of the input, which may be a credential.
+class InvalidJsonError extends SyntaxError {}
+
 async function readJson(file) {
-  return JSON.parse(await fs.readFile(file, 'utf8'));
+  const text = await fs.readFile(file, 'utf8');
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    if (error instanceof SyntaxError) throw new InvalidJsonError(`Invalid JSON in ${path.basename(file)}.`);
+    throw error;
+  }
 }
 
 async function readJsonIfExists(file, fallback = null) {
@@ -990,6 +999,9 @@ main().catch((error) => {
   if (process.argv.includes('--decisions')) {
     console.log(JSON.stringify(createDecisionError({ command: process.argv[2], trustdexVersion: VERSION }), null, 2));
   }
-  console.error(`trustdex: ${error.message}`);
+  const message = error instanceof SyntaxError && !(error instanceof InvalidJsonError)
+    ? 'Invalid input syntax.'
+    : error.message;
+  console.error(`trustdex: ${message}`);
   process.exitCode = 2;
 });
