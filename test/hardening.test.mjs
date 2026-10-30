@@ -117,6 +117,8 @@ tool_timeout_sec = 60
   assert.deepEqual(parsed.mcpServers.demo._trustdexFingerprintData, {
     format: 'codex-toml',
     cwd: null,
+    envOrigins: {},
+    envHttpHeaderSources: {},
     httpHeaderKeys: [],
     envHttpHeaderKeys: [],
     httpHeadersHelper: null,

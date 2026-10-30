@@ -1,4 +1,4 @@
-import { parseValue, stripComment, unquote, valueComplete } from './codex-config.mjs';
+import { decodeTomlValue, parseTomlStatements } from './toml-lite.mjs';
 
 const APPROVAL_POLICIES = new Set(['on-request', 'never']);
 const APPROVAL_REVIEWERS = new Set(['user', 'auto_review']);
@@ -73,74 +73,79 @@ function parseApprovalPolicy(value) {
 }
 
 function parseTomlAssignments(text) {
-  const lines = String(text || '').split(/\r?\n/);
   const root = Object.create(null);
   const sandbox = Object.create(null);
   const agents = Object.create(null);
   const approvalGranular = Object.create(null);
   const sections = new Set();
-  let section = '';
+  let granularDeclared = false;
+  const put = (target, key, value, label) => {
+    if (Object.hasOwn(target, key)) throw new Error(`Duplicate Codex ${label} setting: ${key}`);
+    target[key] = value;
+  };
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const cleaned = stripComment(lines[i]).trim();
-    if (!cleaned) continue;
+  // Every statement is resolved by its full key path, so a quoted or spaced header,
+  // a dotted key, or an inline table reaches the same setting as the plain form.
+  const assign = (path, node, inTable) => {
+    const [head, second, third, ...rest] = path;
+    if (head === 'sandbox_workspace_write') {
+      if (second === undefined) {
+        if (node.kind !== 'table') throw new Error('Unsupported Codex sandbox_workspace_write value.');
+        for (const entry of node.value) assign([head, ...entry.path], entry.value, inTable);
+        return;
+      }
+      if (third !== undefined) throw new Error(`Unsupported Codex sandbox key: ${path.slice(1).join('.')}`);
+      put(sandbox, second, decodeTomlValue(node), 'sandbox');
+      return;
+    }
+    if (head === 'approval_policy' && second !== undefined) {
+      if (second !== 'granular') throw new Error(`Unsupported Codex security section: ${path.slice(0, 2).join('.')}`);
+      if (third === undefined) {
+        if (node.kind !== 'table') throw new Error('Unsupported Codex approval_policy.granular value.');
+        granularDeclared = true;
+        for (const entry of node.value) assign([head, second, ...entry.path], entry.value, inTable);
+        return;
+      }
+      if (rest.length) throw new Error(`Unsupported Codex approval setting: ${path.join('.')}`);
+      put(approvalGranular, third, decodeTomlValue(node), 'approval');
+      return;
+    }
+    if (head === 'agents') {
+      if (second === undefined) {
+        if (node.kind !== 'table') throw new Error('Unsupported Codex agents value.');
+        for (const entry of node.value) assign([head, ...entry.path], entry.value, inTable);
+        return;
+      }
+      put(agents, path.slice(1).join('.'), decodeTomlValue(node), 'agents');
+      return;
+    }
+    if (inTable) return;
+    put(root, path.join('.'), decodeTomlValue(node), 'root');
+  };
 
-    const header = cleaned.match(/^\[([^\]]+)\]$/);
-    if (header) {
-      section = header[1].trim();
-      if (section.startsWith('sandbox_workspace_write.') ||
-          (section.startsWith('approval_policy.') && section !== 'approval_policy.granular')) {
+  for (const statement of parseTomlStatements(text)) {
+    if (statement.type !== 'value') {
+      const section = statement.path.join('.');
+      if (statement.path[0] === 'sandbox_workspace_write' && statement.path.length > 1) {
         throw new Error(`Unsupported Codex security section: ${section}`);
       }
+      if (statement.path[0] === 'approval_policy' &&
+          !(statement.path.length === 2 && statement.path[1] === 'granular')) {
+        throw new Error(`Unsupported Codex security section: ${section}`);
+      }
+      if (statement.type === 'array-table' && ['sandbox_workspace_write', 'approval_policy', 'agents'].includes(statement.path[0])) {
+        throw new Error(`Unsupported Codex security section: ${section}`);
+      }
+      if (section === 'approval_policy.granular') granularDeclared = true;
       sections.add(section);
       continue;
     }
-
-    const eq = cleaned.indexOf('=');
-    if (eq < 1) {
-      if (section === 'sandbox_workspace_write' || !section) {
-        throw new Error(`Unsupported Codex TOML line ${i + 1}: expected key = value`);
-      }
-      continue;
-    }
-
-    const key = unquote(cleaned.slice(0, eq).trim());
-    let raw = cleaned.slice(eq + 1).trim();
-    while (!valueComplete(raw)) {
-      i += 1;
-      if (i >= lines.length) throw new Error(`Unterminated TOML value for ${key}`);
-      raw += `\n${stripComment(lines[i]).trim()}`;
-    }
-    const value = parseValue(raw);
-
-    if (!section) {
-      if (key.startsWith('sandbox_workspace_write.')) {
-        const nestedKey = key.slice('sandbox_workspace_write.'.length);
-        if (!nestedKey || nestedKey.includes('.')) throw new Error(`Unsupported Codex sandbox key: ${key}`);
-        if (Object.hasOwn(sandbox, nestedKey)) throw new Error(`Duplicate Codex sandbox setting: ${nestedKey}`);
-        sandbox[nestedKey] = value;
-      } else if (key.startsWith('approval_policy.granular.')) {
-        const nestedKey = key.slice('approval_policy.granular.'.length);
-        if (!nestedKey || nestedKey.includes('.')) throw new Error(`Unsupported Codex approval setting: ${key}`);
-        if (Object.hasOwn(approvalGranular, nestedKey)) throw new Error(`Duplicate Codex approval setting: ${nestedKey}`);
-        approvalGranular[nestedKey] = value;
-      } else {
-        if (Object.hasOwn(root, key)) throw new Error(`Duplicate Codex root setting: ${key}`);
-        root[key] = value;
-      }
-    } else if (section === 'sandbox_workspace_write') {
-      if (Object.hasOwn(sandbox, key)) throw new Error(`Duplicate Codex sandbox setting: ${key}`);
-      sandbox[key] = value;
-    } else if (section === 'agents') {
-      if (Object.hasOwn(agents, key)) throw new Error(`Duplicate Codex agents setting: ${key}`);
-      agents[key] = value;
-    } else if (section === 'approval_policy.granular') {
-      if (Object.hasOwn(approvalGranular, key)) throw new Error(`Duplicate Codex approval setting: ${key}`);
-      approvalGranular[key] = value;
-    }
+    const inspected = ['sandbox_workspace_write', 'approval_policy', 'agents'].includes(statement.path[0]);
+    if (statement.table.length && !inspected) continue;
+    assign(statement.path, statement.value, statement.table.length > 0);
   }
 
-  if (Object.keys(approvalGranular).length) {
+  if (granularDeclared || Object.keys(approvalGranular).length) {
     if (root.approval_policy !== undefined) {
       throw new Error('Codex approval_policy cannot be declared in more than one form.');
     }

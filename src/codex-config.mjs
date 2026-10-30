@@ -1,158 +1,51 @@
+import { decodeTomlValue, parseTomlStatements } from './toml-lite.mjs';
+
 const CODEX_MCP_NESTED_SECTIONS = new Set(['env', 'http_headers', 'env_http_headers']);
 
-export function stripComment(line) {
-  let quote = null;
-  let escaped = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const char = line[i];
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (quote && char === '\\') {
-      escaped = true;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      if (quote === char) quote = null;
-      else if (!quote) quote = char;
-      continue;
-    }
-    if (char === '#' && !quote) return line.slice(0, i);
-  }
-  return line;
-}
-
-function splitTopLevel(value) {
-  const out = [];
-  let current = '';
-  let quote = null;
-  let escaped = false;
-  let depth = 0;
-
-  for (const char of value) {
-    if (escaped) {
-      current += char;
-      escaped = false;
-      continue;
-    }
-    if (quote && char === '\\') {
-      current += char;
-      escaped = true;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      if (quote === char) quote = null;
-      else if (!quote) quote = char;
-      current += char;
-      continue;
-    }
-    if (!quote && (char === '[' || char === '{')) depth += 1;
-    if (!quote && (char === ']' || char === '}')) depth -= 1;
-    if (char === ',' && !quote && depth === 0) {
-      out.push(current.trim());
-      current = '';
-      continue;
-    }
-    current += char;
-  }
-
-  if (current.trim()) out.push(current.trim());
-  return out;
-}
-
-export function unquote(value) {
-  const raw = value.trim();
-  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-    return raw.slice(1, -1);
-  }
-  return raw;
-}
-
-export function parseValue(raw) {
-  const value = raw.trim();
-  if (!value) return '';
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    return unquote(value);
-  }
-  if (value.startsWith('[') && value.endsWith(']')) {
-    return splitTopLevel(value.slice(1, -1)).map(parseValue);
-  }
-  if (value.startsWith('{') && value.endsWith('}')) {
-    const object = Object.create(null);
-    for (const part of splitTopLevel(value.slice(1, -1))) {
-      const index = part.indexOf('=');
-      // Never echo the entry: it can contain a credential value.
-      if (index < 1) throw new Error('Unsupported TOML inline table entry.');
-      object[unquote(part.slice(0, index).trim())] = parseValue(part.slice(index + 1));
-    }
-    return object;
-  }
-  if (value === 'true') return true;
-  if (value === 'false') return false;
-  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-  // Bare words, dates, and other TOML forms are not supported; fail closed without
-  // echoing the value.
-  throw new Error('Unsupported TOML value: quote strings and use only strings, numbers, booleans, arrays, and inline tables.');
-}
-
-export function valueComplete(value) {
-  let square = 0;
-  let curly = 0;
-  let quote = null;
-  let escaped = false;
-
-  for (const char of value) {
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
-    if (quote && char === '\\') {
-      escaped = true;
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      if (quote === char) quote = null;
-      else if (!quote) quote = char;
-      continue;
-    }
-    if (quote) continue;
-    if (char === '[') square += 1;
-    if (char === ']') square -= 1;
-    if (char === '{') curly += 1;
-    if (char === '}') curly -= 1;
-  }
-
-  return !quote && square === 0 && curly === 0;
-}
-
-export function codexServerNameFromHeader(header) {
-  const match = String(header || '').trim().match(
-    /^mcp_servers\.(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_-]+))(?:\.(.*))?$/
-  );
-  if (!match) return null;
-  const name = match[1] || match[2] || match[3];
-  if (['__proto__', 'prototype', 'constructor'].includes(name)) return null;
-  return {
-    name,
-    nested: match[4] || ''
-  };
-}
-
-function envNames(value) {
-  if (!Array.isArray(value)) return [];
+// env_vars entries are names, optionally objects with a name and a source. Each
+// entry is recorded with its source so moving a variable from a static value to
+// forwarding from the host changes the fingerprint.
+function envEntries(value) {
+  if (!Array.isArray(value)) throw new Error('Codex env_vars must be an array.');
   return value.map((item) => {
-    if (typeof item === 'string') return item;
-    if (item && typeof item === 'object' && typeof item.name === 'string') return item.name;
-    return null;
-  }).filter(Boolean);
+    if (typeof item === 'string' && item) return { name: item, source: 'host' };
+    if (item && typeof item === 'object' && !Array.isArray(item) && typeof item.name === 'string' && item.name) {
+      for (const key of Object.keys(item)) {
+        if (!['name', 'source'].includes(key)) throw new Error(`Unsupported Codex env_vars field "${key}".`);
+      }
+      if (item.source !== undefined && typeof item.source !== 'string') throw new Error('Codex env_vars source must be a string.');
+      return { name: item.name, source: item.source === undefined ? 'host' : `host:${item.source}` };
+    }
+    throw new Error('Codex env_vars entries must be names or objects with a name.');
+  });
+}
+
+// env_http_headers maps a header to the name of a host variable. The variable name is
+// recorded so pointing a header at a different secret changes the fingerprint.
+function recordEnvHeader(server, header, variable) {
+  if (typeof variable !== 'string' || !variable) throw new Error('Codex env_http_headers values must be variable names.');
+  server._trustdexFingerprintData.envHttpHeaderKeys.push(header);
+  server._trustdexFingerprintData.envHttpHeaderSources[header] = variable;
+}
+
+const ENV_PLACEHOLDERS = { static: '<redacted>', 'bearer-token': '<bearer-token>' };
+
+// A variable can be declared more than once (for example a static value and a bearer
+// token variable); record every origin as a sorted list so the result does not depend
+// on order and distinct origins cannot collide.
+function recordEnv(server, name, origin) {
+  const origins = server._trustdexFingerprintData.envOrigins;
+  const all = new Set(origins[name] || []);
+  all.add(origin);
+  origins[name] = [...all].sort();
+  server.env[name] = all.has('static') ? ENV_PLACEHOLDERS.static : ENV_PLACEHOLDERS[origin] || '<forwarded>';
 }
 
 function applyAssignment(server, nested, key, value) {
   const signals = server._trustdexSignals;
 
   if (nested === 'env') {
-    server.env[key] = '<redacted>';
+    recordEnv(server, key, 'static');
     return;
   }
   if (nested === 'http_headers') {
@@ -161,7 +54,7 @@ function applyAssignment(server, nested, key, value) {
     return;
   }
   if (nested === 'env_http_headers') {
-    server._trustdexFingerprintData.envHttpHeaderKeys.push(key);
+    recordEnvHeader(server, key, value);
     signals.add('env-http-headers');
     return;
   }
@@ -177,18 +70,19 @@ function applyAssignment(server, nested, key, value) {
     server.args ??= [];
     server._trustdexFingerprintData.cwd = value;
   } else if (key === 'env' && value && typeof value === 'object' && !Array.isArray(value)) {
-    for (const envKey of Object.keys(value)) server.env[envKey] = '<redacted>';
+    for (const envKey of Object.keys(value)) recordEnv(server, envKey, 'static');
   } else if (key === 'env_vars') {
-    for (const envKey of envNames(value)) server.env[envKey] = '<forwarded>';
-    if (envNames(value).length) signals.add('env-forwarding');
+    const entries = envEntries(value);
+    for (const entry of entries) recordEnv(server, entry.name, entry.source);
+    if (entries.length) signals.add('env-forwarding');
   } else if (key === 'bearer_token_env_var' && typeof value === 'string') {
-    server.env[value] = '<bearer-token>';
+    recordEnv(server, value, 'bearer-token');
     signals.add('secret-env');
   } else if (key === 'http_headers' && value && typeof value === 'object') {
     server._trustdexFingerprintData.httpHeaderKeys.push(...Object.keys(value));
     if (Object.keys(value).length) signals.add('static-http-headers');
   } else if (key === 'env_http_headers' && value && typeof value === 'object') {
-    server._trustdexFingerprintData.envHttpHeaderKeys.push(...Object.keys(value));
+    for (const [header, variable] of Object.entries(value)) recordEnvHeader(server, header, variable);
     if (Object.keys(value).length) signals.add('env-http-headers');
   } else if (key === 'http_headers_helper' && typeof value === 'string') {
     server._trustdexFingerprintData.httpHeadersHelper = value;
@@ -212,102 +106,137 @@ function applyAssignment(server, nested, key, value) {
   }
 }
 
-export function parseCodexMcpToml(text) {
-  const lines = String(text || '').split(/\r?\n/);
+function newServer() {
+  return {
+    env: {},
+    _trustdexSignals: new Set(),
+    _trustdexFingerprintData: {
+      format: 'codex-toml',
+      cwd: null,
+      envOrigins: Object.create(null),
+      httpHeaderKeys: [],
+      envHttpHeaderKeys: [],
+      envHttpHeaderSources: Object.create(null),
+      httpHeadersHelper: null,
+      enabledTools: [],
+      disabledTools: [],
+      defaultToolsApprovalMode: null,
+      enabled: null,
+      startupTimeoutSec: null,
+      toolTimeoutSec: null
+    }
+  };
+}
+
+const FORBIDDEN_NAMES = new Set(['__proto__', 'prototype', 'constructor']);
+
+const LAYOUT_ERROR = 'Unsupported Codex MCP layout: define each server in its own [mcp_servers.<name>] table.';
+
+// Parse every mcp_servers definition in a Codex config.toml. Spaced or quoted headers
+// resolve to the same server as plain ones. Servers defined any other way (a bare
+// [mcp_servers] table, root-level dotted keys, or a whole server as an inline table)
+// are rejected rather than skipped. Returns the MCP config plus the source spans that
+// belong to each server, for gating.
+export function parseCodexMcpTomlWithSpans(text) {
+  const statements = parseTomlStatements(text);
   const servers = Object.create(null);
-  let section = null;
+  const spans = [];
+  const assigned = new Set();
+  const declaredTables = new Set();
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const cleaned = stripComment(lines[i]).trim();
-    if (!cleaned) continue;
+  for (const statement of statements) {
+    const span = { start: statement.start, end: statement.end };
+    if (statement.path[0] !== 'mcp_servers') continue;
+    if (statement.type === 'array-table') throw new Error('Unsupported Codex MCP array of tables.');
 
-    const headerMatch = cleaned.match(/^\[([^\]]+)\]$/);
-    if (headerMatch) {
-      const rawHeader = headerMatch[1].trim();
-      section = codexServerNameFromHeader(rawHeader);
-      if ((rawHeader === 'mcp_servers' || rawHeader.startsWith('mcp_servers.')) && !section) {
-        throw new Error(`Unsupported Codex MCP section "[${rawHeader}]".`);
+    if (statement.type === 'table') {
+      const [, name, nested, ...rest] = statement.path;
+      if (name === undefined) throw new Error('Unsupported Codex MCP section "[mcp_servers]".');
+      if (!name || FORBIDDEN_NAMES.has(name)) throw new Error('Unsupported Codex MCP server name.');
+      if (rest.length || (nested !== undefined && !CODEX_MCP_NESTED_SECTIONS.has(nested))) {
+        throw new Error(`Unsupported Codex MCP subsection "${[nested, ...rest].join('.')}".`);
       }
-      if (section?.nested && !CODEX_MCP_NESTED_SECTIONS.has(section.nested)) {
-        throw new Error(`Unsupported Codex MCP subsection "${section.nested}".`);
-      }
-      if (section && !servers[section.name]) {
-        servers[section.name] = {
-          env: {},
-          _trustdexSignals: new Set(),
-          _trustdexFingerprintData: {
-            format: 'codex-toml',
-            cwd: null,
-            httpHeaderKeys: [],
-            envHttpHeaderKeys: [],
-            httpHeadersHelper: null,
-            enabledTools: [],
-            disabledTools: [],
-            defaultToolsApprovalMode: null,
-            enabled: null,
-            startupTimeoutSec: null,
-            toolTimeoutSec: null
-          }
-        };
-      }
+      const tableId = statement.path.join('\u0000');
+      if (declaredTables.has(tableId)) throw new Error('Unsupported Codex TOML: a server table is defined more than once.');
+      declaredTables.add(tableId);
+      if (!servers[name]) servers[name] = newServer();
+      spans.push({ name, header: true, ...span });
       continue;
     }
 
-    if (!section) continue;
-    const eq = cleaned.indexOf('=');
-    if (eq < 1) throw new Error(`Unsupported Codex TOML line ${i + 1}: expected key = value`);
-
-    const key = unquote(cleaned.slice(0, eq).trim());
-    let raw = cleaned.slice(eq + 1).trim();
-    while (!valueComplete(raw)) {
-      i += 1;
-      if (i >= lines.length) throw new Error(`Unterminated TOML value for ${key}`);
-      raw += `\n${stripComment(lines[i]).trim()}`;
+    if (statement.table.length < 2) throw new Error(LAYOUT_ERROR);
+    const [, name, ...keyPath] = statement.path;
+    const id = statement.path.join('\u0000');
+    if (assigned.has(id)) throw new Error('Unsupported Codex TOML: a key is defined more than once.');
+    assigned.add(id);
+    spans.push({ name, ...span });
+    const server = servers[name];
+    if (keyPath.length === 1) {
+      applyAssignment(server, '', keyPath[0], decodeTomlValue(statement.value));
+    } else if (keyPath.length === 2 && CODEX_MCP_NESTED_SECTIONS.has(keyPath[0])) {
+      const parent = statement.path.slice(0, 3).join('\u0000');
+      if (assigned.has(parent)) throw new Error('Unsupported Codex TOML: a key is defined more than once.');
+      applyAssignment(server, keyPath[0], keyPath[1], decodeTomlValue(statement.value));
+    } else {
+      throw new Error(`Unsupported Codex MCP subsection "${keyPath.slice(0, -1).join('.')}".`);
     }
-
-    applyAssignment(servers[section.name], section.nested, key, parseValue(raw));
   }
 
   for (const server of Object.values(servers)) {
     server._trustdexSignals = [...server._trustdexSignals].sort();
-    server._trustdexFingerprintData.httpHeaderKeys =
-      [...new Set(server._trustdexFingerprintData.httpHeaderKeys)].sort();
-    server._trustdexFingerprintData.envHttpHeaderKeys =
-      [...new Set(server._trustdexFingerprintData.envHttpHeaderKeys)].sort();
+    const data = server._trustdexFingerprintData;
+    data.httpHeaderKeys = [...new Set(data.httpHeaderKeys)].sort();
+    data.envHttpHeaderKeys = [...new Set(data.envHttpHeaderKeys)].sort();
+    data.envHttpHeaderSources = Object.fromEntries(Object.entries(data.envHttpHeaderSources).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
+    data.envOrigins = Object.fromEntries(Object.entries(data.envOrigins).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
   }
 
-  return { mcpServers: servers };
+  return { config: { mcpServers: servers }, spans, statements };
 }
 
+export function parseCodexMcpToml(text) {
+  return parseCodexMcpTomlWithSpans(text).config;
+}
+
+// Remove every statement that belongs to a server that is not exposed. A header removes
+// everything up to the next table header.
 export function gateCodexToml(text, results, options = {}) {
   const includeAsk = Boolean(options.includeAsk);
   const decisions = new Map(results.map((result) => [result.name, result.action]));
-  const lines = String(text || '').split(/\r?\n/);
-  const kept = [];
-  let keepSection = true;
-
-  for (const line of lines) {
-    const cleaned = stripComment(line).trim();
-    const headerMatch = cleaned.match(/^\[([^\]]+)\]$/);
-    if (headerMatch) {
-      const rawHeader = headerMatch[1].trim();
-      const section = codexServerNameFromHeader(rawHeader);
-      if ((rawHeader === 'mcp_servers' || rawHeader.startsWith('mcp_servers.')) && !section) {
-        throw new Error(`Unsupported Codex MCP section "[${rawHeader}]".`);
-      }
-      if (section?.nested && !CODEX_MCP_NESTED_SECTIONS.has(section.nested)) {
-        throw new Error(`Unsupported Codex MCP subsection "${section.nested}".`);
-      }
-      if (section) {
-        const action = decisions.get(section.name);
-        keepSection = action === 'allow' || (includeAsk && action === 'ask');
-      } else {
-        keepSection = true;
-      }
+  const keep = (name) => {
+    const action = decisions.get(name);
+    return action === 'allow' || (includeAsk && action === 'ask');
+  };
+  const source = String(text || '');
+  const { spans, statements } = parseCodexMcpTomlWithSpans(source);
+  const remove = [];
+  const headers = statements.filter((statement) => statement.type === 'table' || statement.type === 'array-table');
+  const headerStarts = headers.map((statement) => statement.start);
+  const nextHeader = (start) => {
+    let low = 0;
+    let high = headerStarts.length;
+    while (low < high) {
+      const mid = (low + high) >> 1;
+      if (headerStarts[mid] > start) high = mid;
+      else low = mid + 1;
     }
-    if (keepSection) kept.push(line);
+    return low < headerStarts.length ? headerStarts[low] : source.length;
+  };
+  for (const span of spans) {
+    if (keep(span.name)) continue;
+    if (span.header) {
+      remove.push([span.start, nextHeader(span.start)]);
+    } else {
+      remove.push([span.start, span.end]);
+    }
   }
-
-  const output = kept.join('\n');
-  return text.endsWith('\n') && !output.endsWith('\n') ? `${output}\n` : output;
+  remove.sort((a, b) => a[0] - b[0]);
+  let output = '';
+  let cursor = 0;
+  for (const [start, end] of remove) {
+    if (start > cursor) output += source.slice(cursor, start);
+    cursor = Math.max(cursor, end);
+  }
+  output += source.slice(cursor);
+  return output;
 }
