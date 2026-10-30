@@ -238,6 +238,14 @@ function registryLocation(root, entry) {
   return null;
 }
 
+// Registry labels are untrusted strings; report only known values.
+const INSTALL_SOURCES = new Set(['gallery', 'vsix', 'resource']);
+const KNOWN_PLATFORMS = new Set([...TARGET_PLATFORMS, 'undefined']);
+
+function label(value, known, fallback) {
+  return typeof value === 'string' && known.has(value) ? value : fallback;
+}
+
 function manifestSignals(manifest, expectedId, expectedVersion) {
   const signals = new Set();
   const id = normalizeIdeExtensionId(`${manifest.publisher || ''}.${manifest.name || ''}`);
@@ -314,14 +322,11 @@ async function inspectInstalled(directory, registryEntry, options = {}) {
       type: 'ide-extension',
       id: id || null,
       version: version || null,
-      installSource: registryEntry ? (typeof metadata.source === 'string' ? metadata.source : 'unknown') : 'unregistered',
-      targetPlatform: typeof metadata.targetPlatform === 'string' ? metadata.targetPlatform : null
+      installSource: registryEntry ? label(metadata.source, INSTALL_SOURCES, metadata.source === undefined ? 'unknown' : 'other') : 'unregistered',
+      targetPlatform: metadata.targetPlatform === undefined || metadata.targetPlatform === null ? null : label(metadata.targetPlatform, KNOWN_PLATFORMS, 'other')
     },
     fingerprint,
-    metadata: {
-      displayName: typeof manifest?.displayName === 'string' ? manifest.displayName : null,
-      files
-    },
+    metadata: { files },
     signals: [...signals].sort(),
     envKeys: []
   };
@@ -367,7 +372,7 @@ export async function inspectIdeExtensionsDir(root) {
         kind: 'ide-extension',
         source: { type: 'ide-extension', id: null, version: null, installSource: 'unregistered', targetPlatform: null },
         fingerprint: `sha256:${sha256Json({ symlink: entry.name, target: await fs.readlink(full) })}`,
-        metadata: { displayName: null, files: 0 },
+        metadata: { files: 0 },
         signals: ['ide-extension-missing-manifest', 'ide-extension-non-regular-files', 'ide-extension-unregistered'],
         envKeys: []
       });

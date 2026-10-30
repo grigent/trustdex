@@ -148,19 +148,47 @@ test('Codex parser fails closed on unsupported MCP keys and subsections', () => 
   );
 });
 
-test('package URLs drop credentials, query, and fragment and are never treated as pinned', () => {
+test('package URLs drop credentials and query values, keep git refs, and are never pinned', () => {
   const results = inspectMcpConfig({ mcpServers: {
     tarball: { command: 'npx', args: ['-y', 'https://user:pw@registry.example.invalid/pkg-1.0.0.tgz?sig=x'] },
     git: { command: 'uvx', args: ['git+https://token@git.example.invalid/x/y#v1.0.0'] },
-    ssh: { command: 'npx', args: ['git+ssh://git@git.example.invalid/x/y.git'] }
+    ssh: { command: 'npx', args: ['git+ssh://git@git.example.invalid/x/y.git'] },
+    alias: { command: 'npx', args: ['pkg@https://u:pw@registry.example.invalid/x.tgz'] },
+    scp: { command: 'npx', args: ['deploy:pw@git.example.invalid:org/repo'] },
+    from: { command: 'uvx', args: ['--from', 'pkg @ https://u:pw@files.example.invalid/x.whl', 'tool'] },
+    shorthand: { command: 'npx', args: ['github:org/repo#v2'] },
+    registry: { command: 'npx', args: ['-y', 'pkg@1.0.0'] }
   } });
-  const [tarball, git, ssh] = ['tarball', 'git', 'ssh'].map((name) => results.find((result) => result.name === name));
-  assert.deepEqual(tarball.source, { type: 'package', runner: 'npx', package: 'https://registry.example.invalid/pkg-1.0.0.tgz', pinned: false });
-  assert.ok(tarball.signals.includes('embedded-credentials'));
-  assert.ok(tarball.signals.includes('url-query-parameters'));
-  assert.ok(tarball.signals.includes('unbounded-version'));
-  assert.equal(git.source.package, 'git+https://git.example.invalid/x/y');
-  assert.ok(git.signals.includes('embedded-credentials'));
-  assert.equal(ssh.source.package, 'git+ssh://git.example.invalid/x/y.git');
-  assert.ok(!ssh.signals.includes('embedded-credentials'));
+  const by = Object.fromEntries(results.map((result) => [result.name, result]));
+  assert.deepEqual(by.tarball.source, { type: 'package', runner: 'npx', package: 'https://registry.example.invalid/pkg-1.0.0.tgz', pinned: false });
+  assert.ok(by.tarball.signals.includes('embedded-credentials'));
+  assert.ok(by.tarball.signals.includes('package-url-query'));
+  assert.ok(by.tarball.signals.includes('unbounded-version'));
+  assert.equal(by.git.source.package, 'git+https://git.example.invalid/x/y#v1.0.0');
+  assert.ok(by.git.signals.includes('embedded-credentials'));
+  assert.equal(by.ssh.source.package, 'git+ssh://git.example.invalid/x/y.git');
+  assert.ok(!by.ssh.signals.includes('embedded-credentials'));
+  assert.equal(by.alias.source.package, 'pkg@https://registry.example.invalid/x.tgz');
+  assert.equal(by.scp.source.package, 'git.example.invalid:org/repo');
+  assert.equal(by.from.source.package, 'pkg @ https://files.example.invalid/x.whl');
+  for (const name of ['alias', 'scp', 'from']) {
+    assert.ok(by[name].signals.includes('embedded-credentials'), name);
+    assert.equal(by[name].source.pinned, false, name);
+  }
+  assert.equal(by.shorthand.source.pinned, false);
+  assert.equal(by.registry.source.pinned, true);
+  assert.ok(!JSON.stringify(results).includes('pw'));
+});
+
+test('a changed git ref is still visible to snapshot drift', () => {
+  const at = (ref) => inspectMcpConfig({ mcpServers: { git: { command: 'uvx', args: [`git+https://git.example.invalid/x/y#${ref}`] } } })[0];
+  assert.notDeepEqual(at('v1.0.0').source, at('attacker-commit').source);
+});
+
+test('package URLs with query values cannot be allowed in any pack', () => {
+  const [result] = inspectMcpConfig({ mcpServers: { t: { command: 'npx', args: ['https://registry.example.invalid/p.tgz?version=1.0.0'] } } });
+  for (const pack of ['strict', 'official-first', 'development']) {
+    const policy = { ...getPolicyPack(pack), trustedPackages: ['https://registry.example.invalid/p.tgz'], unpinnedAction: 'allow' };
+    assert.equal(evaluateAll([result], policy)[0].action, 'block', pack);
+  }
 });

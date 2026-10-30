@@ -6,7 +6,8 @@
 
 ## Unreleased
 
-- stop printing and snapshotting credentials embedded in package URLs (for example `npx https://user:token@host/pkg.tgz`); report only scheme, host, and path, flag `embedded-credentials`, and never treat a URL package spec as pinned
+- stop printing, snapshotting, and fingerprinting credentials and query values embedded in package specs (URLs, `name@url`, scp-like remotes, uvx `--from`); keep scheme, host, path, and git ref, flag `embedded-credentials`, never treat a URL-like spec as pinned, and BLOCK package URLs with query values (`package-url-query`) in every pack because their values can be neither shown nor tracked
+- report only known values for IDE extension install source and target platform, and drop the untrusted `displayName` from results
 - add a canary sweep regression suite that plants unique values in every supported input format and fails if any command prints or stores one, and document the output redaction contract (names may be reported, values never)
 
 - stop error messages from quoting input content: malformed JSON now reports only the file name, and Codex TOML inline-table errors no longer echo the entry, which could contain a credential

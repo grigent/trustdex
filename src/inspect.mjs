@@ -87,27 +87,38 @@ function fingerprintArgs(args) {
       continue;
     }
 
-    sanitized.push(value);
+    sanitized.push(sanitizePackageSpec(value).spec);
   }
 
   return sanitized;
 }
 
-// Package specs can be URLs (tarballs, git remotes) carrying credentials or tokens.
-// Report only scheme, host, and path; never userinfo, query, or fragment.
-function sanitizePackageSpec(spec) {
-  if (!spec || !/^[a-z][a-z0-9+.-]*:\/\//i.test(spec)) return { spec, url: false, credentials: false };
-  try {
-    const url = new URL(spec);
-    return {
-      spec: `${url.protocol.toLowerCase()}//${url.host.toLowerCase()}${url.pathname}`,
-      url: true,
-      credentials: Boolean(url.password) || (Boolean(url.username) && !url.protocol.includes('ssh')),
-      query: Boolean(url.search)
-    };
-  } catch {
-    return { spec: '<unparseable-url>', url: true, credentials: false };
-  }
+// Package specs can embed URLs: tarballs, git remotes, "name@url", scp-like remotes, or
+// uvx --from values. Remove userinfo and query values, which can be credentials or
+// signed tokens. Keep scheme, host, path, and fragment: a git ref is a version selector
+// and must stay visible to review and snapshot drift.
+const EMBEDDED_USERINFO_RE = /([a-z][a-z0-9+.-]*:\/\/)([^\s/?#@]*)@/gi;
+const SCP_PASSWORD_RE = /^([^\s@/:]+):([^\s@/]+)@(?=[^\s@/:]+:)/;
+const EMBEDDED_QUERY_RE = /(:\/\/[^\s?#]*)\?[^\s#]*/g;
+const URL_LIKE_RE = /[a-z][a-z0-9+.-]*:\/\/|^[^\s@/:]+@[^\s@/:]+:|^(?:github|gitlab|bitbucket|gist|git|file|link):/i;
+
+export function sanitizePackageSpec(spec) {
+  if (!spec) return { spec, url: false, credentials: false, query: false };
+  let credentials = false;
+  let query = false;
+  let value = String(spec).replace(EMBEDDED_USERINFO_RE, (match, scheme, userinfo) => {
+    if (userinfo.includes(':') || !/ssh/i.test(scheme)) credentials = true;
+    return scheme;
+  });
+  value = value.replace(SCP_PASSWORD_RE, () => {
+    credentials = true;
+    return '';
+  });
+  value = value.replace(EMBEDDED_QUERY_RE, (match, prefix) => {
+    query = true;
+    return prefix;
+  });
+  return { spec: value, url: URL_LIKE_RE.test(String(spec)), credentials, query };
 }
 
 function extractRemoteEndpoint(server) {
@@ -148,10 +159,10 @@ function normalizeServer(name, server = {}) {
   if (remote?.hasEmbeddedCredentials) signals.add('embedded-credentials');
   if (remote?.hasQuery) signals.add('url-query-parameters');
   if (sanitizedPackage.credentials) signals.add('embedded-credentials');
-  if (sanitizedPackage.query) signals.add('url-query-parameters');
+  if (sanitizedPackage.query) signals.add('package-url-query');
   if (SHELLS.has(executableName(command))) signals.add('shell-execution');
   if (RUNNERS.has(executableName(command))) signals.add('install-on-run');
-  // A URL package spec is never treated as pinned: its "@" belongs to the URL, not a version.
+  // A URL-like package spec is never treated as pinned: its "@" belongs to the URL, not a version.
   const pinned = Boolean(packageSpec) && !sanitizedPackage.url && isPinnedPackage(packageSpec);
   if (packageSpec && !pinned) signals.add('unbounded-version');
   if (args.some(looksLikePath)) signals.add('filesystem-path');

@@ -6,16 +6,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Canary sweep: plant a unique marker in every value position each input format
-// accepts, run every command that reads that format, and require that no marker
-// appears in stdout, stderr, or any snapshot, posture, binding, or review file.
-// Names (environment variable names, setting keys, server names) may be reported;
-// values may not. Values include credentials in package URLs and in sensitive
-// command-line flags. Gated MCP/Codex outputs are excluded because they intentionally
-// preserve the original allowed entries.
+// Canary sweep for the output redaction contract (docs/SECURITY_RESEARCH.md).
+//
+// Unique markers are planted in the value positions of inspected inputs: environment
+// and header values, URL credentials and query values, credentials inside package
+// specs (URLs, name@url, scp-like remotes, uvx --from), sensitive command-line flags,
+// Claude permission specifiers, hooks, helpers and directories, Codex writable roots,
+// skill bodies, plugin manifest values, and IDE extension manifest and registry
+// fields. Each command below then runs, including the changed-state paths of diff and
+// recheck. No marker may appear, in any letter case, in stdout, stderr, or a written
+// file. Gated MCP and Codex outputs are excluded because they intentionally preserve
+// the original allowed entries. Policy and trust-store files are trust inputs written
+// by the operator and are out of scope.
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
-const MARK = /CANARY\d+Z/g;
+const MARK = /canary\d+z/gi;
 let counter = 0;
 const canary = () => `CANARY${counter += 1}Z`;
 
@@ -52,100 +57,170 @@ function assertFilesClean(dir) {
   }
 }
 
-function inputs() {
-  const { dir, write } = workspace();
-  const files = {
-    mcp: write('in/mcp.json', { mcpServers: {
-      pkg: { command: 'npx', args: ['-y', 'some-pkg@1.0.0'], env: { API_TOKEN: canary(), PLAIN: canary() } },
-      remote: { url: `https://mcp.example.invalid/mcp?key=${canary()}#${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
-      creds: { url: `https://user:${canary()}@mcp.example.invalid/mcp` },
-      local: { command: 'node', args: ['server.js'], env: { DB_PASSWORD: canary() } },
-      tarball: { command: 'npx', args: ['-y', `https://user:${canary()}@registry.example.invalid/pkg.tgz?sig=${canary()}`] },
-      git: { command: 'uvx', args: [`git+https://${canary()}@git.example.invalid/x/y#${canary()}`] },
-      flags: { command: 'node', args: ['s.js', `--token=${canary()}`, '--api-key', canary(), '-H', `Authorization: ${canary()}`, `https://h.invalid/?k=${canary()}`] }
-    } }),
-    claude: write('in/claude.mcp.json', { mcpServers: {
-      http: { type: 'http', url: 'https://mcp.example.invalid/mcp', headers: { Authorization: `Bearer ${canary()}`, 'X-Key': '${API_KEY}' } },
-      stdio: { type: 'stdio', command: 'node', args: ['s.js'], env: { TOKEN: canary() } },
-      pkg: { type: 'stdio', command: 'npx', args: ['-y', `https://u:${canary()}@registry.example.invalid/p.tgz`] },
-      helper: { type: 'http', url: 'https://mcp.example.invalid/x', headersHelper: `print-token ${canary()}` }
-    } }),
-    settings: write('in/settings.json', {
-      permissions: {
-        allow: [`Bash(curl ${canary()})`, `WebFetch(domain:${canary()}.invalid)`, `Read(/${canary()}/**)`, 'mcp__http__read'],
-        ask: [`Bash(${canary()})`],
-        deny: [`Read(./${canary()})`],
-        defaultMode: 'default',
-        additionalDirectories: [`/${canary()}`]
-      },
-      hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `echo ${canary()}` }] }] },
-      apiKeyHelper: `print ${canary()}`,
-      env: { SECRET_ENV: canary() }
-    }),
-    codex: write('in/config.toml', [
-      '[mcp_servers.a]', 'command = "npx"', 'args = ["-y", "pkg@1.0.0"]', `env = { API_TOKEN = "${canary()}" }`, '',
-      '[mcp_servers.c]', 'command = "npx"', `args = ["-y", "https://u:${canary()}@registry.example.invalid/p.tgz"]`, '',
-      '[mcp_servers.b]', `url = "https://mcp.example.invalid/mcp?token=${canary()}"`, 'bearer_token_env_var = "MY_TOKEN"',
-      `http_headers = { "X-Key" = "${canary()}" }`, ''
-    ].join('\n')),
-    codexSettings: write('in/codex-settings.toml', [
-      'approval_policy = "on-request"', 'sandbox_mode = "workspace-write"', '',
-      '[sandbox_workspace_write]', 'network_access = true', `writable_roots = ["/${canary()}"]`, ''
-    ].join('\n')),
-    skill: write('in/SKILL.md', `---\nname: canary-skill\ndescription: test\n---\nUse token ${canary()} and fetch https://x.invalid/?k=${canary()}\n`),
-    plugin: write('in/plugin.json', { name: 'p', version: '1.0.0', env: { K: canary() }, permissions: [canary()], homepage: `https://x.invalid/?t=${canary()}` }),
-    ext: path.join(dir, 'in/ext')
+function mcpServers() {
+  return {
+    pkg: { command: 'npx', args: ['-y', 'some-pkg@1.0.0'], env: { API_TOKEN: canary(), PLAIN: canary() } },
+    remote: { url: `https://mcp.example.invalid/mcp?key=${canary()}#${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
+    creds: { url: `https://user:${canary()}@mcp.example.invalid/mcp` },
+    local: { command: 'node', args: ['server.js'], env: { DB_PASSWORD: canary() } },
+    tarball: { command: 'npx', args: ['-y', `https://user:${canary()}@registry.example.invalid/pkg.tgz?sig=${canary()}`] },
+    git: { command: 'uvx', args: [`git+https://${canary()}@git.example.invalid/x/y#v1`] },
+    alias: { command: 'npx', args: [`pkg@https://u:${canary()}@registry.example.invalid/x.tgz`] },
+    scp: { command: 'npx', args: [`deploy:${canary()}@git.example.invalid:org/repo`] },
+    from: { command: 'uvx', args: ['--from', `pkg @ https://u:${canary()}@files.example.invalid/x.whl`, 'tool'] },
+    packageFlag: { command: 'npx', args: [`--package=https://u:${canary()}@registry.example.invalid/p.tgz`, 'tool'] },
+    flags: { command: 'node', args: ['s.js', `--token=${canary()}`, '--api-key', canary(), '-H', `Authorization: ${canary()}`, `https://h.invalid/?k=${canary()}`] }
   };
-  write('in/ext/acme.tool-1.0.0/package.json', { publisher: 'acme', name: 'tool', version: '1.0.0', description: canary(), contributes: { configuration: { default: canary() } } });
-  write('in/ext/acme.tool-1.0.0/extension.js', `// ${canary()}\n`);
-  write('in/ext/extensions.json', [{ identifier: { id: 'acme.tool' }, version: '1.0.0', relativeLocation: 'acme.tool-1.0.0', metadata: { source: 'gallery' } }]);
-  // A BLOCK-free MCP config so approve/recheck write a full review bundle.
-  files.approvable = write('in/approvable.json', { mcpServers: {
-    remote: { url: `https://mcp.example.invalid/mcp?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
-    local: { command: 'node', args: ['server.js'], env: { DB_PASSWORD: canary() } }
-  } });
-  return { dir, files, out: path.join(dir, 'out') };
+}
+
+function claudeServers() {
+  return {
+    http: { type: 'http', url: 'https://mcp.example.invalid/mcp', headers: { Authorization: `Bearer ${canary()}`, 'X-Key': '${API_KEY}' } },
+    stdio: { type: 'stdio', command: 'node', args: ['s.js', `--secret=${canary()}`], env: { TOKEN: canary() } },
+    pkg: { type: 'stdio', command: 'npx', args: ['-y', `https://u:${canary()}@registry.example.invalid/p.tgz`] }
+  };
+}
+
+function claudeSettings() {
+  return {
+    permissions: {
+      allow: [`Bash(curl ${canary()})`, `WebFetch(domain:${canary()}.invalid)`, `Read(/${canary()}/**)`, 'mcp__http__read'],
+      ask: [`Bash(${canary()})`],
+      deny: [`Read(./${canary()})`],
+      defaultMode: 'default',
+      additionalDirectories: [`/${canary()}`]
+    },
+    hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `echo ${canary()}` }] }] },
+    apiKeyHelper: `print ${canary()}`,
+    env: { SECRET_ENV: canary() }
+  };
+}
+
+function codexToml() {
+  return [
+    '[mcp_servers.a]', 'command = "npx"', 'args = ["-y", "pkg@1.0.0"]', `env = { API_TOKEN = "${canary()}" }`, '',
+    '[mcp_servers.c]', 'command = "npx"', `args = ["-y", "https://u:${canary()}@registry.example.invalid/p.tgz"]`, '',
+    '[mcp_servers.b]', `url = "https://mcp.example.invalid/mcp?token=${canary()}"`, 'bearer_token_env_var = "MY_TOKEN"',
+    `http_headers = { "X-Key" = "${canary()}" }`, ''
+  ].join('\n');
+}
+
+function codexSettingsToml() {
+  return [
+    'approval_policy = "on-request"', 'sandbox_mode = "workspace-write"', '',
+    '[sandbox_workspace_write]', 'network_access = true', `writable_roots = ["/${canary()}"]`, ''
+  ].join('\n');
+}
+
+function writeExtensions(write, base, version) {
+  write(`${base}/acme.tool-${version}/package.json`, {
+    publisher: 'acme', name: 'tool', version, displayName: canary(), description: canary(),
+    contributes: { configuration: { default: canary() } }
+  });
+  write(`${base}/acme.tool-${version}/extension.js`, `// ${canary()}\n`);
+  write(`${base}/extensions.json`, [{
+    identifier: { id: 'acme.tool' }, version, relativeLocation: `acme.tool-${version}`,
+    metadata: { source: 'gallery', targetPlatform: canary(), publisherDisplayName: canary() }
+  }]);
+  return path.join(path.dirname(write(`${base}/.keep`, '')), '');
 }
 
 test('no command prints or stores a planted value', () => {
-  const { files, out } = inputs();
-  const priv = path.join(out, 'keys/private.pem');
-  const pub = path.join(out, 'keys/public.pem');
+  const { dir, write } = workspace();
+  const out = path.join(dir, 'out');
+  const files = {
+    mcp: write('in/mcp.json', { mcpServers: mcpServers() }),
+    mcpChanged: write('in/mcp-changed.json', { mcpServers: { ...mcpServers(), extra: { command: 'npx', args: [`https://u:${canary()}@registry.example.invalid/new.tgz`] } } }),
+    claude: write('in/claude.mcp.json', { mcpServers: claudeServers() }),
+    claudeHelper: write('in/claude-helper.mcp.json', { mcpServers: { h: { type: 'http', url: 'https://mcp.example.invalid/x', headersHelper: `print-token ${canary()}` } } }),
+    settings: write('in/settings.json', claudeSettings()),
+    settingsLocal: write('in/settings.local.json', claudeSettings()),
+    settingsManaged: write('in/managed.json', claudeSettings()),
+    codex: write('in/config.toml', codexToml()),
+    codexSettings: write('in/codex-settings.toml', codexSettingsToml()),
+    codexSettingsProject: write('in/codex-project.toml', codexSettingsToml()),
+    skill: write('in/SKILL.md', `---\nname: canary-skill\ndescription: test\n---\nUse token ${canary()} and fetch https://x.invalid/?k=${canary()}\n`),
+    plugin: write('in/plugin.json', { name: 'p', version: '1.0.0', env: { K: canary() }, permissions: [canary()], homepage: `https://x.invalid/?t=${canary()}` }),
+    ext: writeExtensions(write, 'in/ext', '1.0.0')
+  };
+  // BLOCK-free inputs so approve can write full review bundles.
+  const approvable = (servers) => write(`in/approvable-${counter}.json`, { mcpServers: servers });
+  files.approvable = approvable({
+    remote: { url: `https://mcp.example.invalid/mcp?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
+    local: { command: 'node', args: ['server.js', `--password=${canary()}`], env: { DB_PASSWORD: canary() } }
+  });
+  files.claudeApprovable = write('in/claude-approvable.mcp.json', { mcpServers: {
+    http: { type: 'http', url: 'https://mcp.example.invalid/mcp', headers: { Authorization: `Bearer ${canary()}` } },
+    stdio: { type: 'stdio', command: 'node', args: ['s.js'], env: { TOKEN: canary() } }
+  } });
+
+  const priv = path.join(dir, 'keys/private.pem');
+  const pub = path.join(dir, 'keys/public.pem');
   run(['keygen', '--private', priv, '--public', pub]);
+
+  const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
+  const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject];
   const inspections = [
-    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude-settings', files.settings],
-    ['inspect-codex', files.codex], ['inspect-codex-settings', files.codexSettings], ['inspect-skill', files.skill],
-    ['inspect-plugin', files.plugin], ['inspect-ide-extensions', files.ext],
-    ['inspect-claude-settings-stack', '--user', files.settings], ['inspect-codex-settings-stack', '--user', files.codexSettings]
+    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper],
+    ['inspect-claude-settings', files.settings], ['inspect-codex', files.codex], ['inspect-codex-settings', files.codexSettings],
+    ['inspect-skill', files.skill], ['inspect-plugin', files.plugin], ['inspect-ide-extensions', files.ext],
+    ['inspect-claude-settings-stack', ...claudeStack], ['inspect-codex-settings-stack', ...codexStack]
   ];
-  const commands = [
+  const o = (name) => path.join(out, name);
+  const steps = [
     ...inspections.flatMap((args) => [args, [...args, '--json'], [...args, '--decisions']]),
-    ['snapshot', files.mcp, '--out', path.join(out, 'snapshot.json')],
-    ['snapshot-claude', files.claude, '--out', path.join(out, 'snapshot-claude.json')],
-    ['snapshot-ide-extensions', files.ext, '--out', path.join(out, 'snapshot-ide.json')],
-    ['snapshot-claude-settings', files.settings, '--out', path.join(out, 'posture-claude.json')],
-    ['snapshot-codex-settings', files.codexSettings, '--out', path.join(out, 'posture-codex.json')],
-    ['snapshot-claude-settings-stack', '--user', files.settings, '--out', path.join(out, 'posture-claude-stack.json')],
-    ['snapshot-claude-bindings', files.claude, '--settings', files.settings, '--out', path.join(out, 'bindings-claude.json')],
-    ['snapshot-codex-bindings', files.codex, '--out', path.join(out, 'bindings-codex.json')],
-    ['gate', files.mcp, '--out', path.join(out, '..', 'gated/mcp.json'), '--pack', 'development'],
-    ['gate-claude', files.claude, '--out', path.join(out, '..', 'gated/claude.json'), '--pack', 'development'],
-    ['gate-codex', files.codex, '--out', path.join(out, '..', 'gated/config.toml'), '--pack', 'development'],
-    ['approve', files.approvable, '--private', priv, '--dir', path.join(out, 'review'), '--pack', 'development'],
-    ['recheck', files.approvable, '--review-dir', path.join(out, 'review'), '--public', pub],
-    ['recheck', files.approvable, '--review-dir', path.join(out, 'review'), '--public', pub, '--json'],
-    ['approve-ide-extensions', files.ext, '--private', priv, '--dir', path.join(out, 'review-ide'), '--pack', 'development'],
-    ['recheck-ide-extensions', files.ext, '--review-dir', path.join(out, 'review-ide'), '--public', pub]
+    ['snapshot', files.mcp, '--out', o('snapshot-before.json')],
+    ['snapshot', files.mcpChanged, '--out', o('snapshot-after.json')],
+    ['diff', o('snapshot-before.json'), o('snapshot-after.json')],
+    ['diff', o('snapshot-before.json'), o('snapshot-after.json'), '--json'],
+    ['snapshot-claude', files.claude, '--out', o('snapshot-claude.json')],
+    ['snapshot-ide-extensions', files.ext, '--out', o('snapshot-ide.json')],
+    ['snapshot-claude-settings', files.settings, '--out', o('posture-claude.json')],
+    ['snapshot-codex-settings', files.codexSettings, '--out', o('posture-codex.json')],
+    ['snapshot-claude-settings-stack', ...claudeStack, '--out', o('posture-claude-stack.json')],
+    ['snapshot-codex-settings-stack', ...codexStack, '--out', o('posture-codex-stack.json')],
+    ['diff-permissions', o('posture-claude.json'), o('posture-claude-stack.json')],
+    ['diff-permissions', o('posture-codex.json'), o('posture-codex-stack.json'), '--json'],
+    ['snapshot-claude-bindings', files.claude, '--settings', files.settings, '--out', o('bindings-claude.json')],
+    ['snapshot-claude-bindings', files.claude, ...claudeStack, '--out', o('bindings-claude-stack.json')],
+    ['snapshot-codex-bindings', files.codex, '--out', o('bindings-codex.json')],
+    ['diff-bindings', o('bindings-claude.json'), o('bindings-claude-stack.json')],
+    ['diff-bindings', o('bindings-claude.json'), o('bindings-claude-stack.json'), '--json'],
+    ['gate', files.mcp, '--out', path.join(dir, 'gated/mcp.json'), '--pack', 'development'],
+    ['gate', files.mcp, '--out', path.join(dir, 'gated/mcp2.json'), '--pack', 'development', '--json'],
+    ['gate-claude', files.claude, '--out', path.join(dir, 'gated/claude.json'), '--pack', 'development'],
+    ['gate-codex', files.codex, '--out', path.join(dir, 'gated/config.toml'), '--pack', 'development'],
+    ['approve', files.approvable, '--private', priv, '--dir', o('review'), '--pack', 'development'],
+    ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub],
+    ['approve-claude', files.claudeApprovable, '--private', priv, '--dir', o('review-claude'), '--pack', 'development'],
+    ['recheck-claude', files.claudeApprovable, '--review-dir', o('review-claude'), '--public', pub, '--json'],
+    ['approve-ide-extensions', files.ext, '--private', priv, '--dir', o('review-ide'), '--pack', 'development'],
+    ['sign', o('snapshot-before.json'), '--private', priv, '--out', o('record.json')],
+    ['verify', o('record.json'), '--public', pub, '--snapshot', o('snapshot-before.json')]
   ];
-  for (const args of commands) {
+  for (const args of steps) assertNoLeak(args, run(args));
+
+  // Changed-state paths: recheck after the reviewed input changes prints source drift.
+  const changedApprovable = { mcpServers: {
+    remote: { url: `https://mcp.example.invalid/other?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },
+    local: { command: 'node', args: ['server2.js', `--password=${canary()}`], env: { DB_PASSWORD: canary(), NEW_TOKEN: canary() } }
+  } };
+  fs.writeFileSync(files.approvable, JSON.stringify(changedApprovable));
+  writeExtensions(write, 'in/ext', '1.0.0');
+  for (const args of [
+    ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub],
+    ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub, '--json'],
+    ['recheck-ide-extensions', files.ext, '--review-dir', o('review-ide'), '--public', pub],
+    ['recheck-ide-extensions', files.ext, '--review-dir', o('review-ide'), '--public', pub, '--json']
+  ]) {
     const result = run(args);
+    assert.equal(result.status, 1, `${args.join(' ')} should report NEEDS_REVIEW: ${result.stderr}`);
     assertNoLeak(args, result);
-    if (args[0] === 'approve' || args[0] === 'recheck') assert.notEqual(result.status, 2, `${args[0]}: ${result.stderr}`);
   }
-  for (const file of ['snapshot.json', 'posture-claude.json', 'bindings-claude.json', 'review/snapshot.json', 'review-ide/trust-record.json']) {
-    assert.ok(fs.existsSync(path.join(out, file)), `${file} was not written`);
+
+  for (const file of ['snapshot-before.json', 'posture-claude-stack.json', 'bindings-claude.json', 'review/snapshot.json', 'review-claude/trust-record.json', 'review-ide/trust-record.json', 'record.json']) {
+    assert.ok(fs.existsSync(o(file)), `${file} was not written`);
   }
-  fs.rmSync(path.join(out, 'keys'), { recursive: true });
   assertFilesClean(out);
 });
 
@@ -153,13 +228,13 @@ test('no malformed input echoes a planted value in errors or reports', () => {
   const { write } = workspace();
   const cases = [
     ['inspect', 'json', () => ({ mcpServers: { a: { command: 'node', env: { T: 123, U: canary() } } } })],
-    ['inspect', 'json', () => ({ mcpServers: { a: { url: `ftp://${canary()}.invalid/x` } } })],
+    ['inspect', 'json', () => ({ mcpServers: { a: { url: `ftp://x.invalid/${canary()}` } } })],
     ['inspect', 'json', () => ({ mcpServers: { a: { url: `not a url ${canary()}` } } })],
     ['inspect', 'json', () => ({ mcpServers: { a: { command: 'node', env: [canary()] } } })],
     ['inspect', 'raw', () => `{"mcpServers": {"a": {"env": {"T": ${canary()}}}}}`],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'http', url: `https://x.invalid/?k=${canary()}` } } })],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'stdio', command: 'node', env: { T: canary() }, extra: canary() } } })],
-    ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'ws', url: `wss://${canary()}.invalid` } } })],
+    ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'ws', url: `wss://x.invalid/${canary()}` } } })],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'http', url: 'https://x.invalid/', headers: { A: 5, B: canary() } } } })],
     ['inspect-claude-settings', 'json', () => ({ permissions: { allow: [`Bash(${canary()}`] } })],
     ['inspect-claude-settings', 'json', () => ({ permissions: { allow: [canary(), 5] } })],
