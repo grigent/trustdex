@@ -6,7 +6,8 @@
 
 ## 미출시
 
-- 패키지 지정(URL, `name@url`, scp 형식 원격, uvx `--from`)에 포함된 자격 증명과 쿼리 값을 출력·스냅샷·지문에 남기지 않도록 수정. 스킴, 호스트, 경로, git ref는 유지하고 `embedded-credentials`를 표시하며, URL 형식 지정은 고정 버전으로 취급하지 않음. 쿼리 값이 있는 패키지 URL은 보여 줄 수도 추적할 수도 없으므로 모든 팩에서 BLOCK(`package-url-query`)
+- 패키지 지정(URL, `name@url`, scp 형식 원격, uvx `--from`)에 포함된 자격 증명, 쿼리 값, `;params`를 출력·스냅샷에 남기지 않도록 수정. 단순한 레지스트리 지정은 그대로 보여 주고, 그 밖의 지정은 WHATWG URL 파서(알려진 스킴만)나 scp 형식 원격으로 해석해 스킴, 호스트, 경로, git ref만 보여 주며, 해석할 수 없는 지정은 `<unparseable-package-spec>`으로 표시하고 모든 팩에서 BLOCK(`unparseable-package-spec`). 단순한 지정만 고정 버전으로 인정하고, 쿼리 값이나 `;params`가 있는 패키지 URL은 보여 줄 수도 추적할 수도 없으므로 모든 팩에서 BLOCK(`package-url-query`)
+- `--flag=URL` 값을 포함한 모든 명령줄 인수의 URL·scp 형식 자격 증명에 `embedded-credentials`를 표시하고, 그 인수는 자격 증명을 뺀 형태로 지문에 넣음. 쿼리 값을 비롯한 다른 인수 값의 변경은 계속 지문을 바꿈
 - IDE 확장의 설치 출처와 대상 플랫폼은 알려진 값만 보고하고, 신뢰할 수 없는 `displayName`은 결과에서 제외
 - 지원하는 모든 입력 형식에 고유한 값을 심고 어떤 명령이든 그 값을 출력하거나 저장하면 실패하는 카나리 회귀 테스트를 추가하고, 출력 비식별 규칙(이름은 보고 가능, 값은 금지) 문서화
 - 모든 검사 명령에 `--decisions` 추가: 종료 코드가 판정과 일치하고 검사 실패 시 BLOCK을 보고하는, 버전이 있고 값이 없는 `trustdex-decisions` JSON 보고서

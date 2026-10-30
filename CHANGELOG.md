@@ -6,7 +6,8 @@
 
 ## Unreleased
 
-- stop printing, snapshotting, and fingerprinting credentials and query values embedded in package specs (URLs, `name@url`, scp-like remotes, uvx `--from`); keep scheme, host, path, and git ref, flag `embedded-credentials`, never treat a URL-like spec as pinned, and BLOCK package URLs with query values (`package-url-query`) in every pack because their values can be neither shown nor tracked
+- stop printing and snapshotting credentials, query values, and `;params` embedded in package specs (URLs, `name@url`, scp-like remotes, uvx `--from`): simple registry specs are shown as written, any other spec is parsed with the WHATWG URL parser (known schemes only) or as an scp-like remote and shown with scheme, host, path, and git ref only, and a spec that cannot be parsed is shown as `<unparseable-package-spec>` and blocked in every pack (`unparseable-package-spec`); only simple specs can be pinned, and package URLs with query values or `;params` are blocked in every pack (`package-url-query`) because their values can be neither shown nor tracked
+- flag `embedded-credentials` for URL or scp-like credentials in any command-line argument, including `--flag=URL` values, and fingerprint that argument without its credentials; other argument values, including query values, still change the fingerprint
 - report only known values for IDE extension install source and target platform, and drop the untrusted `displayName` from results
 - add a canary sweep regression suite that plants unique values in every supported input format and fails if any command prints or stores one, and document the output redaction contract (names may be reported, values never)
 - add `--decisions` to every inspection command: a versioned, value-free `trustdex-decisions` JSON report whose exit code matches the decision and which reports BLOCK when inspection fails
