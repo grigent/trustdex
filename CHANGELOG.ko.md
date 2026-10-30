@@ -6,6 +6,9 @@
 
 ## 미출시
 
+- 오류 메시지가 입력 내용을 인용하지 않도록 수정: 잘못된 JSON은 파일 이름만 보고하고, Codex TOML 인라인 테이블 오류는 자격 증명이 들어 있을 수 있는 항목을 더 이상 출력하지 않음
+- 따옴표 없는 TOML 값(맨 단어, 날짜)을 문자열로 읽지 않고 거부
+
 - VS Code 호환 에디터 확장 디렉터리(VS Code, Cursor)를 위한 `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, `recheck-ide-extensions` 추가
 - IDE 확장은 정확한 버전의 `trustedIdeExtensions` 고정(선택적으로 설치 파일 다이제스트 포함)으로만 허용하고, 정책 오버레이가 줄일 수 없는 `blockedIdeExtensions` 차단 목록 추가
 - 심볼릭 링크를 따라가지 않고 설치된 모든 확장 파일(내용과 실행 권한)의 다이제스트를 계산하고, `.obsolete`가 등록된 확장을 숨기지 못하게 하며, 잘못되었거나 일반 파일이 아닌 설치 기록, 누락된 매니페스트, 설치 기록과 매니페스트 불일치, 버전 범위, 지정 디렉터리 밖이나 심볼릭 링크를 거치는 위치에 대해 실패 시 차단
