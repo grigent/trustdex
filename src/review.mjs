@@ -14,6 +14,8 @@ export function assessReview({ record, publicKey, baseline, current, policy = nu
       changes: []
     };
   }
+  // Keyset verification identifies the signing key; a single --public key adds nothing.
+  const signer = signature.keyId ? { keyId: signature.keyId } : {};
 
   if (!current?.digest) {
     return {
@@ -27,13 +29,15 @@ export function assessReview({ record, publicKey, baseline, current, policy = nu
     return {
       status: 'approved',
       reason: 'current state matches the signed review',
-      changes: []
+      changes: [],
+      ...signer
     };
   }
 
   return {
     status: 'needs-review',
     reason: 'current state differs from the signed review',
-    changes: diffSnapshots(baseline, current)
+    changes: diffSnapshots(baseline, current),
+    ...signer
   };
 }

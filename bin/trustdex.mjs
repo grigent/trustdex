@@ -48,6 +48,7 @@ import {
 import { gateMcpConfig } from '../src/gate.mjs';
 import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
+import { parseEd25519PublicKeyPem, parseKeyset, spkiKeyId } from '../src/keyset.mjs';
 import {
   generateTrustKeyPair,
   createTrustRecord,
@@ -69,7 +70,8 @@ Usage:
   trustdex inspect-ide-extensions <extensions-dir> [--pack ...] [--policy policy.json] [--json]
   trustdex snapshot-ide-extensions <extensions-dir> --out snapshot.json [--pack ...]
   trustdex approve-ide-extensions <extensions-dir> --private key.pem --dir review [--pack ...]
-  trustdex recheck-ide-extensions <extensions-dir> --review-dir review --public key.pem [--json]
+  trustdex recheck-ide-extensions <extensions-dir> --review-dir review
+      (--public key.pem | --keyset keyset.json) [--json]
       IDE extension commands read a VS Code-compatible extensions directory you name
       (for example ~/.vscode/extensions or ~/.cursor/extensions). Nothing is executed.
   trustdex inspect-codex <config.toml> [--pack ...] [--policy policy.json]
@@ -86,7 +88,8 @@ Usage:
       [--trust-store trust-store.json] [--include-ask]
   trustdex snapshot-codex <config.toml> --out snapshot.json [--pack ...]
   trustdex approve-codex <config.toml> --private key.pem --dir review [--pack ...]
-  trustdex recheck-codex <config.toml> --review-dir review --public key.pem [--json]
+  trustdex recheck-codex <config.toml> --review-dir review
+      (--public key.pem | --keyset keyset.json) [--json]
 
   trustdex inspect-claude <.mcp.json> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-claude-settings <settings.json> [--pack ...] [--policy policy.json] [--json]
@@ -101,7 +104,8 @@ Usage:
   trustdex gate-claude <.mcp.json> --out gated.json [--pack ...] [--policy policy.json]
   trustdex snapshot-claude <.mcp.json> --out snapshot.json [--pack ...]
   trustdex approve-claude <.mcp.json> --private key.pem --dir review [--pack ...]
-  trustdex recheck-claude <.mcp.json> --review-dir review --public key.pem [--json]
+  trustdex recheck-claude <.mcp.json> --review-dir review
+      (--public key.pem | --keyset keyset.json) [--json]
   Claude MCP commands accept the same policy/trust-store flags as their generic counterparts.
 
   trustdex provenance github <owner/repo> [--json]
@@ -117,7 +121,8 @@ Usage:
 
   trustdex approve <mcp.json> --private trustdex-private.pem --dir .trustdex/review
       [--pack ...] [--policy policy.json] [--trust-store trust-store.json]
-  trustdex recheck <mcp.json> --review-dir .trustdex/review --public trustdex-public.pem [--json]
+  trustdex recheck <mcp.json> --review-dir .trustdex/review
+      (--public trustdex-public.pem | --keyset keyset.json) [--json]
 
   trustdex snapshot <mcp.json> --out snapshot.json [--pack ...]
       [--policy policy.json] [--trust-store trust-store.json]
@@ -128,20 +133,27 @@ Usage:
       [--trust-store trust-store.json] [--pack ...]
   trustdex diff-bindings <before.json> <after.json> [--json]
   trustdex snapshot-runtime-tools <bindings.json> <inventory.json> --out runtime.json
-      [--attestation attestation.json --public key.pem] [--max-age-seconds n]
+      [--attestation attestation.json (--public key.pem | --keyset keyset.json)]
+      [--max-age-seconds n]
       [--require-authenticated]
   trustdex diff-runtime-tools <before.json> <after.json> [--json]
   trustdex sign-runtime-inventory <inventory.json> --private key.pem --out attestation.json
       [--ttl-seconds 300]
   trustdex verify-runtime-inventory <inventory.json> --attestation attestation.json
-      --public key.pem [--max-age-seconds n] [--json]
+      (--public key.pem | --keyset keyset.json) [--max-age-seconds n] [--json]
   trustdex policy <strict|official-first|development>
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
   trustdex sign <snapshot.json> --private trustdex-private.pem --out trust-record.json
       [--policy policy.json] [--source-ref <ref>]
-  trustdex verify <trust-record.json> --public trustdex-public.pem
+  trustdex verify <trust-record.json> (--public trustdex-public.pem | --keyset keyset.json)
       [--snapshot snapshot.json] [--policy policy.json]
+  trustdex key-id <public.pem>
+      Print the SHA-256 key ID used in trustdex-keyset files and runtime attestations.
+
+Verifying commands accept --keyset keyset.json instead of --public: a trustdex-keyset v1
+allowlist with key purposes, validity windows, rotation, and revocations
+(see docs/RUNTIME_EVIDENCE.md). Giving both flags is an error.
 
 Inspection commands (inspect, inspect-*) accept --decisions to print the versioned
 trustdex-decisions JSON contract for agents and automation (see docs/AGENT_INTEGRATION.md).
@@ -205,6 +217,22 @@ function getIntegerFlag(args, name, fallback = undefined) {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed)) throw new Error(`${name} exceeds the supported integer range.`);
   return parsed;
+}
+
+// Verifying commands take exactly one key source: a pinned --public PEM or a validated
+// --keyset allowlist. Returns null when neither is given so callers can name the command.
+async function loadVerifier(args) {
+  const keysetPaths = getFlags(args, '--keyset');
+  const hasPublic = hasFlag(args, '--public');
+  if (keysetPaths.length && hasPublic) throw new Error('Use either --public or --keyset, not both.');
+  if (keysetPaths.length > 1) throw new Error('--keyset may be given only once.');
+  if (keysetPaths.length) return parseKeyset(await readJson(keysetPaths[0]));
+  const publicPath = getFlag(args, '--public');
+  return publicPath ? fs.readFile(publicPath, 'utf8') : null;
+}
+
+function hasVerifier(verifier) {
+  return verifier !== null && verifier !== undefined;
 }
 
 function label(action) {
@@ -648,19 +676,19 @@ async function main() {
     }
     const inventory = await readJson(inventoryPath);
     const attestationPath = getFlag(args, '--attestation');
-    const publicPath = getFlag(args, '--public');
-    if (Boolean(attestationPath) !== Boolean(publicPath)) {
-      throw new Error('Runtime inventory authentication requires both --attestation and --public.');
+    const verifier = await loadVerifier(args);
+    if (Boolean(attestationPath) !== hasVerifier(verifier)) {
+      throw new Error('Runtime inventory authentication requires both --attestation and --public (or --keyset).');
     }
     if (!attestationPath && getFlag(args, '--max-age-seconds') !== null) {
-      throw new Error('--max-age-seconds requires --attestation and --public.');
+      throw new Error('--max-age-seconds requires --attestation and --public (or --keyset).');
     }
     let authentication = null;
-    if (attestationPath && publicPath) {
+    if (attestationPath && hasVerifier(verifier)) {
       const verification = verifyRuntimeInventoryAttestation(
         inventory,
         await readJson(attestationPath),
-        await fs.readFile(publicPath, 'utf8'),
+        verifier,
         { maxAgeSeconds: getIntegerFlag(args, '--max-age-seconds') }
       );
       if (!verification.valid) {
@@ -700,14 +728,14 @@ async function main() {
   if (command === 'verify-runtime-inventory') {
     const inventoryPath = args[1];
     const attestationPath = getFlag(args, '--attestation');
-    const publicPath = getFlag(args, '--public');
-    if (!inventoryPath || !attestationPath || !publicPath) {
-      throw new Error('verify-runtime-inventory requires <inventory.json>, --attestation <file>, and --public <key.pem>.');
+    const verifier = await loadVerifier(args);
+    if (!inventoryPath || !attestationPath || !hasVerifier(verifier)) {
+      throw new Error('verify-runtime-inventory requires <inventory.json>, --attestation <file>, and --public <key.pem> or --keyset <keyset.json>.');
     }
     const verification = verifyRuntimeInventoryAttestation(
       await readJson(inventoryPath),
       await readJson(attestationPath),
-      await fs.readFile(publicPath, 'utf8'),
+      verifier,
       { maxAgeSeconds: getIntegerFlag(args, '--max-age-seconds') }
     );
     if (hasFlag(args, '--json')) console.log(JSON.stringify(verification, null, 2));
@@ -874,9 +902,9 @@ async function main() {
   if (['recheck', 'recheck-claude', 'recheck-codex', 'recheck-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const reviewDir = getFlag(args, '--review-dir');
-    const publicPath = getFlag(args, '--public');
-    if (!configPath || !reviewDir || !publicPath) {
-      throw new Error('recheck requires <mcp.json>, --review-dir <directory>, and --public <key.pem>.');
+    const verifier = await loadVerifier(args);
+    if (!configPath || !reviewDir || !hasVerifier(verifier)) {
+      throw new Error('recheck requires <mcp.json>, --review-dir <directory>, and --public <key.pem> or --keyset <keyset.json>.');
     }
 
     const baseline = await readJson(path.join(reviewDir, 'snapshot.json'));
@@ -893,7 +921,7 @@ async function main() {
     const current = createSnapshot(results);
     const verdict = assessReview({
       record,
-      publicKey: await fs.readFile(publicPath, 'utf8'),
+      publicKey: verifier,
       baseline,
       current,
       policy
@@ -904,6 +932,7 @@ async function main() {
     } else if (verdict.status === 'approved') {
       console.log('APPROVED: current state matches the signed review.');
       console.log(`Digest: ${current.digest}`);
+      if (verdict.keyId) console.log(`Signing key: ${verdict.keyId}`);
     } else if (verdict.status === 'needs-review') {
       console.log('NEEDS_REVIEW: trust-relevant state changed.');
       printChanges(verdict.changes);
@@ -980,21 +1009,32 @@ async function main() {
 
   if (command === 'verify') {
     const recordPath = args[1];
-    const publicPath = getFlag(args, '--public');
-    if (!recordPath || !publicPath) throw new Error('verify requires <record.json> and --public <key.pem>.');
+    const verifier = await loadVerifier(args);
+    if (!recordPath || !hasVerifier(verifier)) {
+      throw new Error('verify requires <record.json> and --public <key.pem> or --keyset <keyset.json>.');
+    }
 
     const snapshotPath = getFlag(args, '--snapshot');
     const policyPath = getFlag(args, '--policy');
     const verdict = verifyTrustRecord(
       await readJson(recordPath),
-      await fs.readFile(publicPath, 'utf8'),
+      verifier,
       {
         snapshot: snapshotPath ? await readJson(snapshotPath) : null,
         policy: policyPath ? await readJson(policyPath) : null
       }
     );
     console.log(verdict.valid ? 'VALID' : `INVALID: ${verdict.reason}`);
+    if (verdict.valid && verdict.keyId) console.log(`Signing key: ${verdict.keyId}`);
     if (!verdict.valid) process.exitCode = 2;
+    return;
+  }
+
+  if (command === 'key-id') {
+    const publicPath = args[1];
+    if (!publicPath || publicPath.startsWith('--')) throw new Error('key-id requires <public.pem>.');
+    const key = parseEd25519PublicKeyPem(await fs.readFile(publicPath, 'utf8'), path.basename(publicPath));
+    console.log(spkiKeyId(key));
     return;
   }
 

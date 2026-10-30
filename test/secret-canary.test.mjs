@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 // fields. Each command below then runs, including the changed-state paths of diff and
 // recheck. No marker may appear, in any letter case, in stdout, stderr, or a written
 // file. Gated MCP and Codex outputs are excluded because they intentionally preserve
-// the original allowed entries. Policy and trust-store files are trust inputs written
+// the original allowed entries. Policy, trust-store, and keyset files are trust inputs written
 // by the operator and are out of scope.
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
@@ -174,6 +174,11 @@ test('no command prints or stores a planted value', () => {
   const priv = path.join(dir, 'keys/private.pem');
   const pub = path.join(dir, 'keys/public.pem');
   run(['keygen', '--private', priv, '--public', pub]);
+  const keyset = write('keys/keyset.json', {
+    schemaVersion: 1,
+    kind: 'trustdex-keyset',
+    keys: [{ id: run(['key-id', pub]).stdout.trim(), publicKey: fs.readFileSync(pub, 'utf8'), purpose: 'review' }]
+  });
 
   const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
   const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject];
@@ -209,11 +214,14 @@ test('no command prints or stores a planted value', () => {
     ['gate-codex', files.codex, '--out', path.join(dir, 'gated/config.toml'), '--pack', 'development'],
     ['approve', files.approvable, '--private', priv, '--dir', o('review'), '--pack', 'development'],
     ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub],
+    ['recheck', files.approvable, '--review-dir', o('review'), '--keyset', keyset, '--json'],
     ['approve-claude', files.claudeApprovable, '--private', priv, '--dir', o('review-claude'), '--pack', 'development'],
     ['recheck-claude', files.claudeApprovable, '--review-dir', o('review-claude'), '--public', pub, '--json'],
     ['approve-ide-extensions', files.ext, '--private', priv, '--dir', o('review-ide'), '--pack', 'development'],
     ['sign', o('snapshot-before.json'), '--private', priv, '--out', o('record.json')],
-    ['verify', o('record.json'), '--public', pub, '--snapshot', o('snapshot-before.json')]
+    ['verify', o('record.json'), '--public', pub, '--snapshot', o('snapshot-before.json')],
+    ['verify', o('record.json'), '--keyset', keyset, '--snapshot', o('snapshot-before.json')],
+    ['key-id', pub]
   ];
   for (const args of steps) assertNoLeak(args, run(args));
 
@@ -235,6 +243,7 @@ test('no command prints or stores a planted value', () => {
   for (const args of [
     ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub],
     ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub, '--json'],
+    ['recheck', files.approvable, '--review-dir', o('review'), '--keyset', keyset],
     ['recheck-claude', files.claudeApprovable, '--review-dir', o('review-claude'), '--public', pub],
     ['recheck-claude', files.claudeApprovable, '--review-dir', o('review-claude'), '--public', pub, '--json'],
     ['recheck-ide-extensions', files.ext, '--review-dir', o('review-ide'), '--public', pub],

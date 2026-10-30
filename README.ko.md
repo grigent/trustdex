@@ -73,6 +73,7 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - 각 Claude/Codex MCP 소스의 결정·출처 상태를 도구 이름이나 규칙 값 없이 자동 도구 권한과 연결
 - 명시적으로 제공된 값 없는 런타임 MCP 인벤토리를 검토된 연결과 대조해 차단되거나 예상 밖으로 로드된 서버 감지
 - 수명이 짧은 런타임 인벤토리를 Ed25519 생성자 증명, 만료 및 선택적 캡처 나이 제한으로 인증
+- 키 용도, 유효 기간, 교체, 폐기를 담은 엄격한 키셋 허용 목록으로 검토 기록과 런타임 증명 검증
 - VS Code 호환 에디터 확장(VS Code, Cursor)을 정확한 버전과 설치 파일 다이제스트로 검사하고, 확장이 추가·업데이트·변경되면 재검토 요구
 - 에이전트와 자동화를 위한 버전 있는 실패 시 차단 JSON 판정 계약을 출력하고, 공개 스키마에 맞춰 정책 파일을 엄격하게 검증
 
@@ -375,6 +376,13 @@ node ./bin/trustdex.mjs diff-runtime-tools \
 같고 도구 집합만 바뀌는 대체는 비교 범위 밖입니다. 검증, 키 교체 및 위협 경계는
 [인증된 런타임 증거](docs/RUNTIME_EVIDENCE.ko.md)를 참고하세요.
 
+검증하는 모든 명령(`verify`, `recheck*`, `verify-runtime-inventory`,
+`snapshot-runtime-tools`)은 `--public` 대신 `--keyset keyset.json`도 받습니다. 이는 키별
+용도, 유효 기간, 교체를 위한 중첩 키, 폐기를 담고 엄격하게 검증되는 `trustdex-keyset`
+허용 목록입니다([`schemas/trustdex-keyset-v1.schema.json`](schemas/trustdex-keyset-v1.schema.json)).
+`node ./bin/trustdex.mjs key-id key.pem`은 목록에 넣을 키 ID를 출력합니다. 폐기 시점 규칙과
+교체 절차는 [키셋](docs/RUNTIME_EVIDENCE.ko.md#키셋-허용-목록-교체-폐기)을 참고하세요.
+
 ## 온라인 출처 관찰
 
 일반 검사는 계속 로컬에서만 수행됩니다. 다음 명령은 명시적으로 실행할 때만 네트워크 조회를 수행합니다.
@@ -514,6 +522,15 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 ```
 
 비공개 키는 절대 커밋하면 안 됩니다.
+
+교체 중 여러 검토 키를 허용하거나 키를 폐기하려면 단일 키 대신 키셋으로 검증하세요
+([키셋](docs/RUNTIME_EVIDENCE.ko.md#키셋-허용-목록-교체-폐기) 참고).
+
+```bash
+node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
+  --keyset .trustdex/keyset.json \
+  --snapshot .trustdex/baseline.json
+```
 
 `approve`/`recheck`는 어댑터별로도 있습니다. Claude MCP JSON은 `approve-claude`/`recheck-claude`, Codex `config.toml`은 `approve-codex`/`recheck-codex`([Codex](docs/CODEX.ko.md) 참고), 에디터 확장은 `approve-ide-extensions`/`recheck-ide-extensions`를 사용합니다.
 
