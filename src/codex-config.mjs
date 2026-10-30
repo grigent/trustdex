@@ -30,11 +30,14 @@ function recordEnvHeader(server, header, variable) {
 
 const ENV_PLACEHOLDERS = { static: '<redacted>', 'bearer-token': '<bearer-token>' };
 
+// A variable can be declared more than once (for example a static value and a bearer
+// token variable); record every origin, sorted, so the result does not depend on order.
 function recordEnv(server, name, origin) {
-  // A static value wins over forwarding in Codex, so keep it regardless of file order.
-  if (server._trustdexFingerprintData.envOrigins[name] === 'static' && origin !== 'static') return;
-  server.env[name] = ENV_PLACEHOLDERS[origin] || '<forwarded>';
-  server._trustdexFingerprintData.envOrigins[name] = origin;
+  const origins = server._trustdexFingerprintData.envOrigins;
+  const all = new Set(origins[name] ? origins[name].split('+') : []);
+  all.add(origin);
+  origins[name] = [...all].sort().join('+');
+  server.env[name] = all.has('static') ? ENV_PLACEHOLDERS.static : ENV_PLACEHOLDERS[origin] || '<forwarded>';
 }
 
 function applyAssignment(server, nested, key, value) {

@@ -9,9 +9,10 @@ const ESCAPES = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '
 
 class Lexer {
   constructor(text) {
-    // A leading byte-order mark is allowed and ignored, as TOML parsers do.
-    this.text = String(text || '').replace(/^\uFEFF/, '');
-    this.i = 0;
+    this.text = String(text || '');
+    // A leading byte-order mark is allowed and skipped, as TOML parsers do. Offsets stay
+    // relative to the original text so gating can cut it exactly.
+    this.i = this.text.startsWith('\uFEFF') ? 1 : 0;
     // Control characters other than tab, and a carriage return that does not start a
     // CRLF line ending, are invalid anywhere in TOML; rejecting them up front prevents
     // a hidden line break from moving text out of a comment or string.

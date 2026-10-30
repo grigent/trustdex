@@ -170,7 +170,9 @@ test('a static env value keeps its origin regardless of file order', () => {
   const a = origins('[mcp_servers.x]\ncommand = "node"\nenv_vars = ["T"]\nenv = { T = "v" }\n');
   const b = origins('[mcp_servers.x]\ncommand = "node"\nenv = { T = "v" }\nenv_vars = ["T"]\n');
   assert.deepEqual(a, b);
-  assert.equal(a.T, 'static');
+  assert.equal(a.T, 'host+static');
+  const bearer = origins('[mcp_servers.x]\nurl = "https://h.invalid/"\nenv = { T = "v" }\nbearer_token_env_var = "T"\n');
+  assert.equal(bearer.T, 'bearer-token+static');
 });
 
 test('control characters, lone carriage returns, and malformed bare values are rejected', () => {
@@ -190,4 +192,13 @@ test('an empty granular approval table is reported like its inline form', () => 
   const table = inspectCodexSettingsText('[approval_policy.granular]\n');
   const inline = inspectCodexSettingsText('approval_policy = { granular = {} }\n');
   assert.deepEqual(table.metadata.approvalPolicy, inline.metadata.approvalPolicy);
+});
+
+test('gating a file that starts with a byte-order mark keeps exact offsets', () => {
+  for (const eol of ['\n', '\r\n']) {
+    const toml = `\uFEFF# head${eol}[mcp_servers.keep]${eol}command = "node"${eol}${eol}[mcp_servers.drop]${eol}command = "bash"${eol}${eol}[features]${eol}x = true${eol}`;
+    const gated = gateCodexToml(toml, [{ name: 'keep', action: 'allow' }, { name: 'drop', action: 'block' }]);
+    assert.equal(gated, `\uFEFF# head${eol}[mcp_servers.keep]${eol}command = "node"${eol}${eol}[features]${eol}x = true${eol}`, JSON.stringify(eol));
+    assert.deepEqual(names(gated), ['keep']);
+  }
 });
