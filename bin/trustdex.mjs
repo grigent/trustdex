@@ -237,19 +237,24 @@ function printResults(results, asJson = false) {
   }
 }
 
-// --decisions prints the versioned agent decision contract instead of human output.
-async function emitInspection(results, args) {
+// --decisions prints the versioned agent decision contract instead of human output,
+// using the same policy object that produced the results.
+async function emitInspection(results, args, policy) {
   if (hasFlag(args, '--decisions')) {
-    const report = createDecisionReport(results, {
-      command: args[0],
-      trustdexVersion: VERSION,
-      policy: await loadPolicy(args)
-    });
+    const report = createDecisionReport(results, { command: args[0], trustdexVersion: VERSION, policy });
     console.log(JSON.stringify(report, null, 2));
+    process.exitCode = report.exitCode;
     return;
   }
   printResults(results, hasFlag(args, '--json'));
+  setInspectExitCode(results);
 }
+
+const DECISION_COMMANDS = new Set([
+  'inspect', 'inspect-claude', 'inspect-skill', 'inspect-plugin', 'inspect-codex',
+  'inspect-claude-settings', 'inspect-claude-settings-stack',
+  'inspect-codex-settings', 'inspect-codex-settings-stack', 'inspect-ide-extensions'
+]);
 
 function setInspectExitCode(results) {
   if (results.some((result) => result.action === 'block')) process.exitCode = 2;
@@ -305,9 +310,9 @@ async function evaluateIdeExtensions(directory, args) {
 }
 
 async function inspectSingle(item, args) {
-  const results = evaluateAll([item], await loadPolicy(args));
-  await emitInspection(results, args);
-  setInspectExitCode(results);
+  const policy = await loadPolicy(args);
+  const results = evaluateAll([item], policy);
+  await emitInspection(results, args, policy);
 }
 
 async function evaluateClaudeSettings(settingsPath, args) {
@@ -482,6 +487,10 @@ async function main() {
     return;
   }
 
+  if (hasFlag(args, '--decisions') && !DECISION_COMMANDS.has(command)) {
+    throw new Error(`--decisions is supported only by inspection commands, not ${command}.`);
+  }
+
   if (command === 'policy') {
     console.log(JSON.stringify(getPolicyPack(args[1] || 'strict'), null, 2));
     return;
@@ -490,9 +499,8 @@ async function main() {
   if (command === 'inspect-ide-extensions') {
     const directory = args[1];
     if (!directory) throw new Error('inspect-ide-extensions requires an extensions directory.');
-    const { results } = await evaluateIdeExtensions(directory, args);
-    await emitInspection(results, args);
-    setInspectExitCode(results);
+    const { policy, results } = await evaluateIdeExtensions(directory, args);
+    await emitInspection(results, args, policy);
     return;
   }
 
@@ -500,9 +508,8 @@ async function main() {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect requires a path to an MCP JSON file.');
 
-    const { results } = await evaluateMcp(configPath, args);
-    await emitInspection(results, args);
-    setInspectExitCode(results);
+    const { policy, results } = await evaluateMcp(configPath, args);
+    await emitInspection(results, args, policy);
     return;
   }
 
@@ -523,41 +530,36 @@ async function main() {
   if (command === 'inspect-claude-settings') {
     const settingsPath = args[1];
     if (!settingsPath) throw new Error('inspect-claude-settings requires a path to Claude settings JSON.');
-    const { result } = await evaluateClaudeSettings(settingsPath, args);
-    await emitInspection([result], args);
-    setInspectExitCode([result]);
+    const { policy, result } = await evaluateClaudeSettings(settingsPath, args);
+    await emitInspection([result], args, policy);
     return;
   }
 
   if (command === 'inspect-claude-settings-stack') {
-    const { result } = await evaluateClaudeSettingsStack(args);
-    await emitInspection([result], args);
-    setInspectExitCode([result]);
+    const { policy, result } = await evaluateClaudeSettingsStack(args);
+    await emitInspection([result], args, policy);
     return;
   }
 
   if (command === 'inspect-codex') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex requires a path to Codex config.toml.');
-    const { results } = await evaluateCodex(configPath, args);
-    await emitInspection(results, args);
-    setInspectExitCode(results);
+    const { policy, results } = await evaluateCodex(configPath, args);
+    await emitInspection(results, args, policy);
     return;
   }
 
   if (command === 'inspect-codex-settings') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect-codex-settings requires a path to Codex config.toml.');
-    const { result } = await evaluateCodexSettings(configPath, args);
-    await emitInspection([result], args);
-    setInspectExitCode([result]);
+    const { policy, result } = await evaluateCodexSettings(configPath, args);
+    await emitInspection([result], args, policy);
     return;
   }
 
   if (command === 'inspect-codex-settings-stack') {
-    const { result } = await evaluateCodexSettingsStack(args);
-    await emitInspection([result], args);
-    setInspectExitCode([result]);
+    const { policy, result } = await evaluateCodexSettingsStack(args);
+    await emitInspection([result], args, policy);
     return;
   }
 

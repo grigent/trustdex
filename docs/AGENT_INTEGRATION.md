@@ -46,8 +46,10 @@ It prints one JSON object described by [`schemas/trustdex-decisions-v1.schema.js
 ```
 
 - `decision` is the most restrictive item action; `exitCode` is `0` for allow, `1` for ask, and `2` for block, and matches the process exit code.
-- Items carry only names, actions, signal names, reasons, and fingerprints. Metadata, provenance evidence, environment-variable names, and configuration values are not included.
-- If inspection fails (missing file, malformed input, invalid policy), the command still prints a report with `"decision": "block"`, `"exitCode": 2`, an empty `items` list, and a fixed `error` string. Details go to stderr and never quote input contents.
+- Items carry names, actions, signal names, reasons, and fingerprints. Reasons may name packages, hosts, repositories, extension IDs, and trust-store publishers. They never contain values such as credentials, environment or header values, or provenance evidence. Item metadata and environment-variable names are not included.
+- If inspection fails (missing file, malformed input, invalid policy), the command still prints a report with `"decision": "block"`, `"exitCode": 2`, an empty `items` list, and a fixed `error` string. Details go to stderr. They may name a field but never quote input values.
+- An empty inventory (for example `{}`, an empty TOML file, or an empty extensions directory) is reported as `"ask"` with exit code `1`. Nothing was evaluated, which usually means the wrong file was inspected.
+- Only inspection commands accept `--decisions`. Any other command given `--decisions` fails with a BLOCK report and exit code `2`, so the flag can never be silently ignored.
 - `digest` is stable for the same results and policy, so a harness can record exactly which decision it acted on.
 
 ### Reading it safely
@@ -86,7 +88,7 @@ TrustDex is only as trustworthy as the inputs the agent cannot touch. Apply thes
 | Pin the TrustDex version you run (`npx trustdex@<exact version>`) and verify releases as described in [Releasing](RELEASING.md). | The gate itself is part of your supply chain. |
 | Inspect the agent's own permission settings with `inspect-claude-settings` or `inspect-codex-settings`. | Broad automatic shell or filesystem grants let an agent bypass every rule above. |
 
-Policy files are validated strictly. Unknown fields, unsupported versions, and invalid actions are rejected instead of ignored, so a typo or a crafted field cannot silently change a decision. The accepted shape is published in [`schemas/trustdex-policy-v1.schema.json`](../schemas/trustdex-policy-v1.schema.json). Signed snapshots follow [`schemas/trust-snapshot-v3.schema.json`](../schemas/trust-snapshot-v3.schema.json).
+Policy files are validated strictly. Unknown fields, unknown signal names in `signalActions`, IDE extension entries without an exact version, unsupported versions, and invalid actions are rejected instead of ignored, so a typo or a crafted field cannot silently change a decision. The accepted shape is published in [`schemas/trustdex-policy-v1.schema.json`](../schemas/trustdex-policy-v1.schema.json). Signed snapshots follow [`schemas/trust-snapshot-v3.schema.json`](../schemas/trust-snapshot-v3.schema.json).
 
 ## Compatibility rules
 

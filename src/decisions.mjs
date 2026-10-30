@@ -7,7 +7,10 @@ import { sha256Json } from './canonical.mjs';
 const RANK = { allow: 0, ask: 1, block: 2 };
 const ACTIONS = Object.keys(RANK);
 
+// An empty inventory is ASK: nothing was evaluated, which usually means the wrong
+// file or directory was inspected, so a consumer must not read it as approval.
 function overall(items) {
+  if (!items.length) return 'ask';
   return items.reduce((current, item) => (RANK[item.action] > RANK[current] ? item.action : current), 'allow');
 }
 

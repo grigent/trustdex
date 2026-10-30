@@ -33,6 +33,6 @@
   },
   "$defs": {
     "action": { "enum": ["allow", "ask", "block"] },
-    "stringList": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    "stringList": { "type": "array", "items": { "type": "string", "pattern": "\\S" } }
   }
 }

@@ -46,8 +46,10 @@ npx trustdex@<exact-version> inspect ./.mcp.json --pack strict --policy ./trustd
 ```
 
 - `decision`은 항목 중 가장 엄격한 판정입니다. `exitCode`는 allow `0`, ask `1`, block `2`이며 프로세스 종료 코드와 같습니다.
-- 항목에는 이름, 판정, 신호 이름, 이유, 지문만 들어갑니다. 메타데이터, 출처 증거, 환경 변수 이름, 설정 값은 들어가지 않습니다.
-- 검사가 실패해도(파일 없음, 잘못된 입력, 잘못된 정책) `"decision": "block"`, `"exitCode": 2`, 빈 `items`, 고정된 `error` 문자열을 담은 보고서를 출력합니다. 자세한 내용은 stderr로 가며 입력 내용을 인용하지 않습니다.
+- 항목에는 이름, 판정, 신호 이름, 이유, 지문이 들어갑니다. 이유에는 패키지, 호스트, 저장소, 확장 ID, 신뢰 저장소 게시자 이름이 나올 수 있습니다. 자격 증명, 환경 변수·헤더 값, 출처 증거 같은 값은 절대 들어가지 않습니다. 항목 메타데이터와 환경 변수 이름도 들어가지 않습니다.
+- 검사가 실패해도(파일 없음, 잘못된 입력, 잘못된 정책) `"decision": "block"`, `"exitCode": 2`, 빈 `items`, 고정된 `error` 문자열을 담은 보고서를 출력합니다. 자세한 내용은 stderr로 갑니다. 필드 이름은 나올 수 있지만 입력 값은 인용하지 않습니다.
+- 빈 인벤토리(예: `{}`, 빈 TOML 파일, 빈 확장 디렉터리)는 `"ask"`와 종료 코드 `1`로 보고합니다. 아무것도 평가하지 않았다는 뜻이며, 대개 잘못된 파일을 검사했다는 신호입니다.
+- `--decisions`는 검사 명령만 받습니다. 다른 명령에 `--decisions`를 주면 BLOCK 보고서와 종료 코드 `2`로 실패하므로, 이 플래그가 조용히 무시되는 일은 없습니다.
 - `digest`는 같은 결과와 정책에 대해 항상 같으므로, 하네스는 어떤 판정에 따라 행동했는지 정확히 기록할 수 있습니다.
 
 ### 안전하게 읽는 법
@@ -86,7 +88,7 @@ TrustDex는 에이전트가 건드릴 수 없는 입력만큼만 신뢰할 수 �
 | 실행하는 TrustDex 버전을 고정하고(`npx trustdex@<정확한 버전>`) [릴리스](RELEASING.ko.md)에 설명된 대로 릴리스를 검증하세요. | 게이트 자체도 공급망의 일부입니다. |
 | `inspect-claude-settings` 또는 `inspect-codex-settings`로 에이전트 자신의 권한 설정을 검사하세요. | 광범위한 자동 셸·파일 권한이 있으면 에이전트가 위 규칙을 모두 우회할 수 있습니다. |
 
-정책 파일은 엄격하게 검증합니다. 알 수 없는 필드, 지원하지 않는 버전, 잘못된 판정 값은 무시하지 않고 거부하므로, 오타나 조작된 필드가 판정을 조용히 바꿀 수 없습니다. 허용되는 형식은 [`schemas/trustdex-policy-v1.schema.json`](../schemas/trustdex-policy-v1.schema.json)에, 서명된 스냅샷 형식은 [`schemas/trust-snapshot-v3.schema.json`](../schemas/trust-snapshot-v3.schema.json)에 공개되어 있습니다.
+정책 파일은 엄격하게 검증합니다. 알 수 없는 필드, `signalActions`의 알 수 없는 신호 이름, 정확한 버전이 없는 IDE 확장 항목, 지원하지 않는 버전, 잘못된 판정 값은 무시하지 않고 거부하므로, 오타나 조작된 필드가 판정을 조용히 바꿀 수 없습니다. 허용되는 형식은 [`schemas/trustdex-policy-v1.schema.json`](../schemas/trustdex-policy-v1.schema.json)에, 서명된 스냅샷 형식은 [`schemas/trust-snapshot-v3.schema.json`](../schemas/trust-snapshot-v3.schema.json)에 공개되어 있습니다.
 
 ## 호환성 규칙
 

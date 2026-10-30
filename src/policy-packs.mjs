@@ -1,3 +1,5 @@
+import { parseIdeExtensionPin } from './ide-extensions.mjs';
+
 const BASE_SIGNALS = {
   'shell-execution': 'block',
   'secret-env': 'ask',
@@ -61,6 +63,14 @@ const BASE_SIGNALS = {
   'ide-extension-bundles-extensions': 'ask',
   'ide-extension-non-regular-files': 'ask'
 };
+
+// Signals that are emitted but use a pack's default handling instead of a signalActions entry.
+const DEFAULT_HANDLED_SIGNALS = [
+  'filesystem-path', 'install-on-run', 'network-endpoint', 'network-instructions',
+  'network-reference', 'sensitive-path-reference', 'shell-reference', 'unbounded-version'
+];
+
+export const KNOWN_SIGNALS = Object.freeze(new Set([...Object.keys(BASE_SIGNALS), ...DEFAULT_HANDLED_SIGNALS]));
 
 export const POLICY_PACKS = Object.freeze({
   strict: Object.freeze({
@@ -172,6 +182,7 @@ export function validatePolicyOverlay(overlay) {
     if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
       throw new Error(`Policy ${field} must be an array of non-empty strings.`);
     }
+    if (field.endsWith('IdeExtensions')) value.forEach((entry) => parseIdeExtensionPin(entry, field));
   }
   if (overlay.signalActions !== undefined) {
     const actions = overlay.signalActions;
@@ -179,6 +190,7 @@ export function validatePolicyOverlay(overlay) {
       throw new Error('Policy signalActions must be an object.');
     }
     for (const [signal, action] of Object.entries(actions)) {
+      if (!KNOWN_SIGNALS.has(signal)) throw new Error(`Unknown signal "${signal}" in policy signalActions.`);
       if (!POLICY_ACTIONS.has(action)) throw new Error(`Policy signalActions.${signal} must be "allow", "ask", or "block".`);
     }
   }
