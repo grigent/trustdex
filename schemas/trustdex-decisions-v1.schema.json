@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/trustdex-decisions-v1.schema.json",
+  "title": "TrustDex decision report v1",
+  "description": "Printed by inspection commands with --decisions. A consumer may expose a tool only when decision is \"allow\" and the process exit code is 0. Any other value, a missing field, an unknown schemaVersion, or unparseable output must be treated as BLOCK.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "command", "trustdexVersion", "decision", "exitCode", "items"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "trustdex-decisions" },
+    "command": { "type": "string" },
+    "trustdexVersion": { "type": "string" },
+    "policyDigest": { "$ref": "#/$defs/digest" },
+    "decision": { "$ref": "#/$defs/action" },
+    "exitCode": { "enum": [0, 1, 2] },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allow", "ask", "block"],
+      "properties": {
+        "allow": { "type": "integer", "minimum": 0 },
+        "ask": { "type": "integer", "minimum": 0 },
+        "block": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "action", "signals", "reasons", "fingerprint"],
+        "properties": {
+          "name": { "type": "string" },
+          "kind": { "type": "string" },
+          "action": { "$ref": "#/$defs/action" },
+          "signals": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+          "reasons": { "type": "array", "items": { "type": "string" } },
+          "fingerprint": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "error": { "type": "string" },
+    "digest": { "$ref": "#/$defs/digest" }
+  },
+  "oneOf": [
+    { "required": ["policyDigest", "counts", "digest"], "not": { "required": ["error"] } },
+    {
+      "required": ["error"],
+      "properties": { "decision": { "const": "block" }, "exitCode": { "const": 2 }, "items": { "maxItems": 0 } }
+    }
+  ],
+  "$defs": {
+    "action": { "enum": ["allow", "ask", "block"] },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

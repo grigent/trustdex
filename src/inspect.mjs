@@ -205,8 +205,12 @@ export function inspectMcpConfig(config) {
   if (!servers || typeof servers !== 'object' || Array.isArray(servers)) {
     throw new Error('Expected an MCP configuration object, or an object containing mcpServers/servers.');
   }
+  for (const [name, value] of Object.entries(servers)) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error(`MCP server "${name}" must be a JSON object.`);
+    }
+  }
   return Object.entries(servers)
-    .filter(([, value]) => value && typeof value === 'object' && !Array.isArray(value))
     .map(([name, server]) => normalizeServer(name, server))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

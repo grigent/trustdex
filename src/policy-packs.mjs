@@ -1,3 +1,5 @@
+import { parseIdeExtensionPin } from './ide-extensions.mjs';
+
 const BASE_SIGNALS = {
   'shell-execution': 'block',
   'secret-env': 'ask',
@@ -63,6 +65,14 @@ const BASE_SIGNALS = {
   'ide-extension-bundles-extensions': 'ask',
   'ide-extension-non-regular-files': 'ask'
 };
+
+// Signals that are emitted but use a pack's default handling instead of a signalActions entry.
+const DEFAULT_HANDLED_SIGNALS = [
+  'filesystem-path', 'install-on-run', 'network-endpoint', 'network-instructions',
+  'network-reference', 'sensitive-path-reference', 'shell-reference', 'unbounded-version'
+];
+
+export const KNOWN_SIGNALS = Object.freeze(new Set([...Object.keys(BASE_SIGNALS), ...DEFAULT_HANDLED_SIGNALS]));
 
 export const POLICY_PACKS = Object.freeze({
   strict: Object.freeze({
@@ -144,4 +154,47 @@ export function mergePolicy(base, overlay = {}) {
     // Deny entries accumulate so an overlay can never silently drop a base block.
     blockedIdeExtensions: [...new Set([...(base.blockedIdeExtensions || []), ...(overlay.blockedIdeExtensions || [])])]
   };
+}
+
+const POLICY_ACTIONS = new Set(['allow', 'ask', 'block']);
+const ACTION_FIELDS = ['unknownAction', 'localAction', 'verifiedPublisherAction', 'sensitiveAction', 'unpinnedAction', 'shellAction'];
+const LIST_FIELDS = ['trustedPackages', 'trustedRepositories', 'allowedRemoteHosts', 'trustedIdeExtensions', 'blockedIdeExtensions'];
+const POLICY_FIELDS = new Set(['$schema', 'version', 'note', 'signalActions', ...ACTION_FIELDS, ...LIST_FIELDS]);
+
+// Validate a user policy file before merging. Unknown fields and invalid values are
+// rejected instead of silently falling back, so a typo cannot quietly change policy.
+export function validatePolicyOverlay(overlay) {
+  if (!overlay || typeof overlay !== 'object' || Array.isArray(overlay)) {
+    throw new Error('Policy must be a JSON object.');
+  }
+  for (const key of Object.keys(overlay)) {
+    if (!POLICY_FIELDS.has(key)) throw new Error(`Unknown policy field "${key}".`);
+  }
+  if (overlay.version !== undefined && overlay.version !== 1) throw new Error('Unsupported policy version. Expected version 1.');
+  if (overlay.note !== undefined && typeof overlay.note !== 'string') throw new Error('Policy note must be a string.');
+  if (overlay.$schema !== undefined && typeof overlay.$schema !== 'string') throw new Error('Policy $schema must be a string.');
+  for (const field of ACTION_FIELDS) {
+    if (overlay[field] !== undefined && !POLICY_ACTIONS.has(overlay[field])) {
+      throw new Error(`Policy ${field} must be "allow", "ask", or "block".`);
+    }
+  }
+  for (const field of LIST_FIELDS) {
+    const value = overlay[field];
+    if (value === undefined) continue;
+    if (!Array.isArray(value) || value.some((item) => typeof item !== 'string' || !item.trim())) {
+      throw new Error(`Policy ${field} must be an array of non-empty strings.`);
+    }
+    if (field.endsWith('IdeExtensions')) value.forEach((entry) => parseIdeExtensionPin(entry, field));
+  }
+  if (overlay.signalActions !== undefined) {
+    const actions = overlay.signalActions;
+    if (!actions || typeof actions !== 'object' || Array.isArray(actions)) {
+      throw new Error('Policy signalActions must be an object.');
+    }
+    for (const [signal, action] of Object.entries(actions)) {
+      if (!KNOWN_SIGNALS.has(signal)) throw new Error(`Unknown signal "${signal}" in policy signalActions.`);
+      if (!POLICY_ACTIONS.has(action)) throw new Error(`Policy signalActions.${signal} must be "allow", "ask", or "block".`);
+    }
+  }
+  return overlay;
 }

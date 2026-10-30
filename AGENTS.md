@@ -38,6 +38,8 @@ Apply these when reviewing a TrustDex pull request, including automated `@codex 
 - Flag signature, fingerprint, or snapshot schema changes that would let an old approval validate a changed configuration.
 - Flag GitHub Actions changes that use an unpinned third-party action, widen `permissions`, or expose secrets to pull requests from forks.
 - Flag a new input format, command, or output field that is not covered by the canary sweep in `test/secret-canary.test.mjs`.
+- Flag decision-contract changes that add metadata, provenance evidence, environment names, or configuration values to `--decisions` output, that let a failed inspection exit without a BLOCK report, that let the exit code disagree with `decision`, or that change field meaning without a new `schemaVersion`.
+- Flag policy validation changes that accept unknown fields or invalid actions instead of rejecting them.
 - Flag a new trust signal, policy rule, provenance adapter, or trust-record change that has no test.
 - Flag documentation that implies TrustDex proves a tool is safe or that "verified" means platform certification.
 
