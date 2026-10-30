@@ -6,6 +6,12 @@
 
 ## Unreleased
 
+- add `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, and `recheck-ide-extensions` for VS Code-compatible editor extension directories (VS Code, Cursor)
+- allow IDE extensions only through exact-version `trustedIdeExtensions` pins with optional installed-file digests; add a `blockedIdeExtensions` deny-list that policy overlays cannot shrink
+- digest every installed extension file (contents and executable bit) without following symlinks, never let `.obsolete` hide a registered extension, and fail closed on malformed or non-regular registries, missing manifests, registry/manifest mismatches, version ranges, and locations outside the supplied directory or through symlinks
+- keep unpinned IDE extensions at ASK or stricter and IDE integrity signals at BLOCK regardless of policy overlays
+- pin the npm CLI used by the release and publish workflows to an exact version
+
 ## 0.11.0 - 2026-10-24
 
 - add short-lived Ed25519 producer attestations for exact value-free Claude/Codex runtime inventories

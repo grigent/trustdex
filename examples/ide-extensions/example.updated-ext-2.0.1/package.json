@@ -1,0 +1,8 @@
+{
+  "name": "updated-ext",
+  "publisher": "example",
+  "displayName": "Silently Updated Example",
+  "version": "2.0.1",
+  "main": "./extension.js",
+  "activationEvents": ["onStartupFinished"]
+}

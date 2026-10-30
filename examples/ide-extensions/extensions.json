@@ -1,0 +1,20 @@
+[
+  {
+    "identifier": { "id": "example.pinned-ext" },
+    "version": "1.0.0",
+    "relativeLocation": "example.pinned-ext-1.0.0",
+    "metadata": { "source": "gallery", "targetPlatform": "undefined", "preRelease": false }
+  },
+  {
+    "identifier": { "id": "example.updated-ext" },
+    "version": "2.0.1",
+    "relativeLocation": "example.updated-ext-2.0.1",
+    "metadata": { "source": "gallery", "targetPlatform": "undefined", "preRelease": false }
+  },
+  {
+    "identifier": { "id": "example.sideloaded-ext" },
+    "version": "0.1.0",
+    "relativeLocation": "example.sideloaded-ext-0.1.0",
+    "metadata": { "source": "vsix", "targetPlatform": "undefined", "preRelease": false }
+  }
+]

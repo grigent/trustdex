@@ -6,6 +6,12 @@
 
 ## 미출시
 
+- VS Code 호환 에디터 확장 디렉터리(VS Code, Cursor)를 위한 `inspect-ide-extensions`, `snapshot-ide-extensions`, `approve-ide-extensions`, `recheck-ide-extensions` 추가
+- IDE 확장은 정확한 버전의 `trustedIdeExtensions` 고정(선택적으로 설치 파일 다이제스트 포함)으로만 허용하고, 정책 오버레이가 줄일 수 없는 `blockedIdeExtensions` 차단 목록 추가
+- 심볼릭 링크를 따라가지 않고 설치된 모든 확장 파일(내용과 실행 권한)의 다이제스트를 계산하고, `.obsolete`가 등록된 확장을 숨기지 못하게 하며, 잘못되었거나 일반 파일이 아닌 설치 기록, 누락된 매니페스트, 설치 기록과 매니페스트 불일치, 버전 범위, 지정 디렉터리 밖이나 심볼릭 링크를 거치는 위치에 대해 실패 시 차단
+- 정책 오버레이와 관계없이 고정되지 않은 IDE 확장은 ASK 이상, IDE 무결성 신호는 BLOCK으로 유지
+- 릴리스 및 배포 워크플로가 사용하는 npm CLI를 정확한 버전으로 고정
+
 ## 0.11.0 - 2026-10-24
 
 - 정확한 값 없는 Claude/Codex 런타임 인벤토리를 위한 수명이 짧은 Ed25519 생성자 증명 추가
