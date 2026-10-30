@@ -50,9 +50,14 @@ function assertNoLeak(args, result) {
 
 function assertFilesClean(dir) {
   for (const entry of fs.readdirSync(dir, { recursive: true })) {
-    const file = path.join(dir, entry);
-    if (fs.statSync(file).isDirectory()) continue;
-    const found = leaked(fs.readFileSync(file, 'utf8'));
+    let text;
+    try {
+      text = fs.readFileSync(path.join(dir, entry), 'utf8');
+    } catch (error) {
+      if (error.code === 'EISDIR') continue;
+      throw error;
+    }
+    const found = leaked(text);
     assert.deepEqual(found, [], `${entry} contains ${found.join(', ')}`);
   }
 }
