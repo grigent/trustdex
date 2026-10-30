@@ -13,7 +13,7 @@ This page defines the machine-readable contract for (1) and the operating rules 
 
 ## The decision contract
 
-Every inspection command (`inspect`, `inspect-claude`, `inspect-skill`, `inspect-plugin`, `inspect-codex`, `inspect-claude-settings[-stack]`, `inspect-codex-settings[-stack]`, `inspect-ide-extensions`) accepts `--decisions` (on `main` now; first included in the release after 0.11.0):
+Every inspection command (`inspect`, `inspect-claude`, `inspect-skill`, `inspect-plugin`, `inspect-codex`, `inspect-claude-settings[-stack]`, `inspect-codex-settings[-stack]`, `inspect-ide-extensions`) accepts `--decisions` (TrustDex 0.12.0 and later):
 
 ```bash
 npx trustdex@<exact-version> inspect ./.mcp.json --pack strict --policy ./trustdex.policy.json --decisions
