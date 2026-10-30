@@ -212,12 +212,15 @@ function argumentCredentials(arg) {
   if (embedded?.unparseable && value.includes('@')) return `${flag}${UNPARSEABLE_PACKAGE_SPEC}`;
   // Any "scheme://userinfo@" anywhere in the argument (jdbc:postgresql://, -ehttps://,
   // wss://token@, or a URL whose port makes the parser throw) is treated as a credential
-  // unless it is an ssh username alone.
-  for (const match of arg.matchAll(/([A-Za-z][A-Za-z0-9+.-]*):\/\/([^\s/@?#]*)@/g)) {
-    const [, scheme, userinfo] = match;
-    if (!userinfo) continue;
-    if (!userinfo.includes(':') && /ssh/i.test(scheme)) continue;
-    return arg.replace(/([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^\s/@?#]*@/g, '$1');
+  // unless it is an ssh username alone. Like libpq, a "user:password" part runs to the
+  // last "@" before the first "/", so "?", "#", and spaces inside a password are covered;
+  // without a ":" the part stops at "?" or "#" so an "@" in a query is not a credential.
+  for (const match of arg.matchAll(/([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/]*)@/g)) {
+    const [, scheme, authority] = match;
+    const userinfo = authority.includes(':') ? authority : authority.split(/[?#\s]/)[0];
+    if (!userinfo || (!authority.includes(':') && /[?#\s]/.test(authority))) continue;
+    if (!userinfo.includes(':') && SSH_SCHEMES.has(scheme.toLowerCase())) continue;
+    return arg.replace(/([A-Za-z][A-Za-z0-9+.-]*:\/\/)[^/]*@/g, '$1');
   }
   return null;
 }

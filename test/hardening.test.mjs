@@ -381,3 +381,15 @@ test('round 3: empty-host URLs, ssh account changes, and argument credential for
   const withRef = (ref) => inspectOne('uvx', ['tool==1.0.0', '--with', `git+https://git.example.invalid/x#${ref}`]).fingerprint;
   assert.notEqual(withRef('v1'), withRef('attacker'));
 });
+
+test('round 4: passwords containing "?", "#", or spaces, and look-alike ssh schemes', () => {
+  for (const arg of ['--dsn=postgresql://admin:pa?SECRET@db.example.invalid/x', 'postgresql://admin:pa#SECRET@db.example.invalid/x', 'postgresql://admin:pa ss@db.example.invalid/x', 'myssh://TOKEN@h.invalid/x']) {
+    const result = inspectOne('npx', ['trusted@1.0.0', arg]);
+    assert.ok(result.signals.includes('embedded-credentials'), arg);
+    for (const pack of PACKS) {
+      assert.equal(evaluateAll([result], { ...getPolicyPack(pack), trustedPackages: ['trusted'] })[0].action, 'block', `${arg} in ${pack}`);
+    }
+  }
+  assert.ok(!inspectOne('node', ['s.js', 'https://api.example.invalid?email=a@b.invalid']).signals.includes('embedded-credentials'));
+  assert.ok(!inspectOne('node', ['s.js', 'git+ssh://git@git.example.invalid/x/y.git']).signals.includes('embedded-credentials'));
+});
