@@ -27,6 +27,7 @@ Apply these when reviewing a TrustDex pull request, including automated `@codex 
 - Flag provenance or trust-store logic that infers publisher identity from names, branding, stars, or descriptions, or that lets a provenance claim override a blocking capability signal.
 - Flag new network access outside the explicit `provenance` and `trust-source` commands, new runtime dependencies, and new `child_process` use in `bin/` or `src/`.
 - Flag parser changes (MCP JSON, Codex TOML, `SKILL.md`, plugin manifests) that silently ignore unsupported syntax instead of failing closed.
+- Flag IDE extension inspection that executes extension code, follows symlinks, reads outside the supplied directory, skips unregistered extension folders, accepts a trusted pin without an exact version, or lets a policy overlay drop a deny-list entry.
 - Flag Claude settings inspection that retains permission specifiers, hook commands, credential-helper values, directory values, domains, or environment values. Only structural capability evidence and environment-variable names may be reported.
 - Flag Codex settings inspection that retains writable-root paths or values from unrelated settings. Only the documented approval/sandbox enums, structural counts, and inspected boolean controls may be reported.
 - Flag permission posture snapshots that retain source paths, permission specifiers, writable paths, commands, domains, environment names or values, or unrelated setting values. Added autonomy or changed policy semantics must require review.

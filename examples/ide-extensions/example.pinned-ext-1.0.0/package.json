@@ -1,0 +1,8 @@
+{
+  "name": "pinned-ext",
+  "publisher": "example",
+  "displayName": "Pinned Example",
+  "version": "1.0.0",
+  "main": "./extension.js",
+  "activationEvents": ["onCommand:example.pinned.run"]
+}

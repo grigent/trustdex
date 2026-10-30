@@ -73,6 +73,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - bind each Claude/Codex MCP source decision and provenance state to its automatic tool grant without retaining tool names or rule values
 - reconcile explicit, value-free runtime MCP inventories with reviewed bindings and detect blocked or unexpected loaded servers
 - authenticate short-lived runtime inventories with Ed25519 producer attestations, expiry, and optional capture-age limits
+- inspect VS Code-compatible editor extensions (VS Code, Cursor) by exact version and installed-file digest, and require re-review when an extension is added, updated, or modified
 
 ## Compatibility
 
@@ -159,6 +160,21 @@ node ./bin/trustdex.mjs inspect-plugin ./path/to/plugin.json --pack strict
 ```
 
 These checks surface observable trust signals. They do not prove that the extension is safe.
+
+## Inspect IDE extensions
+
+Editor extensions such as the Claude Code extension for VS Code and Cursor run with your local privileges and update automatically. TrustDex inventories an extensions directory you name, digests every installed file, and only allows extensions pinned to an exact version:
+
+```bash
+node ./bin/trustdex.mjs inspect-ide-extensions ~/.cursor/extensions \
+  --pack strict --policy ./ide-policy.json
+node ./bin/trustdex.mjs approve-ide-extensions ~/.cursor/extensions \
+  --private trustdex-private.pem --dir .trustdex/ide-review --policy ./ide-policy.json
+node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
+  --review-dir .trustdex/ide-review --public trustdex-public.pem
+```
+
+An unreviewed update, such as a pinned `2.1.312` becoming `2.1.313`, is blocked by policy and reported as `NEEDS_REVIEW` by `recheck-ide-extensions`. Nothing is executed and no network request is made. See [IDE extensions](docs/IDE_EXTENSIONS.md) for signals, policy fields, and limits.
 
 ## Codex config.toml
 

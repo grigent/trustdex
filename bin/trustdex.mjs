@@ -14,6 +14,7 @@ import {
   inspectClaudeSettingsStack
 } from '../src/claude-settings.mjs';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
+import { inspectIdeExtensionsDir } from '../src/ide-extensions.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack, mergePolicy } from '../src/policy-packs.mjs';
 import { parseTrustStore, attachProvenanceAll } from '../src/provenance.mjs';
@@ -64,6 +65,12 @@ Usage:
 
   trustdex inspect-skill <SKILL.md> [--pack ...] [--policy policy.json] [--json]
   trustdex inspect-plugin <plugin.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex inspect-ide-extensions <extensions-dir> [--pack ...] [--policy policy.json] [--json]
+  trustdex snapshot-ide-extensions <extensions-dir> --out snapshot.json [--pack ...]
+  trustdex approve-ide-extensions <extensions-dir> --private key.pem --dir review [--pack ...]
+  trustdex recheck-ide-extensions <extensions-dir> --review-dir review --public key.pem [--json]
+      IDE extension commands read a VS Code-compatible extensions directory you name
+      (for example ~/.vscode/extensions or ~/.cursor/extensions). Nothing is executed.
   trustdex inspect-codex <config.toml> [--pack ...] [--policy policy.json]
       [--trust-store trust-store.json] [--json]
   trustdex inspect-codex-settings <config.toml> [--pack ...] [--policy policy.json] [--json]
@@ -258,6 +265,18 @@ async function evaluateCodex(configPath, args) {
   };
 }
 
+async function evaluateIdeExtensions(directory, args) {
+  if (getFlag(args, '--trust-store')) {
+    throw new Error('IDE extension commands do not accept --trust-store; pin exact versions with trustedIdeExtensions.');
+  }
+  const policy = await loadPolicy(args);
+  return {
+    policy,
+    store: null,
+    results: evaluateAll(await inspectIdeExtensionsDir(directory), policy)
+  };
+}
+
 async function inspectSingle(item, args) {
   const results = evaluateAll([item], await loadPolicy(args));
   printResults(results, hasFlag(args, '--json'));
@@ -438,6 +457,15 @@ async function main() {
 
   if (command === 'policy') {
     console.log(JSON.stringify(getPolicyPack(args[1] || 'strict'), null, 2));
+    return;
+  }
+
+  if (command === 'inspect-ide-extensions') {
+    const directory = args[1];
+    if (!directory) throw new Error('inspect-ide-extensions requires an extensions directory.');
+    const { results } = await evaluateIdeExtensions(directory, args);
+    printResults(results, hasFlag(args, '--json'));
+    setInspectExitCode(results);
     return;
   }
 
@@ -772,7 +800,7 @@ async function main() {
     return;
   }
 
-  if (command === 'approve' || command === 'approve-claude') {
+  if (command === 'approve' || command === 'approve-claude' || command === 'approve-ide-extensions') {
     const configPath = args[1];
     const privatePath = getFlag(args, '--private');
     const reviewDir = getFlag(args, '--dir');
@@ -780,7 +808,9 @@ async function main() {
       throw new Error('approve requires <mcp.json>, --private <key.pem>, and --dir <review-directory>.');
     }
 
-    const { policy, store, results } = await evaluateMcp(configPath, args);
+    const { policy, store, results } = command === 'approve-ide-extensions'
+      ? await evaluateIdeExtensions(configPath, args)
+      : await evaluateMcp(configPath, args);
     if (results.some((result) => result.action === 'block')) {
       throw new Error('Refusing to approve a configuration containing BLOCK decisions. Fix the policy or source first.');
     }
@@ -804,7 +834,7 @@ async function main() {
     return;
   }
 
-  if (command === 'recheck' || command === 'recheck-claude') {
+  if (command === 'recheck' || command === 'recheck-claude' || command === 'recheck-ide-extensions') {
     const configPath = args[1];
     const reviewDir = getFlag(args, '--review-dir');
     const publicPath = getFlag(args, '--public');
@@ -822,7 +852,9 @@ async function main() {
     if (trustStoreExists && !getFlag(args, '--trust-store')) {
       evalArgs.push('--trust-store', storedTrustStore);
     }
-    const { results } = await evaluateMcp(configPath, evalArgs);
+    const { results } = command === 'recheck-ide-extensions'
+      ? await evaluateIdeExtensions(configPath, evalArgs)
+      : await evaluateMcp(configPath, evalArgs);
     const current = createSnapshot(results);
     const verdict = assessReview({
       record,
@@ -849,12 +881,14 @@ async function main() {
     return;
   }
 
-  if (command === 'snapshot' || command === 'snapshot-claude') {
+  if (command === 'snapshot' || command === 'snapshot-claude' || command === 'snapshot-ide-extensions') {
     const configPath = args[1];
     const out = getFlag(args, '--out');
     if (!configPath || !out) throw new Error('snapshot requires <mcp.json> and --out <snapshot.json>.');
 
-    const { results } = await evaluateMcp(configPath, args);
+    const { results } = command === 'snapshot-ide-extensions'
+      ? await evaluateIdeExtensions(configPath, args)
+      : await evaluateMcp(configPath, args);
     const snapshot = createSnapshot(results);
     await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
     console.log(`Wrote ${out}\nDigest: ${snapshot.digest}`);

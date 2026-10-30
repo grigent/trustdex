@@ -29,6 +29,8 @@ TrustDex addresses one narrow question:
 - explicitly reported runtime inventories that expose blocked, review-required, or unconfigured MCP servers
 - effective runtime inventories expanding by server visibility or tool count
 - mutation, replay past expiry/capture-age limits, future dating, or wrong-key substitution of signed runtime inventories
+- editor extensions (VS Code, Cursor) that are unpinned, silently updated to an unreviewed version, or whose installed files changed after review
+- editor extension folders that are sideloaded, missing from the editor registry, or disagree with their registry entry
 
 ## Trust boundaries
 
@@ -59,6 +61,8 @@ TrustDex does **not** treat a familiar project name, star count, package name, o
 - intercepting or enforcing individual MCP tool calls at runtime
 - proving inventory completeness or preventing a compromised adapter or stolen producer key from signing false evidence
 - discovering live Claude/Codex sessions or reading their private state automatically
+- preventing an editor from installing an extension update, or undoing changes an installed extension already made to the host
+- extensions loaded from directories other than the one supplied to TrustDex
 
 ## Important failure mode
 

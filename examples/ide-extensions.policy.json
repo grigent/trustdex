@@ -1,0 +1,9 @@
+{
+  "trustedIdeExtensions": [
+    "example.pinned-ext@1.0.0",
+    "example.updated-ext@2.0.0"
+  ],
+  "blockedIdeExtensions": [
+    "example.sideloaded-ext@*"
+  ]
+}

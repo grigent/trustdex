@@ -73,6 +73,7 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - 각 Claude/Codex MCP 소스의 결정·출처 상태를 도구 이름이나 규칙 값 없이 자동 도구 권한과 연결
 - 명시적으로 제공된 값 없는 런타임 MCP 인벤토리를 검토된 연결과 대조해 차단되거나 예상 밖으로 로드된 서버 감지
 - 수명이 짧은 런타임 인벤토리를 Ed25519 생성자 증명, 만료 및 선택적 캡처 나이 제한으로 인증
+- VS Code 호환 에디터 확장(VS Code, Cursor)을 정확한 버전과 설치 파일 다이제스트로 검사하고, 확장이 추가·업데이트·변경되면 재검토 요구
 
 ## 호환성
 
@@ -159,6 +160,21 @@ node ./bin/trustdex.mjs inspect-plugin ./path/to/plugin.json --pack strict
 ```
 
 이 검사는 관찰 가능한 신뢰 신호를 드러냅니다. 확장이 안전하다는 것을 증명하지는 않습니다.
+
+## IDE 확장 검사
+
+VS Code와 Cursor용 Claude Code 확장 같은 에디터 확장은 사용자의 로컬 권한으로 실행되고 자동으로 업데이트됩니다. TrustDex는 사용자가 지정한 확장 디렉터리의 목록을 만들고, 설치된 모든 파일의 다이제스트를 계산하며, 정확한 버전으로 고정한 확장만 허용합니다.
+
+```bash
+node ./bin/trustdex.mjs inspect-ide-extensions ~/.cursor/extensions \
+  --pack strict --policy ./ide-policy.json
+node ./bin/trustdex.mjs approve-ide-extensions ~/.cursor/extensions \
+  --private trustdex-private.pem --dir .trustdex/ide-review --policy ./ide-policy.json
+node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
+  --review-dir .trustdex/ide-review --public trustdex-public.pem
+```
+
+고정한 `2.1.312`가 `2.1.313`으로 바뀌는 것처럼 검토하지 않은 업데이트는 정책에서 차단되고, `recheck-ide-extensions`에서 `NEEDS_REVIEW`로 보고됩니다. 아무것도 실행하지 않으며 네트워크 요청도 하지 않습니다. 신호, 정책 필드, 한계는 [IDE 확장](docs/IDE_EXTENSIONS.ko.md)을 참고하세요.
 
 ## Codex config.toml
 

@@ -1,0 +1,9 @@
+{
+  "name": "sideloaded-ext",
+  "publisher": "example",
+  "displayName": "Sideloaded Example",
+  "version": "0.1.0",
+  "main": "./extension.js",
+  "activationEvents": ["*"],
+  "capabilities": { "untrustedWorkspaces": { "supported": true } }
+}

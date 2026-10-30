@@ -1,3 +1,5 @@
+import { normalizeIdeExtensionId, parseIdeExtensionPin } from './ide-extensions.mjs';
+
 const ACTIONS = new Set(['allow', 'ask', 'block']);
 
 function normalizeAction(value, fallback) {
@@ -42,6 +44,7 @@ export function evaluateServer(server, policy = {}) {
 
   let action = unknownAction;
   const reasons = [];
+  const signals = [...(server.signals || [])];
 
   if (server.provenance?.status === 'verified') {
     action = verifiedPublisherAction;
@@ -75,6 +78,31 @@ export function evaluateServer(server, policy = {}) {
     } else if (server.provenance?.status !== 'verified') {
       reasons.push(`repository is not trusted: ${server.source.repository || 'unknown'}`);
     }
+  } else if (server.source.type === 'ide-extension') {
+    const id = normalizeIdeExtensionId(server.source.id);
+    const version = server.source.version;
+    const pins = (policy.trustedIdeExtensions || []).map((entry) => parseIdeExtensionPin(entry, 'trustedIdeExtensions'));
+    const blocked = (policy.blockedIdeExtensions || []).map((entry) => parseIdeExtensionPin(entry, 'blockedIdeExtensions'));
+    const pin = id && version ? pins.find((entry) => entry.id === id && entry.version === version) : null;
+    if (!id || !version) {
+      reasons.push('IDE extension could not be identified');
+    } else if (pin && pin.digest && pin.digest !== server.fingerprint) {
+      if (!signals.includes('ide-extension-digest-mismatch')) signals.push('ide-extension-digest-mismatch');
+      reasons.push(`installed files do not match the pinned digest for ${id}@${version}`);
+    } else if (pin) {
+      action = 'allow';
+      reasons.push(`pinned IDE extension: ${id}@${version}${pin.digest ? ' (digest matched)' : ''}`);
+    } else {
+      const other = pins.filter((entry) => entry.id === id).map((entry) => entry.version);
+      reasons.push(other.length
+        ? `installed version ${version} is not a pinned version of ${id} (pinned: ${other.join(', ')})`
+        : `IDE extension is not pinned: ${id}@${version}`);
+    }
+    const denied = blocked.find((entry) => entry.id === id && (entry.version === '*' || entry.version === version));
+    if (id && denied) {
+      action = 'block';
+      reasons.push(`blocked IDE extension: ${id}@${denied.version}`);
+    }
   } else if (['local', 'skill-file', 'plugin-manifest'].includes(server.source.type)) {
     if (server.provenance?.status !== 'verified') action = localAction;
     reasons.push('local extension requires local trust policy');
@@ -82,7 +110,7 @@ export function evaluateServer(server, policy = {}) {
     reasons.push('source could not be identified');
   }
 
-  for (const signal of server.signals || []) {
+  for (const signal of signals) {
     let next = signalAction(policy, signal);
 
     if (!next && signal === 'secret-env') next = sensitiveAction;
@@ -94,7 +122,7 @@ export function evaluateServer(server, policy = {}) {
     }
   }
 
-  return { ...server, action, reasons };
+  return { ...server, ...(signals.length !== (server.signals || []).length ? { signals: signals.sort() } : {}), action, reasons };
 }
 
 export function evaluateAll(servers, policy = {}) {

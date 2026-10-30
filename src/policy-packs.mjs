@@ -46,7 +46,19 @@ const BASE_SIGNALS = {
   'codex-subagent-settings': 'ask',
   'codex-extension-settings': 'ask',
   'uninspected-codex-settings': 'ask',
-  'uninspected-codex-sections': 'ask'
+  'uninspected-codex-sections': 'ask',
+  'ide-extension-missing-manifest': 'block',
+  'ide-extension-manifest-mismatch': 'block',
+  'ide-extension-digest-mismatch': 'block',
+  'ide-extension-external-location': 'block',
+  'ide-extension-unregistered': 'ask',
+  'ide-extension-non-gallery-source': 'ask',
+  'ide-extension-prerelease': 'ask',
+  'ide-extension-startup-activation': 'ask',
+  'ide-extension-untrusted-workspaces': 'ask',
+  'ide-extension-native-code': 'ask',
+  'ide-extension-bundles-extensions': 'ask',
+  'ide-extension-non-regular-files': 'ask'
 };
 
 export const POLICY_PACKS = Object.freeze({
@@ -61,6 +73,8 @@ export const POLICY_PACKS = Object.freeze({
     trustedPackages: [],
     trustedRepositories: [],
     allowedRemoteHosts: [],
+    trustedIdeExtensions: [],
+    blockedIdeExtensions: [],
     signalActions: BASE_SIGNALS
   }),
   'official-first': Object.freeze({
@@ -74,6 +88,8 @@ export const POLICY_PACKS = Object.freeze({
     trustedPackages: [],
     trustedRepositories: [],
     allowedRemoteHosts: [],
+    trustedIdeExtensions: [],
+    blockedIdeExtensions: [],
     signalActions: BASE_SIGNALS,
     note: 'ALLOW verified provenance assertions, ASK for local extensions, and BLOCK unknown third-party sources by default.'
   }),
@@ -88,6 +104,8 @@ export const POLICY_PACKS = Object.freeze({
     trustedPackages: [],
     trustedRepositories: [],
     allowedRemoteHosts: ['localhost', '127.0.0.1', '::1'],
+    trustedIdeExtensions: [],
+    blockedIdeExtensions: [],
     signalActions: {
       ...BASE_SIGNALS,
       'shell-execution': 'ask',
@@ -118,6 +136,9 @@ export function mergePolicy(base, overlay = {}) {
     },
     trustedPackages: overlay.trustedPackages ?? base.trustedPackages ?? [],
     trustedRepositories: overlay.trustedRepositories ?? base.trustedRepositories ?? [],
-    allowedRemoteHosts: overlay.allowedRemoteHosts ?? base.allowedRemoteHosts ?? []
+    allowedRemoteHosts: overlay.allowedRemoteHosts ?? base.allowedRemoteHosts ?? [],
+    trustedIdeExtensions: overlay.trustedIdeExtensions ?? base.trustedIdeExtensions ?? [],
+    // Deny entries accumulate so an overlay can never silently drop a base block.
+    blockedIdeExtensions: [...new Set([...(base.blockedIdeExtensions || []), ...(overlay.blockedIdeExtensions || [])])]
   };
 }
