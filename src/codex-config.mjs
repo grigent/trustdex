@@ -82,7 +82,8 @@ export function parseValue(raw) {
     const object = Object.create(null);
     for (const part of splitTopLevel(value.slice(1, -1))) {
       const index = part.indexOf('=');
-      if (index < 1) throw new Error(`Unsupported TOML inline table entry: ${part}`);
+      // Never echo the entry: it can contain a credential value.
+      if (index < 1) throw new Error('Unsupported TOML inline table entry.');
       object[unquote(part.slice(0, index).trim())] = parseValue(part.slice(index + 1));
     }
     return object;
@@ -90,7 +91,9 @@ export function parseValue(raw) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-  return value;
+  // Bare words, dates, and other TOML forms are not supported; fail closed without
+  // echoing the value.
+  throw new Error('Unsupported TOML value: quote strings and use only strings, numbers, booleans, arrays, and inline tables.');
 }
 
 export function valueComplete(value) {
