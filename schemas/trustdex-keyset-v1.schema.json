@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/grigent/trustdex/blob/main/schemas/trustdex-keyset-v1.schema.json",
+  "title": "TrustDex verification keyset v1",
+  "description": "A --keyset file is an operator-written allowlist of Ed25519 verification keys. Each id must equal the SHA-256 of the key's SPKI DER bytes (print it with `trustdex key-id`). Unknown fields, duplicate ids, id/key mismatches, non-Ed25519 or malformed keys, and malformed timestamps are rejected. Every key lists the purposes it may verify (review records, runtime-producer attestations, or both); there is no default. notBefore/notAfter and revokedAt are compared with the time signed into the evidence (trust record createdAt, attestation createdAt). A revocation without revokedAt rejects every signature by that key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "keys"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "trustdex-keyset" },
+    "note": { "type": "string" },
+    "keys": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "publicKey", "purposes"],
+        "properties": {
+          "id": { "$ref": "#/$defs/keyId" },
+          "publicKey": {
+            "type": "string",
+            "pattern": "^-----BEGIN PUBLIC KEY-----\\r?\\n(?:[A-Za-z0-9+/=]+\\r?\\n)+-----END PUBLIC KEY-----\\r?\\n?$"
+          },
+          "purposes": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "enum": ["review", "runtime-producer"] } },
+          "notBefore": { "$ref": "#/$defs/timestamp" },
+          "notAfter": { "$ref": "#/$defs/timestamp" },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "revoked": {
+      "type": "array",
+      "maxItems": 4096,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id"],
+        "properties": {
+          "id": { "$ref": "#/$defs/keyId" },
+          "revokedAt": { "$ref": "#/$defs/timestamp" },
+          "note": { "type": "string" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "keyId": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    }
+  }
+}

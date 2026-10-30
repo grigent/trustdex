@@ -80,13 +80,112 @@ future to tolerate only bounded clock skew.
 - Archive the inventory, attestation, pinned key ID, binding snapshot, and effective
   report together when audit retention is required. The effective report is
   self-consistent but is not independently signed.
-- For rotation, distribute the new public key first, update orchestration to accept the
-  old or new pinned key during a bounded overlap, then switch the producer and retire the
-  old key. TrustDex verifies one supplied key per invocation; key allowlists and revocation
-  remain deployment responsibilities.
+- `--public` pins exactly one key per invocation. For allowlists, rotation overlaps, and
+  revocation, use a `--keyset` file as described below.
 - Treat `producer-key-changed` and `inventory-authentication-changed` diffs as review
-  events. If a private key is suspected to be stolen, remove that key from verifiers and
-  reissue evidence with a new key.
+  events. If a private key is suspected to be stolen, revoke it in the keyset (without
+  `revokedAt`) and reissue evidence with a new key.
+
+## Keysets: allowlists, rotation, and revocation
+
+Every verifying command accepts `--keyset keyset.json` instead of `--public key.pem`:
+`verify`, `recheck`, `recheck-claude`, `recheck-codex`, `recheck-ide-extensions`,
+`verify-runtime-inventory`, and `snapshot-runtime-tools`. Giving both flags, or `--keyset`
+twice, is an error. `--public` behaves exactly as before.
+
+A keyset is a versioned, operator-written allowlist
+([`trustdex-keyset-v1.schema.json`](../schemas/trustdex-keyset-v1.schema.json),
+[example](../examples/trustdex-keyset.example.json)):
+
+```json
+{
+  "schemaVersion": 1,
+  "kind": "trustdex-keyset",
+  "keys": [
+    {
+      "id": "<sha256 of the SPKI DER bytes>",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
+      "purposes": ["runtime-producer"],
+      "notBefore": "2026-11-01T00:00:00.000Z",
+      "notAfter": "2027-11-01T00:00:00.000Z",
+      "note": "producer key 2026-11"
+    }
+  ],
+  "revoked": [
+    { "id": "<key id>", "note": "suspected compromise" },
+    { "id": "<key id>", "revokedAt": "2026-11-01T00:00:00.000Z", "note": "retired" }
+  ]
+}
+```
+
+- **Key ID.** `id` is the SHA-256 of the key's SPKI DER bytes, the same value as an
+  attestation's `producerKeyId`. Print it with `node ./bin/trustdex.mjs key-id key.pem`.
+- **Strict parsing.** Unknown fields, a wrong `schemaVersion` or `kind`, an empty `keys`
+  list, duplicate key or revocation IDs, an `id` that does not match its key, anything
+  other than a single canonical `PUBLIC KEY` PEM block (private keys and certificates are
+  rejected), non-Ed25519 keys, unknown purposes, timestamps that are not
+  `YYYY-MM-DDTHH:mm:ss.sssZ`, and `notAfter` not after `notBefore` are hard errors (exit
+  `2`). There is no fallback to `--public` or to a partial keyset.
+- **Purposes.** Every key must list its `purposes`: `review` keys verify trust records
+  (`verify`, `recheck*`); `runtime-producer` keys verify runtime inventory attestations.
+  There is no default, so a key verifies both only when both are listed. Prefer separate
+  keys so a review key cannot authenticate runtime evidence or the reverse.
+- **Signed time.** Windows and revocation cutoffs are evaluated at the time recorded in the
+  signed content: `createdAt` of the trust record or the attestation. `notBefore` is
+  inclusive and `notAfter` is exclusive. A review signed inside the window therefore stays
+  valid after the window closes; attestation expiry and `--max-age-seconds` still apply at
+  verification time.
+- **Trust records.** Trust records carry no key ID, so TrustDex finds the signer by trying
+  every listed key and then applies revocation, purpose, and window checks to that key.
+  With `--keyset`, a record without a valid `createdAt` is `INVALID`, and so is one whose
+  `createdAt` is more than five minutes in the future; this stops a signer from
+  forward-dating into a pre-distributed key's window. `--public` verification does not
+  apply these time checks, as before.
+- **Output.** Successful keyset verification prints the signing key ID (`Signing key:` for
+  `verify` and `recheck`, `keyId` in `recheck --json`). Errors name field positions such as
+  `keys[1].id`, never file contents, key material, or notes.
+
+### Revocation timing
+
+- A revocation **without `revokedAt` is total**: every signature by that key is `INVALID`,
+  including reviews signed long before the revocation. This is the default and the right
+  choice for a suspected compromise; re-approve affected reviews with a new key.
+- A revocation **with `revokedAt`** keeps evidence whose signed time is strictly earlier
+  than `revokedAt`; evidence signed at or after it is `INVALID`. The signed time is
+  asserted by the key holder, so anyone holding a stolen private key can backdate it. Use
+  `revokedAt` only to retire a key that is not suspected to be compromised, or treat it as
+  an explicit decision to keep trusting older evidence.
+- A revocation may name a key that is no longer listed. Keep the entry after removing a
+  key so that an accidental re-add stays rejected.
+
+### Rotation procedure
+
+1. Generate the new key pair and print its ID with `key-id`.
+2. Add the new key to the keyset, with `notBefore` set to the planned cutover or earlier,
+   and distribute the keyset to every verifier. Both keys are now accepted.
+3. Switch the signer (`approve`, `sign`) or the runtime producer
+   (`sign-runtime-inventory`) to the new private key.
+4. Close the old key: set its `notAfter` to the cutover time so existing reviews keep
+   verifying, or remove it once every review has been re-approved. Runtime attestations
+   live at most 24 hours, so an old producer key can be removed one maximum attestation
+   lifetime after the cutover.
+5. If the old key may be compromised, remove it or add it to `revoked` without
+   `revokedAt` instead.
+
+`notAfter` and `revokedAt` stop only honest signers. The signed time is chosen by whoever
+holds the private key, so a holder of the old key can sign a new review dated before the
+cutoff, and trust records do not expire. To stop a key holder, remove the key or revoke it
+without `revokedAt`. For runtime-producer keys, backdating is bounded by the 24-hour
+maximum attestation lifetime.
+
+### Revocation hook
+
+The keyset file itself is the revocation hook. TrustDex reads it on every verification and
+performs no network lookup, no CRL or OCSP fetch, no caching, and no process execution.
+Deployments supply revocations by updating the file through their own channel, such as a
+reviewed repository commit, configuration management, or a CI artifact. Protect the keyset
+like a pinned public key: anyone who can write it can add a key or remove a revocation.
+TrustDex does not sign the keyset itself.
 
 The contracts are defined by
 [`runtime-tool-inventory-v1.schema.json`](../schemas/runtime-tool-inventory-v1.schema.json),

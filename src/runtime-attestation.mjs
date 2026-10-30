@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 
 import { canonicalJson, sha256Json } from './canonical.mjs';
+import { isKeyset, isWeakEd25519Key, spkiKeyId } from './keyset.mjs';
 import {
   normalizeRuntimeToolInventory,
   runtimeToolInventoryDigest
@@ -43,11 +44,10 @@ function requireTimestamp(value, field) {
 
 function publicKeyId(publicKey) {
   const key = publicKey?.type === 'public' ? publicKey : crypto.createPublicKey(publicKey);
-  if (key.asymmetricKeyType !== 'ed25519') {
+  if (key.asymmetricKeyType !== 'ed25519' || isWeakEd25519Key(key)) {
     throw new Error('Runtime inventory attestations require an Ed25519 key.');
   }
-  const der = key.export({ type: 'spki', format: 'der' });
-  return crypto.createHash('sha256').update(der).digest('hex');
+  return spkiKeyId(key);
 }
 
 function payload(record) {
@@ -143,11 +143,25 @@ export function verifyRuntimeInventoryAttestation(inventoryInput, recordInput, p
     return invalid(error.message);
   }
 
+  // A keyset selects the key by the signed producerKeyId and checks revocation, purpose,
+  // and the key's validity window at the signed createdAt; a single --public key is pinned.
   let keyId;
-  try { keyId = publicKeyId(publicKeyPem); } catch {
-    return invalid('Invalid runtime inventory attestation public key.');
+  let verificationKey = publicKeyPem;
+  if (isKeyset(publicKeyPem)) {
+    const decision = publicKeyPem.authorize({
+      keyId: record.producerKeyId,
+      purpose: 'runtime-producer',
+      signedAt: record.createdAt
+    });
+    if (!decision.ok) return invalid(`Runtime inventory producer key ${decision.reason}.`);
+    keyId = record.producerKeyId;
+    verificationKey = decision.key;
+  } else {
+    try { keyId = publicKeyId(publicKeyPem); } catch {
+      return invalid('Invalid runtime inventory attestation public key.');
+    }
+    if (record.producerKeyId !== keyId) return invalid('Runtime inventory producer key does not match.');
   }
-  if (record.producerKeyId !== keyId) return invalid('Runtime inventory producer key does not match.');
   const inventoryDigest = runtimeToolInventoryDigest(inventory);
   if (record.inventoryDigest !== inventoryDigest ||
       record.runtime !== inventory.runtime ||
@@ -185,7 +199,7 @@ export function verifyRuntimeInventoryAttestation(inventoryInput, recordInput, p
     valid = crypto.verify(
       null,
       Buffer.from(canonicalJson(payload(record))),
-      publicKeyPem,
+      verificationKey,
       Buffer.from(record.signature, 'base64')
     );
   } catch {

@@ -73,6 +73,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - bind each Claude/Codex MCP source decision and provenance state to its automatic tool grant without retaining tool names or rule values
 - reconcile explicit, value-free runtime MCP inventories with reviewed bindings and detect blocked or unexpected loaded servers
 - authenticate short-lived runtime inventories with Ed25519 producer attestations, expiry, and optional capture-age limits
+- verify review records and runtime attestations against a strict keyset allowlist with key purposes, validity windows, rotation, and revocation
 - inspect VS Code-compatible editor extensions (VS Code, Cursor) by exact version and installed-file digest, and require re-review when an extension is added, updated, or modified
 - emit a versioned, fail-closed JSON decision contract for agents and automation, and validate policy files strictly against a published schema
 
@@ -392,6 +393,15 @@ of tool names, same-count tool-set substitutions remain outside this comparison.
 [Authenticated runtime evidence](docs/RUNTIME_EVIDENCE.md) for verification, key rotation,
 and threat-boundary guidance.
 
+Every verifying command (`verify`, `recheck*`, `verify-runtime-inventory`,
+`snapshot-runtime-tools`) also accepts `--keyset keyset.json` instead of `--public`: a
+strictly validated `trustdex-keyset` allowlist with per-key purpose, validity windows,
+overlapping keys for rotation, and revocations
+([`schemas/trustdex-keyset-v1.schema.json`](schemas/trustdex-keyset-v1.schema.json)).
+`node ./bin/trustdex.mjs key-id key.pem` prints the key ID to list. See
+[Keysets](docs/RUNTIME_EVIDENCE.md#keysets-allowlists-rotation-and-revocation) for the
+revocation-timing rules and rotation procedure.
+
 ## Online provenance observations
 
 Normal inspection remains local-only. These commands perform an explicit network lookup only when invoked:
@@ -531,6 +541,16 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 ```
 
 The private key should never be committed.
+
+To accept several review keys during rotation, or to revoke one, verify against a keyset
+instead of a single key (see
+[Keysets](docs/RUNTIME_EVIDENCE.md#keysets-allowlists-rotation-and-revocation)):
+
+```bash
+node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
+  --keyset .trustdex/keyset.json \
+  --snapshot .trustdex/baseline.json
+```
 
 `approve`/`recheck` also exist per adapter: `approve-claude`/`recheck-claude` for Claude MCP JSON, `approve-codex`/`recheck-codex` for Codex `config.toml` (see [Codex](docs/CODEX.md)), and `approve-ide-extensions`/`recheck-ide-extensions` for editor extensions.
 

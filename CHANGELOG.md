@@ -33,6 +33,10 @@
 - digest every installed extension file (contents and executable bit) without following symlinks, never let `.obsolete` hide a registered extension, and fail closed on malformed or non-regular registries, missing manifests, registry/manifest mismatches, version ranges, and locations outside the supplied directory or through symlinks
 - keep unpinned IDE extensions at ASK or stricter and IDE integrity signals at BLOCK regardless of policy overlays
 - pin the npm CLI used by the release and publish workflows to an exact version
+- add `--keyset keyset.json` as an alternative to `--public` on `verify`, every `recheck*` command, `verify-runtime-inventory`, and `snapshot-runtime-tools`: a strictly validated `trustdex-keyset` v1 allowlist (schema published) with SHA-256 SPKI key IDs, required `purposes` (`review`, `runtime-producer`, or both, with no default), `notBefore`/`notAfter` windows checked at the signed `createdAt`, multiple active keys for rotation, and a revocation list in the same file; giving both flags, either flag twice, or the `--flag=value` form is an error; key-set JSON with a repeated field name is rejected
+- reject small-order and non-canonical Ed25519 public keys, which accept forged signatures, and non-canonical base64 signatures in trust records, including with `--public`
+- treat a revocation without `revokedAt` as total (every signature by the key is INVALID); with `revokedAt`, keep only evidence signed strictly earlier, and document that this time is asserted by the key holder
+- in keyset mode, reject trust records without a valid signed `createdAt` or with one more than five minutes in the future, and print only the signing key ID; add `key-id` to print a public key's ID
 
 ## 0.11.0 - 2026-10-24
 

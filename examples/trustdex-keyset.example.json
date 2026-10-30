@@ -1,0 +1,36 @@
+{
+  "$schema": "../schemas/trustdex-keyset-v1.schema.json",
+  "schemaVersion": 1,
+  "kind": "trustdex-keyset",
+  "note": "Example only: the matching private keys were discarded. Replace every key with your own.",
+  "keys": [
+    {
+      "id": "b32538ce98972618441b915bb85da95bb5fcd83d79b9e0a692badcbe4cf910ec",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAFK9D0t366og4BfCh4i9CapscZqAgXGAWsVZn4CM8Ces=\n-----END PUBLIC KEY-----\n",
+      "purposes": ["review"],
+      "notBefore": "2026-01-01T00:00:00.000Z",
+      "note": "review key 2026"
+    },
+    {
+      "id": "c3815d8799980823c311748b3f05ac557a25c25a549c2953ad7c57af6d133d8d",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5PGkGxZXE4AM1ruu8fsOa0lPGOv6gmbxi+0ESmhT294=\n-----END PUBLIC KEY-----\n",
+      "purposes": ["runtime-producer"],
+      "notBefore": "2026-01-01T00:00:00.000Z",
+      "notAfter": "2026-12-01T00:00:00.000Z",
+      "note": "producer key, retiring"
+    },
+    {
+      "id": "74c5a919152d29ff438e05a65acbb8941351eca46a3b60662fbb7722d8dfd33e",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAerl6lAy+svFwE6Q/G2UrrgUhr4v8XX7caVDB2EZIKd8=\n-----END PUBLIC KEY-----\n",
+      "purposes": ["runtime-producer"],
+      "notBefore": "2026-11-01T00:00:00.000Z",
+      "note": "producer key, rotation successor"
+    }
+  ],
+  "revoked": [
+    {
+      "id": "31352dce6b62e1332be108b994a2eafa9a5b07612254d8839a4f30ba44f06d3d",
+      "note": "suspected compromise: every signature rejected"
+    }
+  ]
+}
