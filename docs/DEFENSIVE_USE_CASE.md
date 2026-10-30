@@ -10,10 +10,11 @@ This document makes the legitimate defensive purpose and operating boundary of T
 
 As coding agents become more autonomous, their effective attack surface includes more than the model. It also includes the tools they can load, the permissions they receive without a prompt, the credentials those tools can reference, and the configuration changes that may silently widen access over time.
 
-TrustDex researches and implements pre-exposure controls for that surface. The current project asks two concrete questions:
+TrustDex researches and implements pre-exposure controls for that surface. The current project asks three concrete questions:
 
 1. Should an agent be allowed to see and invoke a particular MCP server, skill, or plugin under an explicit local policy?
 2. Do Claude Code or Codex settings grant automatic shell, filesystem, network, MCP, subagent, or sandbox capabilities that need review or blocking?
+3. Is an installed AI-agent editor extension (VS Code, Cursor) exactly the build that was reviewed, or did an update or tampering change it?
 
 ## Intended defensive work
 
@@ -48,6 +49,7 @@ This work is defensive engineering. It does not require credential theft, persis
 | Reconcile source trust with automatic grants | value-free Claude/Codex binding snapshots, schemas, diffs, and inert fixtures |
 | Compare reviewed intent with explicit runtime evidence | value-free inventory contract, short-lived Ed25519 producer attestations, effective-boundary reconciliation, and exposure drift tests |
 | Reduce supply-chain ambiguity | explicit provenance observations, artifact digest verification, release checksums, SBOMs, and build attestations |
+| Detect unreviewed editor extension updates | exact-version pins, installed-file digests, signed review and recheck of VS Code-compatible extension directories, and bypass regression tests |
 | Keep research reproducible | inert fixtures, documented expectations, cross-platform CI, and CodeQL |
 
 An ALLOW result is still only a policy result over observed evidence. TrustDex is not a sandbox, malware scanner, or proof that third-party code is safe.
@@ -79,6 +81,12 @@ sources and unexpected servers without retaining tool names. Authentication does
 prove capture completeness or protect a compromised adapter; see
 [Authenticated runtime evidence](RUNTIME_EVIDENCE.md).
 
+## Editor extension supply-chain research
+
+In October 2026, Cursor reported that a modified build of an AI coding-agent extension was distributed through its extension marketplace as an ordinary update. `inspect-ide-extensions`, `approve-ide-extensions`, and `recheck-ide-extensions` address that class of incident defensively: they inventory a user-supplied extensions directory, digest every installed file without executing anything or following symlinks, allow only exact-version pins, and require re-review when an extension is added, updated, or modified.
+
+This work did not obtain, execute, or analyze the malicious build. Tests use inert fixture extensions under `examples/ide-extensions` and temporary directories. Bypasses found during independent review (registry `.obsolete` hiding, symlinked paths, version ranges, policy-overlay downgrades) are fixed and covered by regression tests. See [IDE extensions](IDE_EXTENSIONS.md) for the exact checks and limits.
+
 ## CVP application boundary
 
 Anthropic's current Cyber Verification Program application asks for verifiable identity or organization details, a description of security work, and an attestation to the controls for the requested tier. This repository can support the security-work description, but repository changes cannot establish the operator's identity or satisfy account and device controls by themselves.
@@ -103,4 +111,10 @@ node ./bin/trustdex.mjs inspect-codex-settings \
   --pack strict
 ```
 
-The Claude command intentionally exits with code `2` because its example contains a shell auto-approval rule. The Codex command exits with code `1` because bounded workspace-write capabilities still require review. See [Defensive evaluation](EVALUATION.md), [Security research](SECURITY_RESEARCH.md), and the [Threat model](THREAT_MODEL.md) for the expected results and limitations.
+```bash
+node ./bin/trustdex.mjs inspect-ide-extensions \
+  ./examples/ide-extensions \
+  --pack strict --policy ./examples/ide-extensions.policy.json
+```
+
+The Claude command intentionally exits with code `2` because its example contains a shell auto-approval rule. The IDE extension command exits with code `2` because the example contains an extension updated past its pinned version and a deny-listed extension. The Codex command exits with code `1` because bounded workspace-write capabilities still require review. See [Defensive evaluation](EVALUATION.md), [Security research](SECURITY_RESEARCH.md), and the [Threat model](THREAT_MODEL.md) for the expected results and limitations.
