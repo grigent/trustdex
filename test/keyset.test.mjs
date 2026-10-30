@@ -29,8 +29,10 @@ function keyPair() {
   return { ...keys, id: spkiKeyId(crypto.createPublicKey(keys.publicKey)) };
 }
 
+const BOTH = ['review', 'runtime-producer'];
+
 function entry(keys, extra = {}) {
-  return { id: keys.id, publicKey: keys.publicKey, ...extra };
+  return { id: keys.id, publicKey: keys.publicKey, purposes: BOTH, ...extra };
 }
 
 function keyset(keys, extra = {}) {
@@ -104,8 +106,8 @@ test('a valid keyset verifies review records and runtime attestations and names 
   const review = keyPair();
   const producer = keyPair();
   const set = parseKeyset(keyset([
-    entry(review, { purpose: 'review' }),
-    entry(producer, { purpose: 'runtime-producer', notBefore: '2026-01-01T00:00:00.000Z' })
+    entry(review, { purposes: ['review'] }),
+    entry(producer, { purposes: ['runtime-producer'], notBefore: '2026-01-01T00:00:00.000Z' })
   ]));
 
   const record = signRecord(review.privateKey);
@@ -122,7 +124,7 @@ test('a valid keyset verifies review records and runtime attestations and names 
   assert.equal(verdict.keyId, review.id);
 });
 
-test('a key without purpose verifies both roles; an unlisted key verifies nothing', () => {
+test('a key listing both purposes verifies both roles; an unlisted key verifies nothing', () => {
   const shared = keyPair();
   const outsider = keyPair();
   const set = parseKeyset(keyset([entry(shared)]));
@@ -142,8 +144,8 @@ test('rotation: old and new keys overlap, then the old key is removed', () => {
   const newRecord = signRecord(newKey.privateKey);
 
   const overlap = parseKeyset(keyset([
-    entry(oldKey, { purpose: 'review', notAfter: '2026-11-01T00:00:00.000Z' }),
-    entry(newKey, { purpose: 'review', notBefore: '2026-10-01T00:00:00.000Z' })
+    entry(oldKey, { purposes: ['review'], notAfter: '2026-11-01T00:00:00.000Z' }),
+    entry(newKey, { purposes: ['review'], notBefore: '2026-10-01T00:00:00.000Z' })
   ]));
   assert.equal(verifyTrustRecord(oldRecord, overlap, { now }).keyId, oldKey.id);
   assert.equal(verifyTrustRecord(newRecord, overlap, { now }).keyId, newKey.id);
@@ -152,13 +154,13 @@ test('rotation: old and new keys overlap, then the old key is removed', () => {
   assert.equal(verifyTrustRecord(oldRecord, overlap, { now: '2027-01-01T00:00:00.000Z' }).valid, true);
 
   const overlapProducers = parseKeyset(keyset([
-    entry(oldKey, { purpose: 'runtime-producer' }),
-    entry(newKey, { purpose: 'runtime-producer' })
+    entry(oldKey, { purposes: ['runtime-producer'] }),
+    entry(newKey, { purposes: ['runtime-producer'] })
   ]));
   assert.equal(verifyRuntime(oldKey, overlapProducers).valid, true);
   assert.equal(verifyRuntime(newKey, overlapProducers).valid, true);
 
-  const retired = parseKeyset(keyset([entry(newKey, { purpose: 'review' })]));
+  const retired = parseKeyset(keyset([entry(newKey, { purposes: ['review'] })]));
   assert.equal(verifyTrustRecord(oldRecord, retired, { now }).reason, 'signature does not match any key in the keyset');
   assert.equal(verifyTrustRecord(newRecord, retired, { now }).valid, true);
 });
@@ -232,12 +234,12 @@ test('keyset mode requires a valid, non-future signed time on trust records', ()
 
 test('purpose restricts a key to review records or runtime-producer attestations', () => {
   const keys = keyPair();
-  const reviewOnly = parseKeyset(keyset([entry(keys, { purpose: 'review' })]));
+  const reviewOnly = parseKeyset(keyset([entry(keys, { purposes: ['review'] })]));
   assert.equal(verifyTrustRecord(signRecord(keys.privateKey), reviewOnly, { now }).valid, true);
   assert.equal(verifyRuntime(keys, reviewOnly).reason,
     'Runtime inventory producer key is not authorized for runtime-producer use.');
 
-  const producerOnly = parseKeyset(keyset([entry(keys, { purpose: 'runtime-producer' })]));
+  const producerOnly = parseKeyset(keyset([entry(keys, { purposes: ['runtime-producer'] })]));
   assert.equal(verifyRuntime(keys, producerOnly).valid, true);
   assert.deepEqual(verifyTrustRecord(signRecord(keys.privateKey), producerOnly, { now }), {
     valid: false, reason: 'signing key is not authorized for review use', keyId: keys.id
@@ -261,7 +263,7 @@ test('malformed keysets fail closed', () => {
     [keyset([]), /keys must be a non-empty array/],
     [keyset('x'), /keys must be a non-empty array/],
     [keyset([entry(a, { extra: 1 })]), /keys\[0\] has an unknown field/],
-    [keyset([entry(a, { purposes: ['review'] })]), /keys\[0\] has an unknown field/],
+    [keyset([entry(a, { purpose: 'review' })]), /keys\[0\] has an unknown field/],
     [keyset([entry(a), entry(a)]), /keys\[1\]\.id duplicates another key/],
     [keyset([entry(a, { id: b.id })]), /keys\[0\]\.id does not match its public key/],
     [keyset([entry(a, { id: a.id.toUpperCase() })]), /keys\[0\]\.id must be a lowercase SHA-256 key ID/],
@@ -275,7 +277,11 @@ test('malformed keysets fail closed', () => {
       /keys\[0\]\.publicKey is not a valid public key/],
     [keyset([entry(a, { publicKey: a.publicKey.replace('\n-----END', 'AAAA\n-----END') })]),
       /keys\[0\]\.publicKey is not a PEM public key/],
-    [keyset([entry(a, { purpose: 'admin' })]), /keys\[0\]\.purpose must be one of/],
+    [keyset([entry(a, { purposes: ['admin'] })]), /keys\[0\]\.purposes must be a non-empty list/],
+    [keyset([entry(a, { purposes: undefined })]), /keys\[0\]\.purposes must be a non-empty list/],
+    [keyset([entry(a, { purposes: [] })]), /keys\[0\]\.purposes must be a non-empty list/],
+    [keyset([entry(a, { purposes: 'review' })]), /keys\[0\]\.purposes must be a non-empty list/],
+    [keyset([entry(a, { purposes: ['review', 'review'] })]), /keys\[0\]\.purposes must be a non-empty list/],
     [keyset([entry(a, { notBefore: '2026-01-01' })]), /keys\[0\]\.notBefore must be a UTC timestamp/],
     [keyset([entry(a, { notAfter: '2026-01-01T00:00:00Z' })]), /keys\[0\]\.notAfter must be a UTC timestamp/],
     [keyset([entry(a, { notAfter: 1767225600000 })]), /keys\[0\]\.notAfter must be a UTC timestamp/],
@@ -310,9 +316,9 @@ test('the keyset schema and example match the parser contract', () => {
   assert.deepEqual(Object.keys(schema.properties).sort(),
     ['$schema', 'keys', 'kind', 'note', 'revoked', 'schemaVersion']);
   assert.deepEqual(Object.keys(schema.properties.keys.items.properties).sort(),
-    ['id', 'notAfter', 'notBefore', 'note', 'publicKey', 'purpose']);
+    ['id', 'notAfter', 'notBefore', 'note', 'publicKey', 'purposes']);
   assert.deepEqual(Object.keys(schema.properties.revoked.items.properties).sort(), ['id', 'note', 'revokedAt']);
-  assert.deepEqual(schema.properties.keys.items.properties.purpose.enum, KEY_PURPOSES);
+  assert.deepEqual(schema.properties.keys.items.properties.purposes.items.enum, KEY_PURPOSES);
   assert.equal(schema.additionalProperties, false);
 
   const example = JSON.parse(fs.readFileSync(path.join(root, 'examples/trustdex-keyset.example.json'), 'utf8'));
@@ -330,12 +336,12 @@ test('CLI: --keyset verifies every command, rejects --public with --keyset, and 
     producerPrivate: write('keys/producer-private.pem', producer.privateKey),
     producerPublic: write('keys/producer-public.pem', producer.publicKey),
     keyset: write('keyset.json', keyset([
-      entry(review, { purpose: 'review' }),
-      entry(producer, { purpose: 'runtime-producer' })
+      entry(review, { purposes: ['review'] }),
+      entry(producer, { purposes: ['runtime-producer'] })
     ])),
     revokedKeyset: write('revoked-keyset.json', keyset([
-      entry(review, { purpose: 'review' }),
-      entry(producer, { purpose: 'runtime-producer' })
+      entry(review, { purposes: ['review'] }),
+      entry(producer, { purposes: ['runtime-producer'] })
     ], { revoked: [{ id: review.id }, { id: producer.id }] })),
     mcp: write('mcp.json', { mcpServers: { local: { command: 'node', args: ['server.js'] } } }),
     inventory: write('inventory.json', inventory({ capturedAt: new Date().toISOString() }))
@@ -441,7 +447,7 @@ test('CLI keyset errors never echo keyset or key contents', (t) => {
     keyset([entry(keys, { publicKey: `-----BEGIN PUBLIC KEY-----\n${canary}\n-----END PUBLIC KEY-----\n` })]),
     keyset([entry(keys, { publicKey: keys.privateKey })]),
     keyset([entry(keys, { id: canary })]),
-    keyset([entry(keys, { purpose: canary })]),
+    keyset([entry(keys, { purposes: [canary] })]),
     keyset([entry(keys, { notBefore: canary })]),
     keyset([entry(keys)], { revoked: [{ id: keys.id, revokedAt: canary }] }),
     keyset([entry(keys, { note: canary })], { note: canary, revoked: [{ id: keys.id, note: canary }] })

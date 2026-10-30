@@ -101,7 +101,7 @@ SPKI 바이트의 SHA-256 다이제스트입니다. 별도 인벤토리 스키�
     {
       "id": "<SPKI DER 바이트의 sha256>",
       "publicKey": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
-      "purpose": "runtime-producer",
+      "purposes": ["runtime-producer"],
       "notBefore": "2026-11-01T00:00:00.000Z",
       "notAfter": "2027-11-01T00:00:00.000Z",
       "note": "producer key 2026-11"
@@ -121,9 +121,10 @@ SPKI 바이트의 SHA-256 다이제스트입니다. 별도 인벤토리 스키�
   아닌 값(비공개 키와 인증서는 거부), Ed25519가 아닌 키, 알 수 없는 용도,
   `YYYY-MM-DDTHH:mm:ss.sssZ` 형식이 아닌 시각, `notBefore` 이후가 아닌 `notAfter`는 모두
   즉시 오류(종료 코드 `2`)입니다. `--public`이나 일부만 유효한 키셋으로 대신 진행하지 않습니다.
-- **용도.** `review` 키는 신뢰 기록(`verify`, `recheck*`)을, `runtime-producer` 키는
-  런타임 인벤토리 증명을 검증합니다. `purpose`가 없는 키는 둘 다 검증합니다. 검토 키가
-  런타임 증거를 인증하거나 그 반대가 되지 않도록 용도를 지정하세요.
+- **용도.** 모든 키는 `purposes`를 반드시 나열해야 합니다. `review` 키는 신뢰 기록(`verify`,
+  `recheck*`)을, `runtime-producer` 키는 런타임 인벤토리 증명을 검증합니다. 기본값이 없으므로
+  둘 다 나열한 키만 둘 다 검증합니다. 검토 키가 런타임 증거를 인증하거나 그 반대가 되지
+  않도록 키를 분리하는 것을 권장합니다.
 - **서명된 시각.** 유효 기간과 폐기 기준 시각은 서명된 내용에 기록된 시각, 즉 신뢰 기록이나
   증명의 `createdAt`으로 평가합니다. `notBefore`는 포함하고 `notAfter`는 제외합니다.
   따라서 유효 기간 안에 서명된 검토는 기간이 끝난 뒤에도 유효합니다. 증명 만료와

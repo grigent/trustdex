@@ -35,7 +35,6 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 ## Next: strengthen effective-runtime evidence
 
 - ship concrete opt-in adapters only where a runtime exposes an authorized stable interface
-- add deployment-facing public-key allowlists, rotation, and revocation hooks
 - document transport hardening around the message-level producer signature
 - extend effective evidence beyond MCP visibility while retaining value-free reports
 - publish a tested compatibility matrix for supported adapter/runtime versions

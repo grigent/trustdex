@@ -105,7 +105,7 @@ A keyset is a versioned, operator-written allowlist
     {
       "id": "<sha256 of the SPKI DER bytes>",
       "publicKey": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----\n",
-      "purpose": "runtime-producer",
+      "purposes": ["runtime-producer"],
       "notBefore": "2026-11-01T00:00:00.000Z",
       "notAfter": "2027-11-01T00:00:00.000Z",
       "note": "producer key 2026-11"
@@ -126,9 +126,10 @@ A keyset is a versioned, operator-written allowlist
   rejected), non-Ed25519 keys, unknown purposes, timestamps that are not
   `YYYY-MM-DDTHH:mm:ss.sssZ`, and `notAfter` not after `notBefore` are hard errors (exit
   `2`). There is no fallback to `--public` or to a partial keyset.
-- **Purpose.** `review` keys verify trust records (`verify`, `recheck*`);
-  `runtime-producer` keys verify runtime inventory attestations. A key without `purpose`
-  verifies both; set it so a review key cannot authenticate runtime evidence or vice versa.
+- **Purposes.** Every key must list its `purposes`: `review` keys verify trust records
+  (`verify`, `recheck*`); `runtime-producer` keys verify runtime inventory attestations.
+  There is no default, so a key verifies both only when both are listed. Prefer separate
+  keys so a review key cannot authenticate runtime evidence or the reverse.
 - **Signed time.** Windows and revocation cutoffs are evaluated at the time recorded in the
   signed content: `createdAt` of the trust record or the attestation. `notBefore` is
   inclusive and `notAfter` is exclusive. A review signed inside the window therefore stays

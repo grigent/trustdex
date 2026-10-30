@@ -8,7 +8,7 @@ export const KEYSET_KIND = 'trustdex-keyset';
 export const KEY_PURPOSES = Object.freeze(['review', 'runtime-producer']);
 
 const TOP_FIELDS = new Set(['$schema', 'schemaVersion', 'kind', 'note', 'keys', 'revoked']);
-const KEY_FIELDS = new Set(['id', 'publicKey', 'purpose', 'notBefore', 'notAfter', 'note']);
+const KEY_FIELDS = new Set(['id', 'publicKey', 'purposes', 'notBefore', 'notAfter', 'note']);
 const REVOKED_FIELDS = new Set(['id', 'revokedAt', 'note']);
 const KEY_ID_PATTERN = /^[a-f0-9]{64}$/;
 // Exactly one SPKI "PUBLIC KEY" block. Private keys, certificates, and other PEM labels
@@ -115,7 +115,7 @@ class Keyset {
       // strictly earlier survives; the signed time is asserted by the key holder.
       if (revokedAt === null || signedMs >= revokedAt) return { ok: false, key: null, reason: 'is revoked' };
     }
-    if (entry.purpose !== null && entry.purpose !== purpose) {
+    if (!entry.purposes.includes(purpose)) {
       return { ok: false, key: null, reason: `is not authorized for ${purpose} use` };
     }
     if (entry.notBefore !== null && signedMs < entry.notBefore) {
@@ -154,8 +154,11 @@ export function parseKeyset(input) {
       fail(error.message);
     }
     if (spkiKeyId(key) !== id) fail(`${where}.id does not match its public key.`);
-    if (raw.purpose !== undefined && !KEY_PURPOSES.includes(raw.purpose)) {
-      fail(`${where}.purpose must be one of ${KEY_PURPOSES.join(', ')}.`);
+    // Purposes are required: a key never gains a role because a field was left out.
+    const purposes = raw.purposes;
+    if (!Array.isArray(purposes) || purposes.length === 0 ||
+      !purposes.every((purpose) => KEY_PURPOSES.includes(purpose)) || new Set(purposes).size !== purposes.length) {
+      fail(`${where}.purposes must be a non-empty list of distinct values from ${KEY_PURPOSES.join(', ')}.`);
     }
     optionalString(raw.note, `${where}.note`);
     const notBefore = optionalTimestamp(raw.notBefore, `${where}.notBefore`);
@@ -163,7 +166,7 @@ export function parseKeyset(input) {
     if (notBefore !== null && notAfter !== null && notAfter <= notBefore) {
       fail(`${where}.notAfter must follow notBefore.`);
     }
-    keys.push(Object.freeze({ id, key, purpose: raw.purpose ?? null, notBefore, notAfter }));
+    keys.push(Object.freeze({ id, key, purposes: Object.freeze([...purposes]), notBefore, notAfter }));
   });
 
   const revoked = new Map();

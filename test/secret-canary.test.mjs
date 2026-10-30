@@ -177,7 +177,7 @@ test('no command prints or stores a planted value', () => {
   const keyset = write('keys/keyset.json', {
     schemaVersion: 1,
     kind: 'trustdex-keyset',
-    keys: [{ id: run(['key-id', pub]).stdout.trim(), publicKey: fs.readFileSync(pub, 'utf8'), purpose: 'review' }]
+    keys: [{ id: run(['key-id', pub]).stdout.trim(), publicKey: fs.readFileSync(pub, 'utf8'), purposes: ['review'] }]
   });
 
   const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
