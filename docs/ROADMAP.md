@@ -21,6 +21,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - TrustDex 0.11.0 adds Ed25519 producer authentication for exact runtime inventories,
   bounded expiry/capture age, schema-v2 authentication state, and fail-closed tests for
   replay, wrong-key, future-time, mutation, and unauthenticated evidence.
+- Unreleased on `main`: an IDE extension gate for VS Code and Cursor (exact-version pins, installed-file digests, signed recheck); a versioned, fail-closed `--decisions` contract for agents; strict policy validation; and published decision, policy, and snapshot schemas.
 
 ## Now: harden the boundary
 

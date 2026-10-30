@@ -58,13 +58,19 @@ node ./bin/trustdex.mjs recheck-codex ~/.codex/config.toml \
   --review-dir .trustdex/codex-review --public .trustdex/public.pem
 ```
 
-`approve-codex` refuses configurations that contain BLOCK decisions. `recheck-codex` exits `0` with `APPROVED` when every MCP server still matches the signed review. It exits `1` with `NEEDS_REVIEW` when a server is added or removed, or when a package version, endpoint, environment or bearer-token variable name, header name, `enabled_tools`/`disabled_tools`, or tool approval mode changes. It exits `2` with `INVALID` when the review bundle or its policy was altered. `snapshot-codex` writes the same v3 snapshot for use with `diff`. Reviews are adapter-specific: a Codex review cannot be satisfied by rechecking an MCP JSON file, and the reverse is also true.
+`approve-codex` refuses configurations that contain BLOCK decisions. `recheck-codex` exits `0` with `APPROVED` when every MCP server still matches the signed review. It exits `1` with `NEEDS_REVIEW` when a server is added or removed, or when a package version, endpoint, environment variable name or origin (static, forwarded, bearer token), header name or the host variable it reads, `enabled_tools`/`disabled_tools`, or tool approval mode changes. It exits `2` with `INVALID` when the review bundle or its policy was altered. `snapshot-codex` writes the same v3 snapshot for use with `diff`. Recheck with the same adapter you approved with: the Codex adapter fingerprints Codex-specific fields, so rechecking an equivalent MCP JSON file reports `NEEDS_REVIEW` instead of `APPROVED`.
 
 Like the other fingerprints, Codex snapshots omit environment, header, and token values, so rotating a credential value alone does not require re-review.
 
 ### Fail-closed parsing
 
-TrustDex parses only the TOML constructs used by Codex MCP sections. An unsupported MCP key, nested subsection, or syntax is reported as an error instead of being skipped, so a configuration TrustDex cannot fully read never silently becomes ALLOW.
+TrustDex lexes the whole `config.toml` with a small TOML lexer. It handles basic, literal, and multi-line strings, arrays, inline tables, comments, and dotted or quoted keys, so a value can never swallow the next table and a table header can never be skipped because of spacing or quoting. MCP servers must be written as `[mcp_servers.<name>]` tables, with optional `env`, `http_headers`, and `env_http_headers` subtables. Spaced or quoted spellings such as `[mcp_servers . name]` or `["mcp_servers".name]` reach the same server. These are reported as errors instead of being skipped, so a configuration TrustDex cannot fully read never silently becomes ALLOW:
+
+- a bare `[mcp_servers]` table, root-level `mcp_servers.<name>.*` keys, or a whole server written as an inline table
+- arrays of tables
+- duplicate keys or repeated server tables
+- unsupported MCP keys or subsections
+- values other than strings, numbers, booleans, arrays, and inline tables
 
 ## Inspect Codex execution permissions
 

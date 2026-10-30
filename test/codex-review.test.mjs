@@ -129,3 +129,20 @@ test('snapshot-codex writes a v3 snapshot that diff compares', () => {
   assert.equal(diff.status, 1);
   assert.match(diff.stdout, /source-changed: files/);
 });
+
+test('a server added with a spaced header after approval requires review', () => {
+  const ctx = setup();
+  approve(ctx);
+  fs.writeFileSync(ctx.config, `${BASE}\n[mcp_servers . evil]\ncommand = "node"\nargs = ["evil.js"]\n`);
+  const result = recheck(ctx, '--json');
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.ok(JSON.parse(result.stdout).changes.some((change) => change.type === 'server-added' && change.name === 'evil'));
+});
+
+test('forwarding a host secret instead of a static value requires review', () => {
+  const ctx = setup(`${BASE}\n[mcp_servers.files.env]\nGITHUB_TOKEN = "dummy"\n`);
+  approve(ctx);
+  fs.writeFileSync(ctx.config, BASE.replace('enabled_tools = ["read_file"]', 'enabled_tools = ["read_file"]\nenv_vars = ["GITHUB_TOKEN"]'));
+  const result = recheck(ctx);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+});

@@ -74,6 +74,7 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - reconcile explicit, value-free runtime MCP inventories with reviewed bindings and detect blocked or unexpected loaded servers
 - authenticate short-lived runtime inventories with Ed25519 producer attestations, expiry, and optional capture-age limits
 - inspect VS Code-compatible editor extensions (VS Code, Cursor) by exact version and installed-file digest, and require re-review when an extension is added, updated, or modified
+- emit a versioned, fail-closed JSON decision contract for agents and automation, and validate policy files strictly against a published schema
 
 ## Compatibility
 
@@ -175,6 +176,10 @@ node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
 ```
 
 An unreviewed update, such as a pinned `2.1.312` becoming `2.1.313`, is never ALLOW (BLOCK under `strict` and `official-first`, ASK under `development`) and is reported as `NEEDS_REVIEW` by `recheck-ide-extensions`. Nothing is executed and no network request is made. See [IDE extensions](docs/IDE_EXTENSIONS.md) for signals, policy fields, and limits.
+
+## Use from agents and automation
+
+Inspection commands accept `--decisions` to print a versioned, value-free JSON decision report (`schemas/trustdex-decisions-v1.schema.json`). Its exit code always matches the decision, and if inspection fails it still prints a BLOCK report, so a harness cannot fail open. Policy files are validated strictly: unknown fields and invalid actions are rejected. See [Agent integration](docs/AGENT_INTEGRATION.md) for how to read the report safely, and for how to keep the policy, trust store, and signing key out of an agent's reach.
 
 ## Codex config.toml
 

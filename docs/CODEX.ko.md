@@ -58,13 +58,19 @@ node ./bin/trustdex.mjs recheck-codex ~/.codex/config.toml \
   --review-dir .trustdex/codex-review --public .trustdex/public.pem
 ```
 
-`approve-codex`는 BLOCK 판정이 포함된 설정은 승인하지 않습니다. `recheck-codex`는 모든 MCP 서버가 서명된 검토와 일치하면 `APPROVED`와 함께 `0`으로 종료합니다. 서버가 추가·제거되거나, 패키지 버전, 엔드포인트, 환경 변수·베어러 토큰 변수 이름, 헤더 이름, `enabled_tools`/`disabled_tools`, 도구 승인 모드가 바뀌면 `NEEDS_REVIEW`와 함께 `1`로 종료합니다. 검토 번들이나 그 정책이 변조되었으면 `INVALID`와 함께 `2`로 종료합니다. `snapshot-codex`는 `diff`에 쓸 같은 v3 스냅샷을 만듭니다. 검토는 어댑터별입니다. Codex 검토는 MCP JSON 파일을 재확인해서 통과할 수 없고, 그 반대도 마찬가지입니다.
+`approve-codex`는 BLOCK 판정이 포함된 설정은 승인하지 않습니다. `recheck-codex`는 모든 MCP 서버가 서명된 검토와 일치하면 `APPROVED`와 함께 `0`으로 종료합니다. 서버가 추가·제거되거나, 패키지 버전, 엔드포인트, 환경 변수 이름이나 출처(정적 값, 전달, 베어러 토큰), 헤더 이름이나 헤더가 읽는 호스트 변수, `enabled_tools`/`disabled_tools`, 도구 승인 모드가 바뀌면 `NEEDS_REVIEW`와 함께 `1`로 종료합니다. 검토 번들이나 그 정책이 변조되었으면 `INVALID`와 함께 `2`로 종료합니다. `snapshot-codex`는 `diff`에 쓸 같은 v3 스냅샷을 만듭니다. 승인할 때 쓴 어댑터로 재확인하세요. Codex 어댑터는 Codex 고유 필드를 지문에 넣으므로, 같은 내용의 MCP JSON 파일로 재확인하면 `APPROVED`가 아니라 `NEEDS_REVIEW`가 나옵니다.
 
 다른 지문과 마찬가지로 Codex 스냅샷에는 환경 변수, 헤더, 토큰 값이 들어가지 않으므로 자격 증명 값만 바꾸는 경우에는 재검토가 필요하지 않습니다.
 
 ### 안전하게 실패하는 파싱
 
-TrustDex는 Codex MCP 섹션에 사용되는 TOML 구성만 파싱합니다. 지원하지 않는 MCP 키, 중첩 하위 섹션 또는 구문은 건너뛰지 않고 오류로 보고되므로 TrustDex가 완전히 읽을 수 없는 설정이 조용히 ALLOW가 되지 않습니다.
+TrustDex는 작은 TOML 렉서로 `config.toml` 전체를 읽습니다. 기본·리터럴·여러 줄 문자열, 배열, 인라인 테이블, 주석, 점이나 따옴표가 들어간 키를 처리하므로, 값이 다음 테이블을 삼키거나 공백·따옴표 때문에 테이블 헤더를 건너뛰는 일이 없습니다. MCP 서버는 `[mcp_servers.<name>]` 테이블로 작성해야 하며, `env`, `http_headers`, `env_http_headers` 하위 테이블을 쓸 수 있습니다. `[mcp_servers . name]`, `["mcp_servers".name]`처럼 공백이나 따옴표가 들어간 표기도 같은 서버로 인식합니다. 다음 항목은 건너뛰지 않고 오류로 보고하므로, TrustDex가 완전히 읽을 수 없는 설정이 조용히 ALLOW가 되지 않습니다.
+
+- 단독 `[mcp_servers]` 테이블, 루트 수준의 `mcp_servers.<name>.*` 키, 인라인 테이블로 작성한 서버 전체
+- 테이블 배열
+- 중복 키나 반복된 서버 테이블
+- 지원하지 않는 MCP 키나 하위 섹션
+- 문자열, 숫자, 불리언, 배열, 인라인 테이블이 아닌 값
 
 ## Codex 실행 권한 검사
 
