@@ -57,12 +57,19 @@ Potential TrustDex vulnerabilities that could put users at risk should follow [S
 
 Public reports must remove credentials, private endpoints, proprietary prompts, personal data, and exploit details that would create unnecessary risk. Research notes should prefer the minimum evidence needed to reproduce and fix the issue.
 
+## Output redaction contract
+
+TrustDex may report **names and identities**: server names, setting keys, environment-variable names, header names, signal names, extension IDs and known registry labels, remote hosts and origins, and package specs without credentials, query values, or `;params` (git refs are kept because they select a version). Simple registry specs (`name`, `@scope/name`, `name@1.2.3`, `name==1.2.3`) are shown as written; any other spec is shown only after it is parsed as a URL with a known scheme or as an scp-like remote, and a spec that cannot be parsed is shown as `<unparseable-package-spec>` and blocked in every pack. It must never report **values**: environment and header values, URL credentials and query values (including inside package specs and in any command-line argument), sensitive command-line flag values, permission specifiers, hook and helper commands, directory and writable-root paths, untrusted manifest text, and content quoted from a malformed input. This applies to stdout and stderr in every output mode (human, `--json`, `--decisions`) and to every file TrustDex writes, except gated MCP and Codex outputs, which intentionally preserve the original allowed entries.
+
+`test/secret-canary.test.mjs` enforces this rule for inspected inputs. It plants unique canaries in the value positions listed at the top of that file across MCP JSON, Claude MCP JSON, Claude settings and stacks, Codex TOML, Codex settings and stacks, skills, plugin manifests, and IDE extensions. It then runs the inspection commands in all three output modes, plus snapshot, posture, binding, gate, approve, recheck (unchanged and changed), diff, diff-permissions, diff-bindings, sign, and verify. It fails if a canary appears, in any letter case, in output or written files. A second pass checks malformed inputs. Policy and trust-store files are operator-written trust inputs and are out of scope, and the runtime-inventory commands accept only value-free inventories. When a new input format, value position, or command is added, extend the sweep in the same change.
+
 ## Current reproducible evidence
 
 - [Adversarial MCP fixtures](../examples/adversarial/README.md)
 - [Claude Code permission fixture](../examples/claude.settings.json)
 - [Codex permission fixture](../examples/codex.permissions.toml)
 - [Adversarial Claude and Codex permission posture fixtures](../examples/adversarial/permissions/README.md)
+- [Output canary sweep](../test/secret-canary.test.mjs)
 - [Evaluation record](EVALUATION.md)
 - [Defensive AI-agent security use case](DEFENSIVE_USE_CASE.md)
 - [Threat model](THREAT_MODEL.md)

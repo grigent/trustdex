@@ -16,6 +16,10 @@ const BASE_SIGNALS = {
   'embedded-credentials': 'block',
   'insecure-transport': 'block',
   'url-query-parameters': 'ask',
+  // TrustDex cannot show or track signed query values in a package URL, so it cannot be approved.
+  'package-url-query': 'block',
+  // A package spec TrustDex cannot parse can be neither shown nor reviewed.
+  'unparseable-package-spec': 'block',
   'artifact-version-mismatch': 'block',
   'claude-auto-approve': 'ask',
   'claude-broad-auto-approve': 'block',
