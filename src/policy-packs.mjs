@@ -27,6 +27,7 @@ const BASE_SIGNALS = {
   'additional-packages': 'block',
   'runner-command-mismatch': 'block',
   'runner-environment-override': 'block',
+  'ambiguous-server-transport': 'block',
   // A package spec TrustDex cannot parse can be neither shown nor reviewed.
   'unparseable-package-spec': 'block',
   'artifact-version-mismatch': 'block',

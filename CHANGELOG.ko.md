@@ -9,8 +9,10 @@
 - 러너 옵션으로 실제 설치되는 패키지를 판단: `uvx --from`과 `npx -p/--package`가 패키지를 지정하며, `uvx --python 3.12` 같은 옵션 값을 더 이상 패키지로 오인하지 않음. 레지스트리 재지정(`--registry`, `--userconfig`, `--index-url`, `--extra-index-url`, `--find-links` 등)은 `package-source-override`(BLOCK), 추가 패키지(`uvx --with`, 반복된 `-p`)는 `additional-packages`(BLOCK, `development`에서는 ASK), `npx -c/--call`과 `--node-options`는 `shell-execution`, 인식하지 못한 러너 옵션이나 `=값`을 붙인 플래그(npm은 `-y=x`를 `--yes x`로 펼침)는 `ambiguous-runner-arguments`(BLOCK)를 추가
 - 패키지·설정·설치된 실행 파일의 출처를 바꾸는 러너 옵션을 `package-source-override`(BLOCK)로 처리: npm `--cache`, `--prefix`, `--workspace`, uv `--config-file`, `--env-file`, `--constraint`, `--override`, `--build-constraint`, `--cache-dir`, `--keyring-provider`, 그리고 버전이 아닌 경로나 프로그램 이름을 준 `--python`
 - `npx -p`/`uvx --from`이 패키지 자신의 이름이 아닌 명령(`sh`, `python` 등, 검토한 패키지가 아니라 PATH에서 찾음)을 실행하면 `runner-command-mismatch`(BLOCK, `development`에서는 ASK) 추가
-- 러너 서버의 `env`가 러너·인터프리터·로더 설정(`npm_config_*`, `UV_*`, `BUN_CONFIG_*`, `NODE_OPTIONS`, `PYTHONPATH`, `LD_PRELOAD`, `DYLD_*`, `PATH`, `HOME` 등)을 지정하면 `runner-environment-override`(BLOCK) 추가
-- 정확한 버전만 고정으로 인정: `@` 뒤의 완전한 시맨틱 버전, 또는 `==` 뒤의 와일드카드 없는 PEP 440 버전(이전에는 `name@^1.0.0`, `name@1.2`, `name@1.x`, `name==1.*`도 고정으로 보고됨)
+- 러너 서버의 `env`가 러너·인터프리터·로더 설정(`npm_config_*`, `UV_*`, `BUN_OPTIONS`를 포함한 `BUN_*`, `NODE_OPTIONS`, `PYTHONPATH`, `LD_PRELOAD`, `DYLD_*`, `PATH`, `HOME`, `NODE_TLS_REJECT_UNAUTHORIZED`, CA 번들 변수 등)을 지정하면 `runner-environment-override`(BLOCK) 추가
+- `npx --no`는 더 이상 플래그로 허용하지 않음(npx가 패키지 뒤의 모든 옵션을 읽게 됨)
+- `command`와 `url`/`endpoint`를 모두 가진 서버에 `ambiguous-server-transport`(BLOCK) 추가(이전에는 원격으로만 판단)
+- 정확한 버전만 고정으로 인정: `@` 뒤의 완전한 시맨틱 버전, 또는 PEP 508 이름의 `==` 뒤에 오는 와일드카드 없는 PEP 440 버전(이전에는 `name@^1.0.0`, `name@1.2`, `name@1.x`, `name==1.*`도 고정으로 보고됨)
 - `trustedPackages`와 신뢰 저장소 패키지 주장은 레지스트리 지정에서만 이름으로 일치시키고, 신뢰한 이름으로 시작하는 URL·원격·경로(예: `trusted@https://...`)는 전체가 같을 때만 일치
 
 - **보안:** 줄 단위 Codex TOML 처리를 TOML 렉서로 교체. 이전에는 공백이나 따옴표가 들어간 헤더(`[mcp_servers . x]`, `["mcp_servers".x]`)나 루트 수준 점 키로 작성한 MCP 서버를 `inspect-codex`가 건너뛰었고, 이 서버가 검사 없이 `gate-codex`를 통과했음. 백슬래시로 끝나는 리터럴 문자열이 뒤따르는 테이블을 숨길 수 있었고, 따옴표가 들어간 설정 헤더가 `inspect-codex-settings`에서 샌드박스·승인 설정을 숨길 수 있었음. 이제 이 경우들은 모두 검사하거나 거부함

@@ -494,7 +494,8 @@ test('runner options that change the source or run code are not value options', 
     ['npx', ['-q=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
     ['npx', ['--yes=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
     ['pnpx', ['--silent=evil', 'trusted@1.0.0'], 'ambiguous-runner-arguments'],
-    ['uvx', ['-q=evil', 'trusted==1.0.0'], 'ambiguous-runner-arguments']
+    ['uvx', ['-q=evil', 'trusted==1.0.0'], 'ambiguous-runner-arguments'],
+    ['npx', ['--no', 'trusted@1.0.0', '--yes', '--registry=http://127.0.0.1:4874/'], 'ambiguous-runner-arguments']
   ];
   for (const [command, args, signal] of cases) {
     assertNeverAllowed({ command, args }, signal, `${command} ${args.join(' ')}`);
@@ -511,7 +512,7 @@ test('runner options that change the source or run code are not value options', 
 
 test('runner configuration in the server environment is flagged', () => {
   for (const key of ['npm_config_registry', 'NPM_CONFIG_PACKAGE', 'npm_config_call', 'UV_INDEX_URL', 'UV_CONFIG_FILE',
-    'UV_OVERRIDE', 'BUN_CONFIG_REGISTRY', 'NODE_OPTIONS', 'PYTHONPATH', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'PATH', 'HOME']) {
+    'UV_OVERRIDE', 'BUN_CONFIG_REGISTRY', 'BUN_OPTIONS', 'NODE_TLS_REJECT_UNAUTHORIZED', 'NODE_EXTRA_CA_CERTS', 'VIRTUAL_ENV', 'NODE_OPTIONS', 'PYTHONPATH', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES', 'PATH', 'HOME']) {
     const uv = key.startsWith('UV_') || key.startsWith('PYTHON');
     const server = uv ? { command: 'uvx', args: ['trusted==1.0.0'] } : { command: 'npx', args: ['-y', 'trusted@1.0.0'] };
     assertNeverAllowed({ ...server, env: { [key]: 'x' } }, 'runner-environment-override', key);
@@ -528,7 +529,18 @@ test('only exact versions count as pinned', () => {
     assert.equal(isPinnedPackage(spec), true, spec);
   }
   for (const spec of ['trusted@^1.0.0', 'trusted@~1.0.0', 'trusted@1.x', 'trusted@1.2', 'trusted@>=1.0.0', 'trusted@*',
-    'trusted@latest', 'trusted==1.*', 'trusted==1.0,<2', 'trusted>=1.0', 'trusted~=1.0', '@scope/trusted', 'trusted']) {
+    'trusted@latest', 'trusted==1.*', 'trusted==1.0,<2', 'trusted>=1.0', 'trusted~=1.0', '@scope/trusted', 'trusted',
+    'trusted@x||1==1.0.0', 'trusted@*==1.0.0', '@scope/trusted@x==1.0.0']) {
     assert.equal(isPinnedPackage(spec), false, spec);
+  }
+});
+
+test('a server with both a command and an endpoint is blocked as ambiguous', () => {
+  for (const field of ['url', 'endpoint']) {
+    const result = inspectServer({ type: 'stdio', command: 'npx', args: ['-y', 'evil@1.0.0'], [field]: 'https://localhost/' });
+    assert.ok(result.signals.includes('ambiguous-server-transport'), field);
+    for (const pack of ['strict', 'official-first', 'development']) {
+      assert.equal(evaluateAll([result], getPolicyPack(pack))[0].action, 'block', `${field} (${pack})`);
+    }
   }
 });

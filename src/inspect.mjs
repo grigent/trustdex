@@ -23,7 +23,9 @@ const RUNNER_OPTIONS = {
     source: ['--registry', '--userconfig', '--cache', '--prefix', '-w', '--workspace'],
     shell: ['-c', '--call', '--node-options'],
     value: [],
-    flags: ['-y', '--yes', '--no', '-q', '--quiet', '--silent', '--no-install', '--ignore-existing', '--prefer-offline', '--prefer-online', '--offline']
+    // "--no" is not listed: npx expands it to --no-yes and then reads the package as its
+    // value, so every option after the package is parsed by npm.
+    flags: ['-y', '--yes', '-q', '--quiet', '--silent', '--no-install', '--ignore-existing', '--prefer-offline', '--prefer-online', '--offline']
   },
   uv: {
     package: ['--from'],
@@ -105,7 +107,7 @@ function analyzeRunner(command, args) {
 // Environment variables that configure a package runner, the interpreter it starts, or
 // where commands are found. In an MCP server's env block they can change the registry,
 // the package, or the code that runs without changing the arguments.
-const RUNNER_ENV_RE = /^(?:npm_config_.*|uv_.*|bun_config_.*|bun_install.*|pnpm_.*|yarn_.*|corepack_.*|pip_.*|node_options|node_path|python(?:path|startup|home|userbase|safepath)|ld_preload|ld_library_path|ld_audit|dyld_.*|path|pathext|home|userprofile|xdg_config_home|appdata)$/i;
+const RUNNER_ENV_RE = /^(?:npm_config_.*|uv_.*|bun_.*|pnpm_.*|yarn_.*|corepack_.*|pip_.*|node_options|node_path|python(?:path|startup|home|userbase|safepath)|ld_preload|ld_library_path|ld_audit|dyld_.*|path|pathext|home|userprofile|xdg_(?:config|cache|data)_home|appdata|virtual_env|conda_prefix|node_tls_reject_unauthorized|node_extra_ca_certs|ssl_cert_(?:file|dir)|requests_ca_bundle)$/i;
 
 // An exact version: a full semantic version after "@" (npm treats "1.2" or "^1.2.3" as a
 // range), or a PEP 440 version without wildcards after "==".
@@ -115,7 +117,8 @@ const EXACT_PEP440_RE = /^(?:\d+!)?\d+(?:\.\d+)*(?:[-_.]?(?:a|b|c|rc|alpha|beta|
 export function isPinnedPackage(spec) {
   if (!spec) return false;
   const value = String(spec).trim();
-  const pep440 = value.match(/^[^=<>!~\s]+===?([^=]+)$/);
+  // "==" pins only a PEP 508 name; npm reads "name@x||1==1.0.0" as a range.
+  const pep440 = value.match(/^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?(?:\[[A-Za-z0-9._,-]*\])?===?([^=]+)$/);
   if (pep440) return EXACT_PEP440_RE.test(pep440[1]);
   const at = value.lastIndexOf('@');
   if (at <= 0) return false;
@@ -355,6 +358,9 @@ function normalizeServer(name, server = {}) {
   const signals = new Set(Array.isArray(server._trustdexSignals) ? server._trustdexSignals : []);
   runner.signals.forEach((signal) => signals.add(signal));
 
+  // A server with both a command and an endpoint is judged as remote below, while a
+  // client may launch the command instead.
+  if (command && (server.url || server.endpoint)) signals.add('ambiguous-server-transport');
   if (remote) signals.add('network-endpoint');
   if (remote && ['http:', 'ws:'].includes(remote.protocol)) signals.add('insecure-transport');
   if (remote?.hasEmbeddedCredentials) signals.add('embedded-credentials');
