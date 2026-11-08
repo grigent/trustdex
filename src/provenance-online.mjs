@@ -163,8 +163,22 @@ export async function inspectNpmPackage(packageName, options = {}) {
     throw new Error('npm registry response did not match the requested package.');
   }
 
-  const latest = data['dist-tags']?.latest || null;
-  const latestMeta = latest && data.versions?.[latest] ? data.versions[latest] : null;
+  // npm unpublishes packages by removing versions or leaving an unpublished marker.
+  // No valid, immutable version+digest means there is no artifact to authorize.
+  if (data?.time?.unpublished || data?.unpublished) {
+    throw new Error('npm package has been unpublished.');
+  }
+  const latest = data['dist-tags']?.latest;
+  const latestMeta = typeof latest === 'string' && data.versions &&
+    Object.hasOwn(data.versions, latest) ? data.versions[latest] : null;
+  if (!latest || !latestMeta || latestMeta.name && latestMeta.name !== name ||
+      latestMeta.version && latestMeta.version !== latest ||
+      latestMeta.yanked === true || latestMeta.unpublished === true ||
+      latestMeta.dist?.yanked === true ||
+      typeof latestMeta.dist?.integrity !== 'string' ||
+      !/^sha(?:256|384|512)-[A-Za-z0-9+/=]+(?:\\s+sha(?:256|384|512)-[A-Za-z0-9+/=]+)*$/.test(latestMeta.dist.integrity)) {
+    throw new Error('npm registry artifact metadata is missing, withdrawn, or invalid.');
+  }
   const repository = typeof data.repository === 'string'
     ? data.repository
     : data.repository?.url || latestMeta?.repository?.url || null;
@@ -221,8 +235,24 @@ export async function inspectMcpRegistryServer(serverName, options = {}) {
     throw new Error('MCP Registry response did not match the requested server.');
   }
 
+  if (['deleted', 'withdrawn', 'yanked', 'unpublished'].includes(String(server.status || '').toLowerCase()) ||
+      server.yanked === true || server.deleted === true) {
+    throw new Error('MCP Registry server version was withdrawn.');
+  }
+  if (server.packages !== undefined && !Array.isArray(server.packages) ||
+      server.remotes !== undefined && !Array.isArray(server.remotes)) {
+    throw new Error('MCP Registry package/remote metadata is malformed.');
+  }
   const packages = Array.isArray(server.packages) ? server.packages : [];
   const remotes = Array.isArray(server.remotes) ? server.remotes : [];
+  if (packages.length === 1) {
+    const pkg = packages[0];
+    if (!pkg || typeof pkg.identifier !== 'string' || !pkg.identifier ||
+        typeof pkg.version !== 'string' || !pkg.version ||
+        typeof pkg.fileSha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(pkg.fileSha256)) {
+      throw new Error('MCP Registry artifact metadata is incomplete or invalid.');
+    }
+  }
   let type = 'registry';
   let subject = server.name;
 
