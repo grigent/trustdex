@@ -164,9 +164,21 @@ export async function digestExtensionTree(directory, limits = {}) {
 
   async function visit(relative, depth) {
     if (depth > maxDepth) throw new Error('IDE extension tree exceeds the directory-depth inspection limit.');
-    const entries = await fs.readdir(path.join(directory, relative), { withFileTypes: true });
-    entriesVisited += entries.length;
-    if (entriesVisited > maxEntries) throw new Error('IDE extension tree exceeds the entry-count inspection limit.');
+    // Stream directory enumeration so a single enormous directory cannot
+    // allocate an unbounded Dirent array before the entry limit is enforced.
+    const entries = [];
+    const handle = await fs.opendir(path.join(directory, relative));
+    try {
+      for await (const entry of handle) {
+        entriesVisited += 1;
+        if (entriesVisited > maxEntries) {
+          throw new Error('IDE extension tree exceeds the entry-count inspection limit.');
+        }
+        entries.push(entry);
+      }
+    } finally {
+      // Async iteration closes DirHandle on both completion and early exit.
+    }
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const rel = relative ? `${relative}/${entry.name}` : entry.name;
