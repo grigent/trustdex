@@ -408,6 +408,9 @@ function normalizeServer(name, server = {}) {
 }
 
 export function inspectMcpConfig(config) {
+  if (config && Object.hasOwn(config, 'mcpServers') && Object.hasOwn(config, 'servers')) {
+    throw new Error('Ambiguous MCP configuration: both mcpServers and servers are present.');
+  }
   const servers = config?.mcpServers && typeof config.mcpServers === 'object'
     ? config.mcpServers
     : config?.servers && typeof config.servers === 'object'
