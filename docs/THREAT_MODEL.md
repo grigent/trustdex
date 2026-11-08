@@ -10,6 +10,7 @@ TrustDex addresses one narrow question:
 
 ## In scope
 
+- CLI output symlinks and non-regular paths redirecting generated gate/review files
 - unknown or unapproved MCP sources
 - floating package versions that can change without review
 - source changes between reviewed snapshots
