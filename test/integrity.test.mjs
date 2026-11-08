@@ -99,7 +99,7 @@ test('blocks a configured package version that differs from verified artifact ev
   const store = parseTrustStore({ version: 1, claims: [claim] });
   const [attached] = attachProvenanceAll([{
     name: 'demo',
-    source: { type: 'package', package: 'demo-server@2.0.0', pinned: true },
+    source: { type: 'package', runner: 'npx', package: 'demo-server@2.0.0', pinned: true },
     signals: []
   }], store);
 
@@ -129,7 +129,7 @@ test('keeps matching integrity-backed package evidence eligible for policy evalu
   const store = parseTrustStore({ version: 1, claims: [claim] });
   const [attached] = attachProvenanceAll([{
     name: 'demo',
-    source: { type: 'package', package: 'demo-server@1.2.3', pinned: true },
+    source: { type: 'package', runner: 'npx', package: 'demo-server@1.2.3', pinned: true },
     signals: []
   }], store);
 
