@@ -107,6 +107,8 @@ test('unpublished or malformed online registry artifacts fail closed', async () 
     { name: 'reviewed-agent', 'dist-tags': { latest: '2.0.0' },
       versions: { '2.0.0': { dist: {} } } },
     { name: 'reviewed-agent', 'dist-tags': { latest: '2.0.0' },
+      versions: { '2.0.0': { dist: { integrity: 'sha256-Zm9v' } } } },
+    { name: 'reviewed-agent', 'dist-tags': { latest: '2.0.0' },
       versions: { '2.0.0': { yanked: true, dist: { integrity: 'sha256-Zm9v' } } } }
   ]) {
     await assert.rejects(
