@@ -134,7 +134,7 @@ function looksLikePath(value) {
   if (/^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)) {
     return path.win32.isAbsolute(path.win32.normalize(value));
   }
-  return value.startsWith('/') || value.startsWith('~/') ||
+  return value.startsWith('/') || value.startsWith('~/') || value.startsWith('~\\') ||
     value.startsWith('./') || value.startsWith('../') ||
     value.startsWith('.\\') || value.startsWith('..\\');
 }

@@ -34,6 +34,20 @@ const TARGET_PLATFORMS = Object.freeze([
 ]);
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
 const MAX_MANIFEST_BYTES = 1024 * 1024;
+// Prevent an untrusted extension tree from consuming unbounded CI time, disk I/O,
+// file descriptors, or recursion. API overrides may only reduce these limits.
+const MAX_EXTENSION_FILES = 50_000;
+const MAX_EXTENSION_ENTRIES = 100_000;
+const MAX_EXTENSION_TOTAL_BYTES = 2 * 1024 * 1024 * 1024;
+const MAX_EXTENSION_DEPTH = 64;
+
+function boundedLimit(value, maximum, allowZero = false) {
+  if (value === undefined) return maximum;
+  if (!Number.isSafeInteger(value) || value < (allowZero ? 0 : 1) || value > maximum) {
+    throw new Error('Invalid IDE extension inspection resource limit.');
+  }
+  return value;
+}
 
 // Integrity signals that policy overlays may not lower below BLOCK.
 export const IDE_INTEGRITY_SIGNALS = Object.freeze([
@@ -99,11 +113,14 @@ async function readRegularFile(file, maxBytes) {
   }
 }
 
-async function hashFile(file) {
+async function hashFile(file, remainingBytes) {
   const opened = await openRegular(file);
   if (!opened || opened.nonRegular) return null;
   const { handle } = opened;
   try {
+    if (opened.size > remainingBytes) {
+      throw new Error('IDE extension tree exceeds the total byte inspection limit.');
+    }
     const hash = createHash('sha256');
     const header = Buffer.alloc(4);
     let headerLength = 0;
@@ -115,6 +132,9 @@ async function hashFile(file) {
         headerLength += take;
       }
       size += chunk.length;
+      if (size > remainingBytes) {
+        throw new Error('IDE extension tree exceeds the total byte inspection limit.');
+      }
       hash.update(chunk);
     }
     return {
@@ -131,13 +151,22 @@ async function hashFile(file) {
 // Digest every entry in the installed extension tree: relative path, size, executable
 // bit, and contents. Symlinks are recorded by target text and never followed; other
 // non-regular entries are recorded by type.
-export async function digestExtensionTree(directory) {
+export async function digestExtensionTree(directory, limits = {}) {
+  const maxFiles = boundedLimit(limits.maxFiles, MAX_EXTENSION_FILES);
+  const maxEntries = boundedLimit(limits.maxEntries, MAX_EXTENSION_ENTRIES);
+  const maxBytes = boundedLimit(limits.maxBytes, MAX_EXTENSION_TOTAL_BYTES);
+  const maxDepth = boundedLimit(limits.maxDepth, MAX_EXTENSION_DEPTH, true);
   const tree = createHash('sha256');
   const signals = new Set();
   let files = 0;
+  let entriesVisited = 0;
+  let totalBytes = 0;
 
-  async function visit(relative) {
+  async function visit(relative, depth) {
+    if (depth > maxDepth) throw new Error('IDE extension tree exceeds the directory-depth inspection limit.');
     const entries = await fs.readdir(path.join(directory, relative), { withFileTypes: true });
+    entriesVisited += entries.length;
+    if (entriesVisited > maxEntries) throw new Error('IDE extension tree exceeds the entry-count inspection limit.');
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const rel = relative ? `${relative}/${entry.name}` : entry.name;
@@ -147,15 +176,17 @@ export async function digestExtensionTree(directory) {
         tree.update(`L\0${rel}\0${await fs.readlink(full)}\n`);
       } else if (entry.isDirectory()) {
         tree.update(`D\0${rel}\n`);
-        await visit(rel);
+        await visit(rel, depth + 1);
       } else if (entry.isFile()) {
-        const file = await hashFile(full);
+        if (files >= maxFiles) throw new Error('IDE extension tree exceeds the file-count inspection limit.');
+        const file = await hashFile(full, maxBytes - totalBytes);
         if (!file) {
           signals.add('ide-extension-non-regular-files');
           tree.update(`S\0${rel}\n`);
           continue;
         }
         files += 1;
+        totalBytes += file.size;
         if (file.native || NATIVE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
           signals.add('ide-extension-native-code');
         }
@@ -167,7 +198,7 @@ export async function digestExtensionTree(directory) {
     }
   }
 
-  await visit('');
+  await visit('', 0);
   return { digest: `sha256:${tree.digest('hex')}`, files, signals: [...signals].sort() };
 }
 

@@ -65,12 +65,15 @@ function parseRule(rule, list) {
   };
 }
 
+// Categorization is deliberately case-insensitive even when a client's rule
+// parser may be stricter. An unusual spelling must never lower a risk signal.
 function toolCategory(tool) {
-  if (tool === 'Bash' || tool === 'PowerShell') return 'shell';
-  if (['Read', 'Edit', 'Write', 'Glob', 'Grep', 'NotebookEdit'].includes(tool)) return 'filesystem';
-  if (tool === 'WebFetch' || tool === 'WebSearch') return 'network';
-  if (tool === 'Agent') return 'subagent';
-  if (tool.startsWith('mcp__')) return 'mcp';
+  const normalized = String(tool || '').toLowerCase();
+  if (normalized === 'bash' || normalized === 'powershell') return 'shell';
+  if (['read', 'edit', 'write', 'glob', 'grep', 'notebookedit'].includes(normalized)) return 'filesystem';
+  if (normalized === 'webfetch' || normalized === 'websearch') return 'network';
+  if (normalized === 'agent') return 'subagent';
+  if (normalized.startsWith('mcp__')) return 'mcp';
   return 'other';
 }
 

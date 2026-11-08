@@ -248,7 +248,11 @@ async function writeFileSafe(file, content, options = {}) {
 
 function getFlag(args, name) {
   const index = args.indexOf(name);
-  return index >= 0 ? args[index + 1] : null;
+  if (index < 0) return null;
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) throw new Error(`${name} requires a value.`);
+  if (args.indexOf(name, index + 1) >= 0) throw new Error(`${name} may be given only once.`);
+  return value;
 }
 
 function getFlags(args, name) {

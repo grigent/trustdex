@@ -90,4 +90,4 @@ Example evidence shape:
 }
 ```
 
-Artifact integrity proves only that the supplied bytes match the registry metadata observed at that time. It does not prove that the bytes are safe, that the registry account was uncompromised, or that the publisher name is legitimate.
+For verified artifact-to-runner matching, TrustDex supports npm evidence for the\n`npx`, `pnpx`, and `bunx` runners, and PyPI evidence for `uvx`. If the\nrunner is unknown, absent, or differs from the artifact registry, the claim\nis treated as a mismatch and cannot authorize execution.\n\nArtifact integrity proves only that the supplied bytes match the registry metadata observed at that time. It does not prove that the bytes are safe, that the registry account was uncompromised, or that the publisher name is legitimate.
