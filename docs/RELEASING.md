@@ -6,8 +6,8 @@
 
 TrustDex uses two small GitHub Actions workflows:
 
-- `release.yml` creates a GitHub tag and release after tests pass.
-- `publish.yml` publishes that exact tag to npm.
+- `release.yml` creates a GitHub tag and release after tests pass, then dispatches `publish.yml` using a scoped `GITHUB_TOKEN` (`actions: write`).
+- `publish.yml` publishes that exact tag to npm via OIDC; it also supports manual dispatch for a failed publish retry.
 
 This split keeps GitHub release creation separate from registry credentials.
 
@@ -65,6 +65,6 @@ Before each release:
 2. move the corresponding changelog section out of `Unreleased`
 3. make sure CI is green
 4. run the release workflow with exactly `v<package version>`
-5. run the publish workflow for that exact release tag
+5. verify that the release workflow dispatched the npm publish workflow and confirm the exact version on npm (if that dispatch fails, manually run `publish.yml` with the same tag; do not re-create an existing release)
 
 The publish workflow checks out the tag SHA rather than the latest branch head so the npm artifact cannot silently include later commits.

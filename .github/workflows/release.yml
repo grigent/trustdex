@@ -8,11 +8,12 @@ on:
       tag:
         description: Release tag (must match package.json version, for example v0.3.0)
         required: true
-        default: v0.12.0
+        default: v0.13.0
         type: string
 
 permissions:
   contents: write
+  actions: write
   id-token: write
   attestations: write
   artifact-metadata: write
@@ -121,3 +122,15 @@ jobs:
             "$PACKAGE_PATH" \
             "$SBOM_PATH" \
             "$CHECKSUMS_PATH"
+
+      # workflow_dispatch is allowed to start another workflow when invoked
+      # with this repository's GITHUB_TOKEN (requires actions: write).
+      # Only dispatch after tests, attestations and release creation succeed.
+      - name: Dispatch npm trusted publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run publish.yml --ref main --raw-field "tag=$RELEASE_TAG"

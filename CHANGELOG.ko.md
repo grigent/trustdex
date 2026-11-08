@@ -6,6 +6,18 @@
 
 ## 미출시
 
+## 0.13.0 - 2026-11-08
+
+- **보안:** 출력 파일을 독점 생성 임시 파일과 원자적 교체로 저장하고, 심볼릭 링크/일반 파일이 아닌 출력 경로 및 저장소 내부 심볼릭 링크 상위 디렉터리를 거부하며 개인키 0600 권한 유지
+- 온라인 출처 조회에 10초 제한과 리다이렉트 차단을 적용하고 HTTP 오류에서 민감한 URL 값을 노출하지 않음
+- npm 철회 또는 버전/SRI 무결성 메타데이터 오류와 MCP Registry 아티팩트 누락에 실패 시 차단 원칙을 적용하고 신뢰 저장소의 중복 대상 클레임 거부
+- 검증된 패키지의 버전 불일치 및 npm/PyPI 생태계 간 무결성 근거 교차 대체를 차단하고 다운그레이드·교차 대체·메타데이터 누락 회귀 테스트 추가
+- Windows 드라이브 및 UNC 경로와 혼합 구분자 탐지, 이중 MCP 설정 컨테이너와 누락된 source 근거 거부
+- 소스 및 출처 스냅샷을 정규 JSON으로 비교하여 키 순서 변화에 따른 오탐 방지
+- 기존 JSON·종료 코드·변경 라벨을 유지하면서 NO_COLOR/TTY를 지원하는 비밀값 없는 ANSI 컬러 Diff 제공
+- GitHub 정책 검사 복붙 워크플로와 정확한 상태 뱃지 안내, Node.js 24 CI 지원
+- GitHub Release 검증 완료 시 명시적인 workflow_dispatch를 통해 npm Trusted Publishing 연결
+
 ## 0.12.0 - 2026-10-30
 
 - 러너 옵션으로 실제 설치되는 패키지를 판단: `uvx --from`과 `npx -p/--package`가 패키지를 지정하며, `uvx --python 3.12` 같은 옵션 값을 더 이상 패키지로 오인하지 않음. 레지스트리 재지정(`--registry`, `--userconfig`, `--index-url`, `--extra-index-url`, `--find-links` 등)은 `package-source-override`(BLOCK), 추가 패키지(`uvx --with`, 반복된 `-p`)는 `additional-packages`(BLOCK, `development`에서는 ASK), `npx -c/--call`과 `--node-options`는 `shell-execution`, 인식하지 못한 러너 옵션이나 `=값`을 붙인 플래그(npm은 `-y=x`를 `--yes x`로 펼침)는 `ambiguous-runner-arguments`(BLOCK)를 추가

@@ -89,8 +89,8 @@ Requires Node.js 20+.
 Run directly from npm:
 
 ```bash
-npx trustdex@0.12.0 --help
-npx trustdex@0.12.0 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+npx trustdex@0.13.0 --help
+npx trustdex@0.13.0 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
 ```
 
 Or work from a source checkout:
@@ -238,7 +238,7 @@ claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
 Check the gate's result before starting Claude. Only `ALLOW` entries are exposed by
 default; `ASK` entries require review. The adapter rejects settings it cannot
 inspect instead of silently trusting them. These commands are available in npm 0.5.0 and later, and from a source checkout.
-Use `npx trustdex@0.12.0` in place of `node ./bin/trustdex.mjs` to run the published CLI.
+Use `npx trustdex@0.13.0` in place of `node ./bin/trustdex.mjs` to run the published CLI.
 
 See [Using TrustDex with Claude](docs/CLAUDE.md) for supported settings, PowerShell
 error handling, signed review, and the Claude Desktop workflow.
@@ -558,9 +558,9 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 ## GitHub Action
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-- uses: grigent/trustdex@v0.12.0
+- uses: grigent/trustdex@95fdaad08043f099a0d556631a6a0db7fe5a5d85
   with:
     config: ./mcp.json
     pack: official-first

@@ -6,7 +6,7 @@
 
 TrustDex는 두 개의 작은 GitHub Actions 워크플로를 사용합니다.
 
-- `release.yml`은 테스트 통과 후 GitHub 태그와 릴리스를 생성합니다.
+- `release.yml`은 테스트 통과 후 GitHub 태그와 릴리스를 생성하고, 제한된 `GITHUB_TOKEN`의 `actions: write` 권한으로 `publish.yml`을 실행 요청합니다.
 - `publish.yml`은 바로 그 태그를 npm에 게시합니다.
 
 이 분리는 GitHub 릴리스 생성과 레지스트리 자격 증명을 분리합니다.
