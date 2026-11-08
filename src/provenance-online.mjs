@@ -65,6 +65,19 @@ export async function inspectGitHubRepository(repository, options = {}) {
   };
 }
 
+// A syntactically plausible but truncated SRI string is not immutable evidence.
+function hasValidRegistryIntegrity(integrity) {
+  if (typeof integrity !== 'string' || !integrity.trim()) return false;
+  const lengths = { sha256: 32, sha384: 48, sha512: 64 };
+  return integrity.trim().split(/\s+/).every((token) => {
+    const match = /^(sha256|sha384|sha512)-([A-Za-z0-9+/]+={0,2})(?:\?[^\s]*)?$/.exec(token);
+    if (!match) return false;
+    const bytes = Buffer.from(match[2], 'base64');
+    return bytes.length === lengths[match[1]] &&
+      bytes.toString('base64') === match[2];
+  });
+}
+
 function normalizeNpmPackage(value) {
   const name = String(value || '').trim();
   if (!name || /\s/.test(name) || name.includes('://')) throw new Error('Invalid npm package name.');
@@ -175,8 +188,7 @@ export async function inspectNpmPackage(packageName, options = {}) {
       latestMeta.version && latestMeta.version !== latest ||
       latestMeta.yanked === true || latestMeta.unpublished === true ||
       latestMeta.dist?.yanked === true ||
-      typeof latestMeta.dist?.integrity !== 'string' ||
-      !/^sha(?:256|384|512)-[A-Za-z0-9+/=]+(?:\\s+sha(?:256|384|512)-[A-Za-z0-9+/=]+)*$/.test(latestMeta.dist.integrity)) {
+      !hasValidRegistryIntegrity(latestMeta.dist?.integrity)) {
     throw new Error('npm registry artifact metadata is missing, withdrawn, or invalid.');
   }
   const repository = typeof data.repository === 'string'
