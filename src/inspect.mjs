@@ -1,4 +1,5 @@
 import { sha256Json } from './canonical.mjs';
+import path from 'node:path';
 
 const SECRET_KEY_RE = /(token|secret|password|passwd|api[_-]?key|credential|auth)/i;
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell', 'pwsh']);
@@ -128,8 +129,14 @@ export function isPinnedPackage(spec) {
 
 function looksLikePath(value) {
   if (typeof value !== 'string') return false;
-  return value.startsWith('/') || value.startsWith('~/') || value.startsWith('./') ||
-    value.startsWith('../') || /^[A-Za-z]:\\/.test(value);
+  // Native path.normalize() is platform-dependent; use win32 for Windows strings
+  // even when inspection runs on Linux or macOS.
+  if (/^[A-Za-z]:[\\/]/.test(value) || /^\\\\/.test(value)) {
+    return path.win32.isAbsolute(path.win32.normalize(value));
+  }
+  return value.startsWith('/') || value.startsWith('~/') ||
+    value.startsWith('./') || value.startsWith('../') ||
+    value.startsWith('.\\') || value.startsWith('..\\');
 }
 
 function fingerprintUrl(value) {
