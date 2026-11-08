@@ -27,16 +27,16 @@ export function renderSnapshotChanges(changes, color = false) {
     const name = safeLabel(change.name);
     switch (change.type) {
       case 'server-added':
-        lines.push(line(`+ Server added: ${name}`, 'expansion', color));
+        lines.push(line(`+ server-added: ${name}`, 'expansion', color));
         break;
       case 'server-removed':
-        lines.push(line(`- Server removed: ${name}`, 'restriction', color));
+        lines.push(line(`- server-removed: ${name}`, 'restriction', color));
         break;
       case 'signals-added':
       case 'signals-removed': {
         const added = change.type === 'signals-added';
         for (const signal of change.signals || []) {
-          lines.push(line(`${added ? '+' : '-'} ${name}: signal ${safeLabel(signal)}`,
+          lines.push(line(`${added ? '+' : '-'} ${change.type}: ${name} (${safeLabel(signal)})`,
             added ? 'expansion' : 'restriction', color));
         }
         break;
@@ -44,16 +44,16 @@ export function renderSnapshotChanges(changes, color = false) {
       case 'decision-changed': {
         const impact = (RANK[change.to] ?? 2) > (RANK[change.from] ?? 2)
           ? 'expansion' : 'restriction';
-        lines.push(line(`~ ${name}: decision ${safeScalar(change.from)} -> ${safeScalar(change.to)}`, impact, color));
+        lines.push(line(`~ decision-changed: ${name} (${safeScalar(change.from)} -> ${safeScalar(change.to)})`, impact, color));
         break;
       }
       case 'source-changed':
       case 'provenance-changed':
       case 'fingerprint-changed':
-        lines.push(line(`~ ${name}: ${change.type} (raw values omitted)`, 'review', color));
+        lines.push(line(`~ ${change.type}: ${name} (raw values omitted)`, 'review', color));
         break;
       default:
-        lines.push(line(`~ ${name}: ${safeLabel(change.type)} (review required)`, 'review', color));
+        lines.push(line(`~ ${safeLabel(change.type)}: ${name} (review required)`, 'review', color));
     }
   }
   return lines.join('\n');
