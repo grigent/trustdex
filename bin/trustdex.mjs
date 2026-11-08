@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, constants } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
@@ -28,6 +29,9 @@ import {
   verifyArtifactBytes
 } from '../src/provenance-online.mjs';
 import { createSnapshot, diffSnapshots } from '../src/snapshot.mjs';
+import {
+  renderSnapshotChanges, renderPermissionDiff, renderBindingDiff, renderRuntimeDiff
+} from '../src/diff-view.mjs';
 import {
   createPermissionPostureSnapshot,
   diffPermissionPostureSnapshots
@@ -127,7 +131,7 @@ Usage:
   trustdex snapshot <mcp.json> --out snapshot.json [--pack ...]
       [--policy policy.json] [--trust-store trust-store.json]
 
-  trustdex diff <before.json> <after.json> [--json]
+  trustdex diff <before.json> <after.json> [--json] [--color|--no-color]
   trustdex diff-permissions <before.json> <after.json> [--json]
   trustdex snapshot-codex-bindings <config.toml> --out bindings.json
       [--trust-store trust-store.json] [--pack ...]
@@ -184,10 +188,57 @@ async function readJsonIfExists(file, fallback = null) {
   }
 }
 
+// Check each parent independently: mkdir({recursive:true}) can traverse an
+// attacker-controlled symlink before a later lstat() has a chance to reject it.
+async function ensureSafeOutputDirectory(directory) {
+  const absolute = path.resolve(directory);
+  const root = path.parse(absolute).root;
+  let current = root;
+  for (const component of absolute.slice(root.length).split(path.sep).filter(Boolean)) {
+    current = path.join(current, component);
+    try { await fs.mkdir(current); } catch (error) {
+      if (error?.code !== 'EEXIST') throw error;
+    }
+    const entry = await fs.lstat(current);
+    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+      throw new Error('Refusing a symlink or non-directory in the output path.');
+    }
+  }
+}
+
+async function assertRegularOutputTarget(file) {
+  try {
+    const entry = await fs.lstat(file);
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      throw new Error('Refusing to overwrite a symlink or non-regular output file.');
+    }
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
+}
+
+// Atomically replace a regular output file without truncating a pre-existing
+// symlink or hardlink target. This preserves keygen's 0600 private-key mode.
 async function writeFileSafe(file, content, options = {}) {
-  const directory = path.dirname(path.resolve(file));
-  await fs.mkdir(directory, { recursive: true });
-  await fs.writeFile(file, content, options);
+  const resolved = path.resolve(file);
+  const directory = path.dirname(resolved);
+  await ensureSafeOutputDirectory(directory);
+  await assertRegularOutputTarget(resolved);
+  const temporary = path.join(directory, `.${path.basename(resolved)}.${randomUUID()}.tmp`);
+  const flags = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW || 0);
+  let handle;
+  try {
+    handle = await fs.open(temporary, flags, options.mode ?? 0o644);
+    await handle.writeFile(content, { encoding: options.encoding ?? 'utf8' });
+    await handle.close();
+    handle = null;
+    await ensureSafeOutputDirectory(directory);
+    await assertRegularOutputTarget(resolved);
+    await fs.rename(temporary, resolved);
+  } finally {
+    if (handle) await handle.close();
+    await fs.rm(temporary, { force: true });
+  }
 }
 
 function getFlag(args, name) {
@@ -458,62 +509,26 @@ async function lookupProvenance(adapter, subject) {
   throw new Error('provenance adapter must be "github", "github-release", "npm", or "mcp".');
 }
 
-function printChanges(changes) {
-  for (const change of changes) {
-    console.log(`${change.type}: ${change.name}${change.signals ? ` (${change.signals.join(', ')})` : ''}`);
-  }
+function shouldColor(args) {
+  return process.env.NO_COLOR === undefined &&
+    !args.includes('--no-color') &&
+    (args.includes('--color') || (Boolean(process.stdout.isTTY) && process.env.TERM !== 'dumb'));
 }
 
-function printPermissionPostureDiff(diff) {
-  if (diff.status === 'unchanged') {
-    console.log('UNCHANGED: permission posture matches the baseline.');
-    return;
-  }
-  if (diff.status === 'restricted') {
-    console.log('RESTRICTED: permission posture became more restrictive.');
-  } else {
-    console.log('NEEDS_REVIEW: permission posture expanded or changed in an unclassified way.');
-  }
-  for (const change of diff.changes) {
-    const details = change.items
-      ? ` (${change.items.join(', ')})`
-      : Object.hasOwn(change, 'before') ? ` (${String(change.before)} -> ${String(change.after)})` : '';
-    console.log(`${change.impact.toUpperCase()} ${change.type}: ${change.field}${details}`);
-  }
+function printChanges(changes, color = false) {
+  console.log(renderSnapshotChanges(changes, color));
 }
 
-function printBindingDiff(diff) {
-  if (diff.status === 'unchanged') {
-    console.log('UNCHANGED: tool permission bindings match the baseline.');
-    return;
-  }
-  console.log(diff.status === 'restricted'
-    ? 'RESTRICTED: automatic tool permissions became more restrictive.'
-    : 'NEEDS_REVIEW: tool provenance or automatic permissions changed.');
-  for (const change of diff.changes) {
-    const subject = change.name ? `${change.name}.` : '';
-    const details = change.before !== null || change.after !== null
-      ? ` (${String(change.before)} -> ${String(change.after)})`
-      : '';
-    console.log(`${change.impact.toUpperCase()} ${change.type}: ${subject}${change.field}${details}`);
-  }
+function printPermissionPostureDiff(diff, color = false) {
+  console.log(renderPermissionDiff(diff, color));
 }
 
-function printRuntimeEvidenceDiff(diff) {
-  if (diff.status === 'unchanged') {
-    console.log('UNCHANGED: effective runtime tool evidence matches the baseline.');
-    return;
-  }
-  console.log(diff.status === 'restricted'
-    ? 'RESTRICTED: observed runtime tool exposure became more restrictive.'
-    : 'NEEDS_REVIEW: effective runtime tool evidence changed.');
-  for (const change of diff.changes) {
-    const subject = change.name ? `${change.name}.` : '';
-    const details = change.before !== null || change.after !== null
-      ? ` (${String(change.before)} -> ${String(change.after)})`
-      : '';
-    console.log(`${change.impact.toUpperCase()} ${change.type}: ${subject}${change.field}${details}`);
-  }
+function printBindingDiff(diff, color = false) {
+  console.log(renderBindingDiff(diff, color));
+}
+
+function printRuntimeEvidenceDiff(diff, color = false) {
+  console.log(renderRuntimeDiff(diff, color));
 }
 
 async function main() {
@@ -761,7 +776,7 @@ async function main() {
       await readJson(afterPath)
     );
     if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
-    else printPermissionPostureDiff(diff);
+    else printPermissionPostureDiff(diff, shouldColor(args));
     if (diff.status === 'needs-review') process.exitCode = 1;
     return;
   }
@@ -777,7 +792,7 @@ async function main() {
       await readJson(afterPath)
     );
     if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
-    else printBindingDiff(diff);
+    else printBindingDiff(diff, shouldColor(args));
     if (diff.status === 'needs-review') process.exitCode = 1;
     return;
   }
@@ -793,7 +808,7 @@ async function main() {
       await readJson(afterPath)
     );
     if (hasFlag(args, '--json')) console.log(JSON.stringify(diff, null, 2));
-    else printRuntimeEvidenceDiff(diff);
+    else printRuntimeEvidenceDiff(diff, shouldColor(args));
     if (diff.status === 'needs-review') process.exitCode = 1;
     return;
   }
@@ -940,7 +955,7 @@ async function main() {
       if (verdict.keyId) console.log(`Signing key: ${verdict.keyId}`);
     } else if (verdict.status === 'needs-review') {
       console.log('NEEDS_REVIEW: trust-relevant state changed.');
-      printChanges(verdict.changes);
+      printChanges(verdict.changes, shouldColor(args));
     } else {
       console.log(`INVALID: ${verdict.reason}`);
     }
@@ -970,7 +985,7 @@ async function main() {
     const changes = diffSnapshots(await readJson(beforePath), await readJson(afterPath));
     if (hasFlag(args, '--json')) console.log(JSON.stringify(changes, null, 2));
     else if (!changes.length) console.log('No trust-relevant changes detected.');
-    else printChanges(changes);
+    else printChanges(changes, shouldColor(args));
 
     if (changes.some((change) =>
       ['server-added', 'signals-added', 'decision-changed', 'source-changed', 'provenance-changed', 'fingerprint-changed'].includes(change.type)
