@@ -67,6 +67,7 @@ test('help and version remain successful without reading configs', () => {
   for (const args of [['--help'], ['--version'], ['-V']]) {
     const result = run(...args);
     assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /TrustDex|0\.13\.0/);
+    if (args[0] === '--help') assert.ok(result.stdout.startsWith(`TrustDex v${pkg.version}\n`));
+    else assert.equal(result.stdout.trim(), pkg.version);
   }
 });
