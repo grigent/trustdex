@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
 import { inspectSkillText } from '../src/extensions.mjs';
@@ -138,7 +139,7 @@ test('npm provenance adapter returns registry evidence without auto-trusting it'
       name: '@scope/demo',
       'dist-tags': { latest: '2.0.0' },
       versions: {
-        '2.0.0': { repository: { url: 'git+https://github.com/example/demo.git' }, dist: { integrity: 'sha512-ZGVtby10ZXN0' } }
+        '2.0.0': { repository: { url: 'git+https://github.com/example/demo.git' }, dist: { integrity: `sha512-${crypto.createHash('sha512').update('inert npm fixture').digest('base64')}` } }
       },
       maintainers: [{ name: 'alice' }]
     })
