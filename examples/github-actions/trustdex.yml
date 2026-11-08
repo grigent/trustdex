@@ -1,0 +1,49 @@
+# Copy to .github/workflows/trustdex.yml in the adopting repository.
+# Replace ./.mcp.json with the MCP configuration path used by your agent.
+# A passing check means that every inspected tool matched YOUR policy; it is
+# not a malware/safety certification, and the gated config must be used at runtime.
+name: TrustDex Policy Check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  trustdex:
+    name: MCP Policy Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      # Use this inspection step as the required status check. The gate action
+      # below deliberately removes rejected servers without failing on BLOCK.
+      - name: Fail on ASK or BLOCK
+        run: |
+          npx --yes trustdex@0.12.0 inspect ./.mcp.json --pack strict --decisions
+          # For a human-reviewed policy, add:
+          # --policy ./trustdex.policy.json
+          # and pass the same path as 'policy' to the action below.
+
+      - name: Generate filtered MCP configuration
+        uses: grigent/trustdex@11845fd8830732f006d95cde0388bec14971c0f7 # v0.12.0
+        with:
+          config: ./.mcp.json
+          pack: strict
+          output: .trustdex/gated-mcp.json
+
+      # Do not run the agent against the original .mcp.json.
+      # Supply .trustdex/gated-mcp.json to the agent instead.

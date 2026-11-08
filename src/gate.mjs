@@ -1,4 +1,7 @@
 export function gateMcpConfig(config, results, options = {}) {
+  if (config && Object.hasOwn(config, 'mcpServers') && Object.hasOwn(config, 'servers')) {
+    throw new Error('Ambiguous MCP configuration: both mcpServers and servers are present.');
+  }
   let containerKey = null;
   let servers = config;
 

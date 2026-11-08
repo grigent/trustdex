@@ -31,6 +31,7 @@ const BASE_SIGNALS = {
   // A package spec TrustDex cannot parse can be neither shown nor reviewed.
   'unparseable-package-spec': 'block',
   'artifact-version-mismatch': 'block',
+  'artifact-registry-mismatch': 'block',
   'claude-auto-approve': 'ask',
   'claude-broad-auto-approve': 'block',
   'claude-shell-auto-approve': 'block',

@@ -1,4 +1,4 @@
-import { sha256Json } from './canonical.mjs';
+import { canonicalJson, sha256Json } from './canonical.mjs';
 
 export function createSnapshot(results) {
   const normalized = results
@@ -45,11 +45,11 @@ export function diffSnapshots(before, after) {
       changes.push({ type: 'decision-changed', name, from: previous.action, to: current.action });
     }
 
-    if (JSON.stringify(previous.source) !== JSON.stringify(current.source)) {
+    if (canonicalJson(previous.source) !== canonicalJson(current.source)) {
       changes.push({ type: 'source-changed', name, from: previous.source, to: current.source });
     }
 
-    if (JSON.stringify(previous.provenance || {}) !== JSON.stringify(current.provenance || {})) {
+    if (canonicalJson(previous.provenance || {}) !== canonicalJson(current.provenance || {})) {
       changes.push({
         type: 'provenance-changed',
         name,
