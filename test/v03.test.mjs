@@ -138,7 +138,7 @@ test('npm provenance adapter returns registry evidence without auto-trusting it'
       name: '@scope/demo',
       'dist-tags': { latest: '2.0.0' },
       versions: {
-        '2.0.0': { repository: { url: 'git+https://github.com/example/demo.git' } }
+        '2.0.0': { repository: { url: 'git+https://github.com/example/demo.git' }, dist: { integrity: 'sha512-ZGVtby10ZXN0' } }
       },
       maintainers: [{ name: 'alice' }]
     })
