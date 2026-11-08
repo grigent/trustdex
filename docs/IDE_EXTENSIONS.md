@@ -106,6 +106,9 @@ TrustDex inspects what is installed; it cannot stop an editor from installing an
 
 ## Limits
 
+- Each installed extension tree is bounded to **50,000 regular files, 100,000 total entries, 2 GiB of file contents, and a directory depth of 64**. A limit breach aborts inspection (fail-closed); a partial fingerprint must never authorize the extension.
+- The registry and manifest read caps remain 16 MiB and 1 MiB, respectively. Contents are streamed for hashing and symlinks are not followed.
+
 - Static inspection does not prove an extension is safe. A pinned, digest-matched extension can still be malicious; the pin only proves it is the build you reviewed.
 - TrustDex does not detect or remove changes an extension has already made elsewhere on the host (for example SSH keys or services). If a known-bad build was installed, follow the vendor's remediation guidance.
 - TrustDex trusts the local host enough to read the extensions directory. A fully compromised host can falsify what TrustDex reads, and a process that swaps files while an inspection is running can race it.

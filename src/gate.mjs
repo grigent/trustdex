@@ -18,8 +18,21 @@ export function gateMcpConfig(config, results, options = {}) {
   }
 
   const includeAsk = Boolean(options.includeAsk);
-  const decisions = new Map(results.map((result) => [result.name, result.action]));
-  const allowed = {};
+  if (!Array.isArray(results)) throw new Error('MCP policy results must be an array.');
+  const decisions = new Map();
+  for (const result of results) {
+    if (!result || typeof result.name !== 'string' || !Object.hasOwn(servers, result.name) ||
+        !['allow', 'ask', 'block'].includes(result.action) || decisions.has(result.name)) {
+      throw new Error('MCP policy results contain an invalid, duplicate, or unknown decision.');
+    }
+    decisions.set(result.name, result.action);
+  }
+  // Uninspected servers must not silently disappear from a supposedly complete
+  // policy result, even though filtering them out would avoid execution.
+  if (decisions.size !== Object.keys(servers).length) {
+    throw new Error('MCP policy results do not cover every configured server.');
+  }
+  const allowed = Object.create(null);
 
   for (const [name, server] of Object.entries(servers)) {
     const action = decisions.get(name);
@@ -28,7 +41,10 @@ export function gateMcpConfig(config, results, options = {}) {
     }
   }
 
-  const output = containerKey ? { ...config, [containerKey]: allowed } : allowed;
+  // Spread creates own data properties even for "__proto__" and preserves the
+  // ordinary JSON-facing object shape expected by existing clients.
+  const safeAllowed = { ...allowed };
+  const output = containerKey ? { ...config, [containerKey]: safeAllowed } : safeAllowed;
 
   return {
     config: output,

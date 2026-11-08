@@ -65,9 +65,11 @@ expiry. The key ID is the SHA-256 digest of the public SPKI bytes. The separate 
 schema rejects raw tool lists and arbitrary fields, so neither the attestation nor the
 effective report contains tool names, endpoints, credentials, or private-key material.
 
-The optional `--max-age-seconds` limit is independent of attestation expiry: expiry caps
+The `--max-age-seconds` limit is independent of attestation expiry: expiry caps
 how long the signature is usable, while maximum age caps how old the underlying capture
-may be. TrustDex also rejects captures and attestations more than five minutes in the
+may be. **Verification defaults to a one-hour maximum capture age (3600 seconds)** if
+this flag is omitted. Use a shorter explicit limit for security-sensitive agents.
+TrustDex also rejects captures and attestations more than five minutes in the
 future to tolerate only bounded clock skew.
 
 ## Operations and key rotation

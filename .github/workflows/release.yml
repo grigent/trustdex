@@ -11,16 +11,42 @@ on:
         default: v0.13.0
         type: string
 
+# Test jobs must not receive the release/write token.
 permissions:
-  contents: write
-  actions: write
-  id-token: write
-  attestations: write
-  artifact-metadata: write
+  contents: read
 
 jobs:
-  release:
+  verify:
     if: "${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'release: publish TrustDex v') }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Use current npm metadata rules
+        run: npm install --global npm@11.21.1
+      - name: Validate canonical npm metadata
+        shell: bash
+        run: |
+          npm pkg fix
+          git diff --exit-code -- package.json
+      - run: npm test
+      - run: npm run check
+      - run: npm pack --dry-run
+
+  release:
+    needs: verify
+    permissions:
+      contents: write
+      actions: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -60,10 +86,6 @@ jobs:
             exit 1
           fi
           echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
-
-      - run: npm test
-      - run: npm run check
-      - run: npm pack --dry-run
 
       - name: Build release package, SBOM, and checksums
         id: artifacts

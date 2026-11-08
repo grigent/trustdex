@@ -114,7 +114,9 @@ node ./bin/trustdex.mjs inspect-codex-settings-stack \
 ```
 
 The stack is merged from system through CLI precedence, one supported security field
-at a time. Unsupported syntax in any source fails closed even when a higher source
+at a time. In particular, `sandbox_workspace_write.writable_roots` is an array:
+a higher-precedence array replaces the lower-precedence array rather than concatenating
+it, matching the Codex TOML merge implementation for non-table values. Unsupported syntax in any source fails closed even when a higher source
 would override it. Reports retain fixed source-scope counts but not config paths or
 unrelated values. Sources are explicit inputs: the command does not discover trusted
 projects, active profiles, cloud-managed defaults, requirements, or CLI flags itself.

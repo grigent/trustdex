@@ -118,9 +118,14 @@ class Lexer {
       }
       const char = this.peek();
       if (char === '\\') {
-        const rest = this.text.slice(this.i + 1).match(/^[ \t]*\r?\n/);
-        if (rest) {
-          this.i += 1;
+        // Inspect only the lookahead characters; slicing the rest of a large
+        // document for every backslash creates quadratic copying overhead.
+        let next = this.i + 1;
+        while (this.text[next] === ' ' || this.text[next] === '\t') next += 1;
+        const continuation = this.text[next] === '\n' ||
+          (this.text[next] === '\r' && this.text[next + 1] === '\n');
+        if (continuation) {
+          this.i = next + (this.text[next] === '\r' ? 2 : 1);
           while (/[ \t\r\n]/.test(this.peek() || '')) this.i += 1;
           continue;
         }
@@ -273,6 +278,9 @@ export function decodeTomlValue(node) {
   }
   if (node.value === 'true') return true;
   if (node.value === 'false') return false;
-  if (/^[+-]?\d+(?:\.\d+)?$/.test(node.value)) return Number(node.value);
+  if (/^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(node.value)) {
+    const number = Number(node.value);
+    if (Number.isFinite(number)) return number;
+  }
   throw new Error('Unsupported TOML value: quote strings and use only strings, numbers, booleans, arrays, and inline tables.');
 }

@@ -11,6 +11,7 @@ const KIND = 'agent-runtime-tool-inventory-attestation';
 const ALGORITHM = 'ed25519';
 const MAX_TTL_SECONDS = 86_400;
 const MAX_FUTURE_SKEW_SECONDS = 300;
+const DEFAULT_MAX_CAPTURE_AGE_SECONDS = 3600;
 const FIELDS = new Set([
   'schemaVersion', 'kind', 'algorithm', 'inventoryDigest', 'runtime', 'capturedAt',
   'captureMethod', 'producerKeyId', 'createdAt', 'expiresAt', 'signature'
@@ -185,13 +186,14 @@ export function verifyRuntimeInventoryAttestation(inventoryInput, recordInput, p
   if (Date.parse(inventory.capturedAt) > nowMs + futureSkewSeconds * 1000) {
     return invalid('Runtime inventory capture time is too far in the future.');
   }
-  if (options.maxAgeSeconds !== undefined) {
-    if (!Number.isSafeInteger(options.maxAgeSeconds) || options.maxAgeSeconds < 0) {
-      return invalid('Invalid runtime inventory maximum age.');
-    }
-    if (nowMs - Date.parse(inventory.capturedAt) > options.maxAgeSeconds * 1000) {
-      return invalid('Runtime inventory capture is too old.');
-    }
+  const maxAgeSeconds = options.maxAgeSeconds === undefined
+    ? DEFAULT_MAX_CAPTURE_AGE_SECONDS
+    : options.maxAgeSeconds;
+  if (!Number.isSafeInteger(maxAgeSeconds) || maxAgeSeconds < 0) {
+    return invalid('Invalid runtime inventory maximum age.');
+  }
+  if (nowMs - Date.parse(inventory.capturedAt) > maxAgeSeconds * 1000) {
+    return invalid('Runtime inventory capture is too old.');
   }
 
   let valid = false;
