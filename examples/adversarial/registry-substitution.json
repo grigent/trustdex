@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "approved-current": {
+      "command": "npx",
+      "args": ["-y", "reviewed-agent@2.0.0"]
+    },
+    "downgrade": {
+      "command": "npx",
+      "args": ["-y", "reviewed-agent@1.9.0"]
+    },
+    "cross-registry": {
+      "command": "uvx",
+      "args": ["reviewed-agent==2.0.0"]
+    },
+    "lookalike-name": {
+      "command": "npx",
+      "args": ["-y", "reviewed-agent-clone@2.0.0"]
+    }
+  }
+}
