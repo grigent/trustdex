@@ -4,6 +4,7 @@
   <strong>English</strong> | <a href="./README.ko.md">한국어</a>
 </p>
 
+[![TrustDex Action](https://img.shields.io/badge/TrustDex-GitHub%20Action-blue)](examples/github-actions/trustdex.yml)
 [![CI](https://github.com/grigent/trustdex/actions/workflows/ci.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/grigent/trustdex/actions/workflows/codeql.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/grigent/trustdex)](https://github.com/grigent/trustdex/releases)
@@ -567,7 +568,19 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
     output: .trustdex/gated-mcp.json
 ```
 
+**Copy-and-paste workflow:** [examples/github-actions/trustdex.yml](examples/github-actions/trustdex.yml) can be copied to `.github/workflows/trustdex.yml` in another repository. Change `./.mcp.json` to the configuration your agent uses. An `inspect --decisions` step fails CI on ASK/BLOCK, whereas the composite `gate` action filters rejected servers without necessarily failing CI. If you add `--policy` or `--trust-store`, pass identical inputs to both steps.
+
+A truthful per-repository badge (replace `OWNER/REPO` with the adopting repository):
+
+```markdown
+[![TrustDex Policy Check](https://github.com/OWNER/REPO/actions/workflows/trustdex.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/trustdex.yml)
+```
+
+This badge means only that the configured policy check passed, **not** that TrustDex certified the code or that agents consume the gated file. Keep policy files protected from untrusted PR modifications and require the specific status check with branch protection. Run the agent against the **gated output**, not the source config.
+
 For production CI, pin the action to a reviewed commit SHA rather than a moving branch.
+
+**Readable drift:** `diff`, `recheck*`, `diff-permissions`, `diff-bindings`, and `diff-runtime-tools` colorize structural changes on a TTY. Use `--color` to force color, `--no-color` or `NO_COLOR=1` to disable it. `--json` output and exit codes are unchanged. Raw credentials and config bodies are never printed in colored diffs.
 
 ## Principles
 
