@@ -6,6 +6,18 @@
 
 ## Unreleased
 
+## 0.13.0 - 2026-11-08
+
+- **security:** create CLI outputs through exclusive temporary files and atomic replacement; reject symlink or non-regular output targets and repository-controlled symlink parent directories; preserve 0600 private-key permissions
+- bound online provenance lookups to 10 seconds, reject redirects, and remove potentially sensitive URL values from HTTP failure messages
+- fail closed when npm packages are unpublished or their version/SRI metadata is invalid, or when a single-package MCP Registry artifact lacks trustworthy metadata; reject duplicate trust claims
+- block mismatched verified package versions and cross-ecosystem artifact claims (npm vs PyPI), with inert downgrade, registry-substitution, and missing-artifact regression fixtures
+- recognize Windows drive, UNC, and mixed-separator paths across platforms; reject ambiguous dual MCP configuration containers and absent source evidence
+- compare snapshot source/provenance objects canonically, without false-positive drift from object key ordering
+- add value-free ANSI diff output respecting NO_COLOR/TTY while retaining existing change labels, JSON contracts, and exit codes
+- provide copy-ready GitHub policy-check workflow and non-certification status badge guidance, with cross-platform Node.js 24 CI coverage
+- connect verified GitHub release creation to npm trusted publishing through an explicit workflow dispatch, keeping the npm package release tied to its tag
+
 ## 0.12.0 - 2026-10-30
 
 - determine the installed package from runner options: `uvx --from` names the package, `npx -p/--package` too, and option values such as `uvx --python 3.12` are no longer mistaken for the package; registry overrides (`--registry`, `--userconfig`, `--index-url`, `--extra-index-url`, `--find-links`, ...) add `package-source-override` (BLOCK), extra packages (`uvx --with`, repeated `-p`) add `additional-packages` (BLOCK; ASK in `development`), `npx -c/--call` and `--node-options` add `shell-execution`, and an unrecognised runner option, or a flag written with `=value` (npm expands `-y=x` into `--yes x`), adds `ambiguous-runner-arguments` (BLOCK)
