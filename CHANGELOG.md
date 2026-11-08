@@ -6,6 +6,16 @@
 
 ## Unreleased
 
+## 0.13.1 - 2026-11-08
+
+- **security:** apply fixed budgets to installed IDE extension trees (maximum 50,000 files, 100,000 entries, 2 GiB of content, 64 nested directories), failing closed on any resource limit and streaming directory enumeration
+- recognize Windows tilde-home paths and conservatively classify mixed-case Claude permission tool names without weakening shell, filesystem, network, subagent, or MCP risk signals
+- require complete, unique, valid MCP policy decisions and avoid prototype-sensitive server-name insertion when constructing a gated configuration
+- reject missing, repeated, or chained CLI value flags instead of silently using defaults; expand CLI regression tests for exit codes and help/version
+- default signed runtime inventory verification to a maximum 3600-second capture age, with an explicitly validated override; document the expiry/freshness distinction
+- accept finite TOML exponent notation and optimize multiline continuation parsing without re-slicing the remaining document
+- split GitHub release verification into a read-only CI job and the privileged, dependent artifact/signature/publish job; clarify registry-runner matching and Codex array replacement in documentation
+
 ## 0.13.0 - 2026-11-08
 
 - **security:** create CLI outputs through exclusive temporary files and atomic replacement; reject symlink or non-regular output targets and repository-controlled symlink parent directories; preserve 0600 private-key permissions
