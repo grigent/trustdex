@@ -2,6 +2,9 @@ import { diffSnapshots } from './snapshot.mjs';
 import { verifyTrustRecord } from './trust-record.mjs';
 
 export function assessReview({ record, publicKey, baseline, current, policy = null }) {
+  if (!baseline?.digest) {
+    return { status: 'invalid', reason: 'review baseline is missing a digest', changes: [] };
+  }
   const signature = verifyTrustRecord(record, publicKey, {
     snapshot: baseline,
     policy
