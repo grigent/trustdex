@@ -6,11 +6,18 @@ function assertFetch(fetchImpl) {
   }
 }
 
+const FETCH_TIMEOUT_MS = 10_000;
+
 async function fetchJson(url, options = {}, fetchImpl = globalThis.fetch) {
   assertFetch(fetchImpl);
-  const response = await fetchImpl(url, options);
+  const response = await fetchImpl(url, {
+    ...options,
+    redirect: 'error',
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
   if (!response?.ok) {
-    throw new Error(`Provenance lookup failed (${response?.status || 'unknown'}): ${url}`);
+    // A URL can contain signed tokens, credentials, or private query values.
+    throw new Error(`Provenance lookup failed (HTTP ${response?.status ?? 'unknown'}).`);
   }
   return response.json();
 }
