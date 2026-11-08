@@ -80,7 +80,8 @@ test('hardlink output is atomically replaced without mutating linked target', as
   await fs.writeFile(victim, 'original-content');
   await fs.link(victim, output);
   const result = run(['gate', config, '--out', output]);
-  assert.equal(result.status, 0, result.stdout + result.stderr);
+  // An untrusted local server is ASK under strict policy, so gate exits 1.
+  assert.equal(result.status, 1, result.stdout + result.stderr);
   assert.equal(await fs.readFile(victim, 'utf8'), 'original-content');
   assert.notEqual(await fs.readFile(output, 'utf8'), 'original-content');
 });
