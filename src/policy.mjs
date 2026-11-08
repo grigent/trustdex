@@ -52,9 +52,18 @@ export function evaluateServer(server, policy = {}) {
   const idePins = (policy.trustedIdeExtensions || []).map((entry) => parseIdeExtensionPin(entry, 'trustedIdeExtensions'));
   const ideBlocked = (policy.blockedIdeExtensions || []).map((entry) => parseIdeExtensionPin(entry, 'blockedIdeExtensions'));
 
+  // Direct library callers can supply malformed inspection results. Do not allow
+  // missing source evidence to inherit a permissive policy or crash the evaluator.
+  if (!server || !server.source || typeof server.source !== 'object' ||
+      Array.isArray(server.source) || typeof server.source.type !== 'string') {
+    return { ...server, action: 'block', signals: Array.isArray(server?.signals) ? [...server.signals] : [],
+      reasons: ['server source is missing or invalid'] };
+  }
+
   let action = unknownAction;
   const reasons = [];
-  const signals = [...(server.signals || [])];
+  const originalSignals = Array.isArray(server.signals) ? server.signals : [];
+  const signals = [...originalSignals];
 
   if (server.provenance?.status === 'verified') {
     action = verifiedPublisherAction;
@@ -135,7 +144,10 @@ export function evaluateServer(server, policy = {}) {
     }
   }
 
-  return { ...server, ...(signals.length !== (server.signals || []).length ? { signals: signals.sort() } : {}), action, reasons };
+  const sortedSignals = [...new Set(signals)].sort();
+  const signalsChanged = sortedSignals.length !== originalSignals.length ||
+    sortedSignals.some((signal, index) => signal !== originalSignals[index]);
+  return { ...server, ...(signalsChanged ? { signals: sortedSignals } : {}), action, reasons };
 }
 
 export function evaluateAll(servers, policy = {}) {
