@@ -168,16 +168,13 @@ export async function digestExtensionTree(directory, limits = {}) {
     // allocate an unbounded Dirent array before the entry limit is enforced.
     const entries = [];
     const handle = await fs.opendir(path.join(directory, relative));
-    try {
-      for await (const entry of handle) {
-        entriesVisited += 1;
-        if (entriesVisited > maxEntries) {
-          throw new Error('IDE extension tree exceeds the entry-count inspection limit.');
-        }
-        entries.push(entry);
+    // Async iteration closes DirHandle on both completion and early exit.
+    for await (const entry of handle) {
+      entriesVisited += 1;
+      if (entriesVisited > maxEntries) {
+        throw new Error('IDE extension tree exceeds the entry-count inspection limit.');
       }
-    } finally {
-      // Async iteration closes DirHandle on both completion and early exit.
+      entries.push(entry);
     }
     entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
