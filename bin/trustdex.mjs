@@ -200,7 +200,12 @@ async function ensureSafeOutputDirectory(directory) {
       if (error?.code !== 'EEXIST') throw error;
     }
     const entry = await fs.lstat(current);
-    if (!entry.isDirectory() || entry.isSymbolicLink()) {
+    // macOS exposes /var and /tmp as OS-managed links into /private.
+    // Allow only those exact system links, never symlinks inside a repository.
+    const systemLink = process.platform === 'darwin' && entry.isSymbolicLink() &&
+      ['/var', '/tmp'].includes(current) &&
+      (await fs.realpath(current)) === `/private${current}`;
+    if (!systemLink && (!entry.isDirectory() || entry.isSymbolicLink())) {
       throw new Error('Refusing a symlink or non-directory in the output path.');
     }
   }
