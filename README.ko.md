@@ -4,6 +4,7 @@
   <a href="./README.md">English</a> | <strong>한국어</strong>
 </p>
 
+[![TrustDex Action](https://img.shields.io/badge/TrustDex-GitHub%20Action-blue)](examples/github-actions/trustdex.yml)
 [![CI](https://github.com/grigent/trustdex/actions/workflows/ci.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/grigent/trustdex/actions/workflows/codeql.yml/badge.svg)](https://github.com/grigent/trustdex/actions/workflows/codeql.yml)
 [![Release](https://img.shields.io/github/v/release/grigent/trustdex)](https://github.com/grigent/trustdex/releases)
@@ -547,7 +548,19 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
     output: .trustdex/gated-mcp.json
 ```
 
+**복사해서 사용하는 워크플로:** [examples/github-actions/trustdex.yml](examples/github-actions/trustdex.yml)을 사용 저장소의 `.github/workflows/trustdex.yml`로 복사하고 `./.mcp.json`을 실제 설정 경로로 변경하세요. `inspect --decisions`는 ASK/BLOCK이 있으면 CI를 실패시키고, `gate` Action은 미승인 서버를 제거하더라도 항상 CI를 실패시키지는 않습니다. 사용자 정책이나 신뢰 저장소를 추가하면 두 단계에 같은 입력을 전달해야 합니다.
+
+사용 저장소의 검사 상태를 나타내는 뱃지입니다. `OWNER/REPO`를 실제 저장소로 변경하세요.
+
+```markdown
+[![TrustDex Policy Check](https://github.com/OWNER/REPO/actions/workflows/trustdex.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/trustdex.yml)
+```
+
+이는 **사용자가 지정한 정책 검사가 통과했다**는 표시일 뿐, 소스 코드 안전 인증이 아닙니다. 신뢰 정책 수정 권한을 보호하고, 브랜치 보호에서 해당 검사를 필수로 지정하고, 에이전트가 **필터링된 설정 파일**을 사용하도록 하세요.
+
 프로덕션 CI에서는 이동하는 브랜치 대신 검토된 커밋 SHA에 Action을 고정하세요.
+
+**컬러 변경점:** `diff`, `recheck*`, `diff-permissions`, `diff-bindings`, `diff-runtime-tools` 명령은 터미널에서 구조적 변경점을 색상으로 표시합니다. `--color`로 강제, `--no-color` 또는 `NO_COLOR=1`로 해제할 수 있습니다. `--json` 형식과 종료 코드는 그대로 유지하며 민감한 원본 값은 출력하지 않습니다.
 
 ## 원칙
 
