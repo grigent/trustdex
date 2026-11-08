@@ -95,6 +95,19 @@ export function parseTrustStore(value) {
   if (value.version !== 1) throw new Error('Unsupported trust-store version. Expected version 1.');
   const claims = Array.isArray(value.claims) ? value.claims : [];
   claims.forEach(validateClaim);
+  const identities = new Set();
+  for (const claim of claims) {
+    const subject = claim.type === 'remote' ? normalizeHost(claim.subject) :
+      claim.type === 'repository' ? String(claim.subject).toLowerCase() :
+      normalizePackage(claim.subject);
+    const identity = `${claim.type}:\0${subject}`;
+    if (identities.has(identity)) throw new Error('Trust store contains duplicate claims for one source.');
+    identities.add(identity);
+    if (claim.type === 'package' && claim.evidence?.artifact &&
+        String(claim.evidence.artifact.identifier) !== subject) {
+      throw new Error('Trust-store package artifact identifier does not match its claimed subject.');
+    }
+  }
   return {
     version: 1,
     claims: claims.map((claim) => ({
@@ -168,6 +181,19 @@ export function attachProvenance(item, trustStore) {
   const configuredVersion = item.source?.type === 'package'
     ? packageVersion(item.source.package)
     : null;
+  // A digest from one package ecosystem must not authorize an equally named
+  // package from another ecosystem (npm/npx vs PyPI/uvx).
+  const runner = String(item.source?.runner || '').toLowerCase();
+  const executionRegistry = ['npx', 'pnpx', 'bunx'].includes(runner) ? 'npm' :
+    runner === 'uvx' ? 'pypi' : null;
+  const artifactRegistry = String(verifiedArtifact?.registryType || '').toLowerCase();
+  if (verifiedArtifact && (!executionRegistry || artifactRegistry !== executionRegistry)) {
+    return {
+      ...item,
+      signals: [...new Set([...(item.signals || []), 'artifact-registry-mismatch'])].sort(),
+      provenance: { status: 'mismatch' }
+    };
+  }
   if (verifiedArtifact?.version && configuredVersion && verifiedArtifact.version !== configuredVersion) {
     return {
       ...item,
