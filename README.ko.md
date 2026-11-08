@@ -89,8 +89,8 @@ Node.js 20 이상이 필요합니다.
 npm에서 직접 실행:
 
 ```bash
-npx trustdex@0.13.0 --help
-npx trustdex@0.13.0 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+npx trustdex@0.13.1 --help
+npx trustdex@0.13.1 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
 ```
 
 또는 소스 체크아웃에서 작업:
@@ -229,7 +229,7 @@ node ./bin/trustdex.mjs gate-claude ./.mcp.json --pack strict --out .trustdex/cl
 claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
 ```
 
-Claude를 시작하기 전에 게이트의 결과를 확인하세요. 기본적으로 `ALLOW` 항목만 노출되며, `ASK` 항목에는 검토가 필요합니다. 어댑터는 검사할 수 없는 설정을 조용히 신뢰하지 않고 거부합니다. 이 명령은 npm 0.5.0 이상과 소스 체크아웃에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.13.0`을 사용하세요.
+Claude를 시작하기 전에 게이트의 결과를 확인하세요. 기본적으로 `ALLOW` 항목만 노출되며, `ASK` 항목에는 검토가 필요합니다. 어댑터는 검사할 수 없는 설정을 조용히 신뢰하지 않고 거부합니다. 이 명령은 npm 0.5.0 이상과 소스 체크아웃에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.13.1`을 사용하세요.
 
 지원되는 설정, PowerShell 오류 처리, 서명된 검토 및 Claude Desktop 워크플로는 [Claude에서 TrustDex 사용하기](docs/CLAUDE.ko.md)를 참고하세요.
 
@@ -540,7 +540,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-- uses: grigent/trustdex@95fdaad08043f099a0d556631a6a0db7fe5a5d85
+- uses: grigent/trustdex@fca5279a4159e19a5162a3495e879b4f68f563cc
   with:
     config: ./mcp.json
     pack: official-first
