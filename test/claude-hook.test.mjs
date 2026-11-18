@@ -404,3 +404,24 @@ test('approval state refuses a symlinked state file', { skip: process.platform =
   assert.equal(store.consume('anything', ['npm:x@1.0.0#recent-release']), false);
   assert.throws(() => store.approve('ABCDEFGH') ?? (() => { throw new Error('regular file'); })(), /regular file/);
 });
+
+test('Bash approvals bind to the effective directory, with or without a leading cd', async (t) => {
+  const { bashApprovalSubject } = await import('../src/claude-hook.mjs');
+  const repo = '/Users/tester/repo';
+  const stripped = bashApprovalSubject('rm -rf build && echo ok', repo);
+  const withCd = bashApprovalSubject(`cd ${repo} && rm -rf build && echo ok`, '/Users/tester/elsewhere');
+  const relative = bashApprovalSubject('cd repo && rm -rf build && echo ok', '/Users/tester');
+  assert.deepEqual(stripped, { command: 'rm -rf build && echo ok', cwd: repo });
+  assert.deepEqual(withCd, stripped);
+  assert.deepEqual(relative, stripped);
+  assert.notDeepEqual(bashApprovalSubject('rm -rf build && echo ok', '/Users/tester/other'), stripped, 'another directory needs its own approval');
+  assert.equal(bashApprovalSubject('cd ~/x && ls', repo).cwd, 'unresolved:~/x');
+
+  const store = createApprovalStore(tempDir(t));
+  const options = { paths: PATHS, fetchImpl: offline, approvals: store };
+  const first = { tool_name: 'Bash', cwd: repo, tool_input: { command: 'cat ~/.ssh/id_ed25519' } };
+  const denied = await claudeHookResponse(first, options);
+  store.approve(/trustdex allow-once (\w{8})/.exec(denied.hookSpecificOutput.permissionDecisionReason)[1]);
+  const rerun = { tool_name: 'Bash', cwd: '/Users/tester', tool_input: { command: `cd ${repo} && cat ~/.ssh/id_ed25519` } };
+  assert.equal(await claudeHookResponse(rerun, options), null);
+});

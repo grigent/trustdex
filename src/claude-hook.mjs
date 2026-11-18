@@ -15,11 +15,15 @@
 //   permission dialog instead; BLOCK-level findings are still denied.
 
 import { evaluateInstallCommand, overallAction } from './install-check.mjs';
-import { guardBashCommand, guardFileTool, guardPaths } from './agent-guard.mjs';
+import nodePath from 'node:path';
+
+import { guardBashCommand, guardFileTool, guardPaths, toPosix } from './agent-guard.mjs';
 import { actionDigest } from './approvals.mjs';
 import { mentionsPackageTool } from './install-command.mjs';
 
-export const HOOK_TOOLS = ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+const posixPath = nodePath.posix;
+
+export const HOOK_TOOLS =['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
 // Package findings that an approval may cover by name for a day: they concern one
 // exact package version, not the command around it.
@@ -88,8 +92,31 @@ const APPROVAL_FIELDS = {
   NotebookEdit: ['notebook_path', 'cell_id', 'new_source', 'cell_type', 'edit_mode']
 };
 
-export function approvalSubject(toolName, toolInput) {
+const LEADING_CD_RE = /^\s*cd\s+("[^"]*"|'[^']*'|[^\s;&|]+)\s*(?:&&|;)\s*/;
+
+// A Bash command means "run this in that directory". Claude Code may drop a
+// leading `cd <current dir> &&` before hooks see the command, so the same action
+// can arrive with or without it. Bind Bash approvals to the directory the command
+// effectively starts in plus the rest of the command, so both forms match and an
+// approval given for one directory does not cover the same command elsewhere.
+export function bashApprovalSubject(command, cwd = null) {
+  let rest = String(command);
+  let dir = typeof cwd === 'string' && cwd ? toPosix(cwd) : null;
+  for (let i = 0; i < 8; i += 1) {
+    const match = LEADING_CD_RE.exec(rest);
+    if (!match) break;
+    const target = toPosix(match[1].replace(/^["']|["']$/g, ''));
+    if (target.startsWith('/')) dir = posixPath.normalize(target);
+    else if (/^~(?:\/|$)|\$/.test(target)) dir = `unresolved:${target}`;
+    else dir = dir ? posixPath.resolve(dir, target) : `unresolved:${target}`;
+    rest = rest.slice(match[0].length);
+  }
+  return { command: rest, cwd: dir };
+}
+
+export function approvalSubject(toolName, toolInput, cwd = null) {
   const input = toolInput && typeof toolInput === 'object' ? toolInput : {};
+  if (toolName === 'Bash' && typeof input.command === 'string') return bashApprovalSubject(input.command, cwd);
   const fields = APPROVAL_FIELDS[toolName];
   if (!fields) return input;
   return Object.fromEntries(fields.filter((field) => input[field] !== undefined).map((field) => [field, input[field]]));
@@ -120,7 +147,7 @@ export async function claudeHookResponse(input, options = {}) {
   const action = overallAction(items);
   if (action === 'allow') return null;
 
-  const digest = actionDigest(input.tool_name, approvalSubject(input.tool_name, input.tool_input));
+  const digest = actionDigest(input.tool_name, approvalSubject(input.tool_name, input.tool_input, input.cwd));
   const itemKeys = itemApprovalKeys(items);
   const store = options.approvals ?? null;
   if (store?.consume(digest, itemKeys ?? [])) return null;
