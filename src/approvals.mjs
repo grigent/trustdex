@@ -32,17 +32,26 @@ function ensureDir(dir) {
   if ((stat.mode & 0o077) !== 0) fs.chmodSync(dir, 0o700);
 }
 
+// Open once (refusing symlinks where the platform supports it) and check and read
+// through the same descriptor, so the file cannot be swapped between the check
+// and the read.
 function readEntries(file) {
+  let fd;
   try {
-    const stat = fs.lstatSync(file);
-    if (!stat.isFile()) throw new Error('TrustDex state file must be a regular file.');
+    fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   } catch (error) {
     if (error.code === 'ENOENT') return [];
+    if (error.code === 'ELOOP') throw new Error('TrustDex state file must be a regular file.');
     throw error;
   }
-  const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-  if (!Array.isArray(parsed)) throw new Error('TrustDex state file is invalid.');
-  return parsed.filter((entry) => entry && typeof entry === 'object' && typeof entry.digest === 'string');
+  try {
+    if (!fs.fstatSync(fd).isFile()) throw new Error('TrustDex state file must be a regular file.');
+    const parsed = JSON.parse(fs.readFileSync(fd, 'utf8'));
+    if (!Array.isArray(parsed)) throw new Error('TrustDex state file is invalid.');
+    return parsed.filter((entry) => entry && typeof entry === 'object' && typeof entry.digest === 'string');
+  } finally {
+    fs.closeSync(fd);
+  }
 }
 
 function writeEntries(file, entries) {
@@ -52,8 +61,7 @@ function writeEntries(file, entries) {
 }
 
 function newCode() {
-  const bytes = crypto.randomBytes(8);
-  return [...bytes].map((byte) => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join('');
+  return Array.from({ length: 8 }, () => CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)]).join('');
 }
 
 export function actionDigest(toolName, toolInput) {

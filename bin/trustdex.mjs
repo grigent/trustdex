@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-import { readFileSync, statSync, constants } from 'node:fs';
+import { closeSync, constants, fstatSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -560,9 +561,18 @@ async function loadInstallPolicy(args) {
 function readLocalScript(file, cwd, limit) {
   const resolved = path.resolve(typeof cwd === 'string' && path.isAbsolute(cwd) ? cwd : process.cwd(),
     String(file).replace(/^~(?=\/)/, process.env.HOME || '~'));
-  const stat = statSync(resolved);
-  if (!stat.isFile() || stat.size > limit) return null;
-  return readFileSync(resolved, 'utf8');
+  // Check and read through one descriptor so the file cannot change in between,
+  // and never read more than the limit.
+  const fd = openSync(resolved, constants.O_RDONLY);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > limit) return null;
+    const buffer = Buffer.alloc(Math.min(stat.size, limit));
+    const bytes = readSync(fd, buffer, 0, buffer.length, 0);
+    return buffer.subarray(0, bytes).toString('utf8');
+  } finally {
+    closeSync(fd);
+  }
 }
 
 // Like npx, look for node_modules/.bin/<name> in the directory the command runs
@@ -952,7 +962,11 @@ async function main() {
         stateDir,
         secretPaths: policy.secretPaths
       });
-      for (const extra of getFlags(args, '--protect')) paths.config.push(path.resolve(extra.replace(/^~(?=\/)/, process.env.HOME || '')));
+      for (const extra of getFlags(args, '--protect')) {
+        const expanded = extra.replace(/^~(?=[\\/])/, process.env.HOME || os.homedir());
+        // Keep POSIX absolute paths as written; resolve others natively.
+        paths.config.push(expanded.startsWith('/') ? expanded : path.resolve(expanded));
+      }
       response = await claudeHookResponse(input, {
         policy,
         onRisk,

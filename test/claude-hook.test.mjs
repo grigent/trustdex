@@ -393,3 +393,14 @@ test('Windows-style paths follow the same rules', () => {
   assert.deepEqual(classifyPath('.mcp.json', winPaths, opts), ['config']);
   assert.deepEqual(classifyPath('C:\\Users\\tester\\project\\src\\a.js', winPaths, opts), []);
 });
+
+test('approval state refuses a symlinked state file', { skip: process.platform === 'win32' }, (t) => {
+  const dir = tempDir(t);
+  const decoy = path.join(dir, 'decoy.json');
+  fs.writeFileSync(decoy, '[]');
+  fs.mkdirSync(path.join(dir, 'state'), { mode: 0o700 });
+  fs.symlinkSync(decoy, path.join(dir, 'state', 'approved.json'));
+  const store = createApprovalStore(path.join(dir, 'state'));
+  assert.equal(store.consume('anything', ['npm:x@1.0.0#recent-release']), false);
+  assert.throws(() => store.approve('ABCDEFGH') ?? (() => { throw new Error('regular file'); })(), /regular file/);
+});
