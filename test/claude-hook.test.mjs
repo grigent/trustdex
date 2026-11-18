@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { guardBashCommand, guardFileTool, guardPaths } from '../src/agent-guard.mjs';
+import { classifyPath, guardBashCommand, guardFileTool, guardPaths } from '../src/agent-guard.mjs';
 import { actionDigest, createApprovalStore } from '../src/approvals.mjs';
 import { claudeHookFailure, claudeHookResponse } from '../src/claude-hook.mjs';
 import { evaluateInstallCommand } from '../src/install-check.mjs';
@@ -85,7 +85,7 @@ test('script files run by a shell or interpreter are checked too', () => {
     '/Users/tester/project/build.sh': 'npm run build\n'
   };
   const readScript = (file, cwd) => {
-    const resolved = path.resolve(cwd || '/', file);
+    const resolved = path.posix.resolve(cwd || '/', file);
     if (!(resolved in files)) throw new Error('ENOENT');
     return files[resolved];
   };
@@ -322,8 +322,8 @@ test('approval state is private, bounded, expiring, and code-checked', (t) => {
   const store = createApprovalStore(path.join(dir, 'state'), { now: () => now });
   const code = store.recordPending('d1', [{ name: 'x', signals: ['secret-access'], reasons: [] }]);
   assert.match(code, /^[2-9A-HJ-NP-Z]{8}$/);
-  assert.equal((fs.statSync(path.join(dir, 'state')).mode & 0o777), 0o700);
-  assert.equal((fs.statSync(path.join(dir, 'state', 'pending.json')).mode & 0o777), 0o600);
+  if (process.platform !== 'win32') assert.equal((fs.statSync(path.join(dir, 'state')).mode & 0o777), 0o700);
+  if (process.platform !== 'win32') assert.equal((fs.statSync(path.join(dir, 'state', 'pending.json')).mode & 0o777), 0o600);
   assert.equal(store.findPending('lowercase'), null);
   assert.equal(store.approve('AAAAAAAA'), null);
 
@@ -382,4 +382,14 @@ test('allow-once CLI refuses non-interactive callers such as agent shells', (t) 
 
   const list = runCli(['allow-once', '--list', '--state-dir', state]);
   assert.match(list.stdout, new RegExp(code));
+});
+
+test('Windows-style paths follow the same rules', () => {
+  const winPaths = guardPaths({ home: 'C:\\Users\\tester', trustdexRoot: 'C:\\tools\\trustdex' });
+  const opts = { home: 'C:\\Users\\tester', cwd: 'C:\\Users\\tester\\project' };
+  assert.deepEqual(classifyPath('C:\\Users\\tester\\.ssh\\id_ed25519', winPaths, opts), ['secret']);
+  assert.deepEqual(classifyPath('C:\\Users\\tester\\.claude\\settings.json', winPaths, opts), ['config']);
+  assert.deepEqual(classifyPath('C:\\tools\\trustdex\\src\\claude-hook.mjs', winPaths, opts), ['config']);
+  assert.deepEqual(classifyPath('.mcp.json', winPaths, opts), ['config']);
+  assert.deepEqual(classifyPath('C:\\Users\\tester\\project\\src\\a.js', winPaths, opts), []);
 });

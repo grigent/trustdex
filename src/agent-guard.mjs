@@ -17,7 +17,17 @@
 // next to sandboxing and least-privilege credentials, not a replacement.
 
 import os from 'node:os';
-import path from 'node:path';
+import nodePath from 'node:path';
+
+// Shell commands and tool paths are matched with POSIX semantics on every
+// platform. Windows paths (C:\Users\x) are first turned into /C:/Users/x so the
+// same rules apply to them.
+const path = nodePath.posix;
+
+export function toPosix(value) {
+  const forward = String(value).replace(/\\/g, '/');
+  return /^[A-Za-z]:\//.test(forward) ? `/${forward}` : forward;
+}
 
 import { lexShell, splitHeredocs, CommandParseError } from './install-command.mjs';
 
@@ -46,7 +56,11 @@ function programName(word) {
 
 // ------------------------------------------------------------ paths
 
-export function guardPaths({ home = os.homedir(), trustdexRoot = null, policyPath = null, stateDir = null, secretPaths = [] } = {}) {
+export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot = null, policyPath: rawPolicy = null, stateDir: rawState = null, secretPaths = [] } = {}) {
+  const home = toPosix(rawHome);
+  const trustdexRoot = rawRoot ? toPosix(rawRoot) : null;
+  const policyPath = rawPolicy ? toPosix(rawPolicy) : null;
+  const stateDir = rawState ? toPosix(rawState) : null;
   const h = (rel) => path.join(home, rel);
   return {
     config: [
@@ -68,7 +82,7 @@ export function guardPaths({ home = os.homedir(), trustdexRoot = null, policyPat
       h('Library/Application Support/Google/Chrome/*/Login Data'), h('Library/Application Support/Google/Chrome/*/Cookies'),
       h('Library/Application Support/Firefox/Profiles/'), h('Library/Application Support/BraveSoftware/'),
       h('Library/Application Support/Microsoft Edge/'), h('Library/Safari/'),
-      ...secretPaths.map((entry) => path.resolve(expandHome(entry, home)) + (entry.endsWith('/') ? path.sep : ''))
+      ...secretPaths.map((entry) => path.resolve(expandHome(toPosix(entry), home)) + (/[\\/]$/.test(entry) ? path.sep : ''))
     ],
     secretNames: [/(^|\/)\.codex[^/]*\/auth\.json$/i, /(^|\/)id_(rsa|ecdsa|ed25519|dsa)$/i],
     persistence: [
@@ -96,7 +110,8 @@ function globToRegExp(pattern) {
 
 function matchesAny(file, patterns, names = []) {
   const lower = file.toLowerCase();
-  for (const pattern of patterns) {
+  for (const rawPattern of patterns) {
+    const pattern = toPosix(rawPattern);
     if (pattern.endsWith(path.sep)) {
       if (lower.startsWith(pattern.toLowerCase()) || `${lower}${path.sep}` === pattern.toLowerCase()) return true;
     } else if (pattern.includes('*')) {
@@ -108,9 +123,11 @@ function matchesAny(file, patterns, names = []) {
   return names.some((re) => re.test(file));
 }
 
-export function classifyPath(file, paths, { cwd = null, home = os.homedir() } = {}) {
+export function classifyPath(file, paths, { cwd: rawCwd = null, home: rawHome = os.homedir() } = {}) {
   if (typeof file !== 'string' || !file) return [];
-  let resolved = expandHome(file.trim(), home);
+  const home = toPosix(rawHome);
+  const cwd = rawCwd ? toPosix(rawCwd) : null;
+  let resolved = expandHome(toPosix(file.trim()), home);
   if (!path.isAbsolute(resolved)) resolved = cwd && path.isAbsolute(cwd) ? path.resolve(cwd, resolved) : resolved;
   else resolved = path.resolve(resolved);
   const kinds = [];
@@ -322,7 +339,7 @@ export function guardBashCommand(command, paths, options = {}) {
   // Variables assigned within the command (D=~/x; export D=~/x) are substituted,
   // so `D=<path> && rm -rf "$D"` is recognised. Values are resolved in order and
   // may refer to earlier ones. Variables from the environment are not known.
-  const vars = new Map([['HOME', options.home || os.homedir()]]);
+  const vars = new Map([['HOME', toPosix(options.home || os.homedir())]]);
   const substitute = (word) => String(word).replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
     (whole, braced, bare) => (vars.has(braced || bare) ? vars.get(braced || bare) : whole));
   for (const argv of commands) {
@@ -353,7 +370,7 @@ export function guardBashCommand(command, paths, options = {}) {
   }
 
   // `cd` inside the command changes where later relative paths point.
-  let currentCwd = options.cwd && path.isAbsolute(options.cwd) ? options.cwd : null;
+  let currentCwd = options.cwd && path.isAbsolute(toPosix(options.cwd)) ? toPosix(options.cwd) : null;
   // After a cd, bare file names (cat id_ed25519) may name protected files too.
   let movedDirectory = false;
 
@@ -362,7 +379,7 @@ export function guardBashCommand(command, paths, options = {}) {
     const words = stripWrappers(argv);
     const program = programName(words[0] || '');
     if (program === 'cd') {
-      const target = words[1] && words[1] !== '-' ? expandHome(words[1], options.home || os.homedir()) : options.home || os.homedir();
+      const target = words[1] && words[1] !== '-' ? expandHome(toPosix(words[1]), toPosix(options.home || os.homedir())) : toPosix(options.home || os.homedir());
       currentCwd = path.isAbsolute(target) ? path.resolve(target) : currentCwd ? path.resolve(currentCwd, target) : null;
       movedDirectory = true;
       continue;
