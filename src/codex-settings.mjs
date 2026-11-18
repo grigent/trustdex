@@ -1,7 +1,9 @@
 import { decodeTomlValue, parseTomlStatements } from './toml-lite.mjs';
 
 const APPROVAL_POLICIES = new Set(['on-request', 'never']);
-const APPROVAL_REVIEWERS = new Set(['user', 'auto_review']);
+// guardian_subagent is the reviewer value written by Codex CLI releases that route
+// approvals to an automatic reviewer agent; it grants the same autonomy as auto_review.
+const APPROVAL_REVIEWERS = new Set(['user', 'auto_review', 'guardian_subagent']);
 const SANDBOX_MODES = new Set(['read-only', 'workspace-write', 'danger-full-access']);
 const BUILTIN_PERMISSIONS = new Set([':read-only', ':workspace', ':danger-full-access']);
 const WEB_SEARCH_MODES = new Set(['disabled', 'cached', 'indexed', 'live']);
@@ -181,7 +183,9 @@ function inspectParsedCodexSettings({ root, sandbox, agents, sections }, sourceN
     if (!APPROVAL_REVIEWERS.has(root.approvals_reviewer)) {
       throw new Error('Unsupported Codex approvals_reviewer value.');
     }
-    if (root.approvals_reviewer === 'auto_review') signals.add('codex-auto-review');
+    if (root.approvals_reviewer === 'auto_review' || root.approvals_reviewer === 'guardian_subagent') {
+      signals.add('codex-auto-review');
+    }
   }
 
   if (root.sandbox_mode !== undefined) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, constants } from 'node:fs';
+import { readFileSync, statSync, constants } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -50,6 +50,13 @@ import {
   verifyRuntimeInventoryAttestation
 } from '../src/runtime-attestation.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
+import {
+  claudeHookFailure,
+  claudeHookResponse,
+  evaluateInstallCommand,
+  overallAction,
+  parseInstallPolicy
+} from '../src/install-check.mjs';
 import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
 import { parseEd25519PublicKeyPem, parseKeysetText, spkiKeyId } from '../src/keyset.mjs';
@@ -147,6 +154,16 @@ Usage:
       (--public key.pem | --keyset keyset.json) [--max-age-seconds n] [--json]
   trustdex policy <strict|official-first|development>
 
+  trustdex check-install "<shell command>" [--install-policy policy.json] [--json]
+      Parse npm/pnpm/yarn/bun/npx and pip/uv/uvx/pipx/poetry/pdm install commands and
+      curl|sh pipelines, then look up each registry package on registry.npmjs.org or
+      pypi.org (explicit network lookup; only package names are sent).
+  trustdex claude-hook [--install-policy policy.json] [--unattended-ask deny|ask]
+      Claude Code PreToolUse hook: reads the hook JSON on stdin and denies or asks for
+      risky Bash install commands. It never approves a command. In bypassPermissions and
+      dontAsk modes nobody can be asked, so ASK becomes deny unless --unattended-ask ask
+      (see docs/INSTALL_CHECK.md).
+
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
   trustdex sign <snapshot.json> --private trustdex-private.pem --out trust-record.json
       [--policy policy.json] [--source-ref <ref>]
@@ -163,7 +180,8 @@ Inspection commands (inspect, inspect-*) accept --decisions to print the version
 trustdex-decisions JSON contract for agents and automation (see docs/AGENT_INTEGRATION.md).
 
 Most commands are local-only. The provenance and trust-source commands perform explicit
-network lookups to GitHub or npm when you invoke them.`);
+network lookups to GitHub or npm, and check-install and claude-hook look up packages on
+the public npm registry and PyPI, only when you invoke them.`);
 }
 
 // JSON.parse messages can quote part of the input, which may be a credential.
@@ -518,6 +536,35 @@ async function lookupProvenance(adapter, subject) {
   throw new Error('provenance adapter must be "github", "github-release", "npm", or "mcp".');
 }
 
+const MAX_HOOK_INPUT_BYTES = 1024 * 1024;
+
+async function readStdin(limit) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of process.stdin) {
+    size += chunk.length;
+    if (size > limit) throw new Error('stdin input is too large.');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function loadInstallPolicy(args) {
+  const file = getFlag(args, '--install-policy');
+  return parseInstallPolicy(file ? await readJson(file) : undefined);
+}
+
+function localBinChecker(cwd) {
+  if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return () => false;
+  return (name) => {
+    try {
+      return statSync(path.join(cwd, 'node_modules', '.bin', name)).isFile();
+    } catch {
+      return false;
+    }
+  };
+}
+
 function shouldColor(args) {
   return process.env.NO_COLOR === undefined &&
     !args.includes('--no-color') &&
@@ -837,6 +884,49 @@ async function main() {
     if (review.length) console.log(`Needs review: ${review.join(', ')}`);
     if (blocked.length) console.log(`Blocked: ${blocked.join(', ')}`);
     if (review.length && !hasFlag(args, '--include-ask')) process.exitCode = 1;
+    return;
+  }
+
+  if (command === 'check-install') {
+    const text = args[1];
+    if (typeof text !== 'string' || !text.trim() || text.startsWith('--')) {
+      throw new Error('check-install requires a quoted shell command.');
+    }
+    const policy = await loadInstallPolicy(args);
+    const { items } = await evaluateInstallCommand(text, { policy, localBinExists: localBinChecker(process.cwd()) });
+    if (hasFlag(args, '--json')) {
+      console.log(JSON.stringify({ decision: items.length ? overallAction(items) : 'allow', items }, null, 2));
+    } else if (!items.length) {
+      console.log('No package installation detected.');
+    } else {
+      for (const item of items) {
+        console.log(`${label(item.action).padEnd(5)} ${item.name}`);
+        if (item.signals.length) console.log(`      signals: ${item.signals.join(', ')}`);
+        for (const reason of item.reasons) console.log(`      - ${reason}`);
+      }
+    }
+    setInspectExitCode(items);
+    return;
+  }
+
+  if (command === 'claude-hook') {
+    // A hook that crashes is treated by Claude Code as a non-blocking error, which
+    // would let the command run unchecked; a failure on an install-related command
+    // becomes ASK (deny when nobody can be asked) instead.
+    let response;
+    let input = null;
+    let unattendedAsk = 'deny';
+    try {
+      input = JSON.parse(await readStdin(MAX_HOOK_INPUT_BYTES));
+      const requested = getFlag(args, '--unattended-ask') || 'deny';
+      if (!['deny', 'ask'].includes(requested)) throw new Error('invalid --unattended-ask');
+      unattendedAsk = requested;
+      const policy = await loadInstallPolicy(args);
+      response = await claudeHookResponse(input, { policy, unattendedAsk, localBinExists: localBinChecker(input?.cwd) });
+    } catch {
+      response = claudeHookFailure(input, { unattendedAsk });
+    }
+    if (response) console.log(JSON.stringify(response));
     return;
   }
 

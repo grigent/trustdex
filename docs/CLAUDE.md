@@ -93,6 +93,9 @@ Official references:
 
 ## Claude Code permission settings
 
+To check package installs before Claude Code runs them, including when permission prompts are bypassed, use the `claude-hook` command as a `PreToolUse` hook; see [Pre-install package checks](INSTALL_CHECK.md#claude-code-hook).
+
+
 MCP gating controls which external servers are exposed. Claude Code's own permission
 rules separately control which agent actions run without prompting. Inspect a user,
 project, local, or managed settings file as a separate step:

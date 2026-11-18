@@ -17,7 +17,7 @@ const CLAUDE_MODES = new Set([
 ]);
 const CLAUDE_CATEGORIES = new Set(['filesystem', 'mcp', 'network', 'other', 'shell', 'subagent']);
 const CODEX_APPROVALS = new Set([null, 'on-request', 'never', 'granular']);
-const CODEX_REVIEWERS = new Set([null, 'user', 'auto_review']);
+const CODEX_REVIEWERS = new Set([null, 'user', 'auto_review', 'guardian_subagent']);
 const CODEX_SANDBOXES = new Set([null, 'read-only', 'workspace-write', 'danger-full-access']);
 const CODEX_PERMISSIONS = new Set([null, ':read-only', ':workspace', ':danger-full-access', 'custom']);
 const CODEX_SEARCH = new Set([null, 'disabled', 'cached', 'indexed', 'live']);
@@ -476,7 +476,8 @@ function compareCodexMetadata(changes, before, after) {
   );
   compareRanked(changes, 'approvalsReviewer', before.approvalsReviewer, after.approvalsReviewer, {
     user: 0,
-    auto_review: 1
+    auto_review: 1,
+    guardian_subagent: 1
   });
   compareRanked(changes, 'sandboxMode', before.sandboxMode, after.sandboxMode, {
     'read-only': 0,

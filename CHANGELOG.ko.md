@@ -6,6 +6,18 @@
 
 ## 미출시
 
+- `check-install` 추가
+  - npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, pdm 설치 명령을 오프라인으로 해석하고, 내려받아 바로 실행하는 파이프라인(`curl ... | sh`, `bash <(curl ...)`)을 차단
+  - 레지스트리 패키지마다 공개 npm 저장소나 PyPI를 조회(패키지 이름만 전송)
+  - BLOCK: 없는 패키지, 잘못된 무결성 메타데이터
+  - ASK: 최근 릴리스(48시간), 새 패키지(30일), 설치 스크립트·소스 빌드, 최근 릴리스의 처음 보는 게시자, 사용 중단·철회 버전, 유명 이름 흉내, git/URL 출처, 별도 레지스트리, 풀지 못한 범위, 매니페스트 설치, 조회 실패
+- `claude-hook` 추가: 위험한 Bash 설치 명령을 거부하거나 묻는 Claude Code `PreToolUse` 훅
+  - 승인하지 않음
+  - 물어도 아무에게 가지 않는 `bypassPermissions`·`dontAsk` 모드에서는 ASK를 거부로 바꿈(`--unattended-ask ask`로 끌 수 있음)
+  - 입력을 평가하지 못하면 설치 관련 명령에 ASK로 답함
+- 엄격한 설치 정책 파일(`--install-policy`) 추가: 릴리스·패키지 나이 기준, 매니페스트 설치 처리, 좁은 범위의 허용 목록. 허용 목록은 BLOCK 신호, `recent-release`, `publisher-changed`를 끌 수 없음
+- Codex `approvals_reviewer = "guardian_subagent"`를 설정 검사와 권한 상태에서 자동 검토자(`codex-auto-review`)로 인정
+
 ## 0.13.1 - 2026-11-08
 
 - **보안:** 설치된 IDE 확장 폴더 검사에 최대 5만 파일, 10만 항목, 파일 총량 2GiB, 디렉터리 깊이 64단계 제한 적용. 한도 초과 시 부분 지문을 승인에 사용하지 않고 차단하며 디렉터리 목록을 순차적으로 읽음

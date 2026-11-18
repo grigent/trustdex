@@ -66,7 +66,7 @@ export async function inspectGitHubRepository(repository, options = {}) {
 }
 
 // A syntactically plausible but truncated SRI string is not immutable evidence.
-function hasValidRegistryIntegrity(integrity) {
+export function hasValidRegistryIntegrity(integrity) {
   if (typeof integrity !== 'string' || !integrity.trim()) return false;
   const lengths = { sha256: 32, sha384: 48, sha512: 64 };
   return integrity.trim().split(/\s+/).every((token) => {

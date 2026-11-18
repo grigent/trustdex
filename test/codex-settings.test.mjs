@@ -152,3 +152,14 @@ test('Codex settings CLI inspects the inert permissions example', () => {
   assert.ok(result.signals.includes('codex-additional-writable-roots'));
   assert.equal(JSON.stringify(result).includes('../reviewed-shared'), false);
 });
+
+test('Codex settings inspection treats guardian_subagent as an automatic reviewer', () => {
+  const result = evaluate(`
+approval_policy = "on-request"
+approvals_reviewer = "guardian_subagent"
+sandbox_mode = "read-only"
+`);
+  assert.ok(result.signals.includes('codex-auto-review'));
+  assert.equal(result.metadata.approvalsReviewer, 'guardian_subagent');
+  assert.throws(() => inspectCodexSettingsText('approvals_reviewer = "someone_else"\n'), /Unsupported Codex approvals_reviewer/);
+});
