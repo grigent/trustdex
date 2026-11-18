@@ -45,6 +45,7 @@ const BASE_SIGNALS = {
   'claude-additional-directories': 'ask',
   'claude-outside-read-access': 'ask',
   'claude-hooks': 'block',
+  'claude-hooks-disabled': 'block',
   'claude-credential-helper': 'block',
   'claude-environment': 'ask',
   'claude-sandbox-settings': 'ask',

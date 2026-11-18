@@ -27,6 +27,7 @@ const DAY = 24 * HOUR;
 
 export const SIGNAL_ACTIONS = Object.freeze({
   'pipe-to-shell': 'block',
+  'obfuscated-execution': 'block',
   'package-not-found': 'block',
   'invalid-registry-metadata': 'block',
   'version-not-found': 'ask',
@@ -463,6 +464,12 @@ export async function evaluateInstallCommand(command, options = {}) {
     if (finding.kind === 'pipe-to-shell') {
       const item = makeItem('command:download-to-interpreter');
       item.signal('pipe-to-shell', 'Downloaded content is executed directly by a shell or interpreter without review.');
+      items.push(item);
+      continue;
+    }
+    if (finding.kind === 'decoded-to-interpreter') {
+      const item = makeItem('command:decoded-to-interpreter');
+      item.signal('obfuscated-execution', 'Decodes hidden content (base64, hex, compressed data) and runs it as a program, a common way to hide malicious commands.');
       items.push(item);
       continue;
     }

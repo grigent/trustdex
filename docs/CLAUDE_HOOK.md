@@ -26,7 +26,14 @@ So by default the hook does not turn a risky action into a dialog. It denies the
 | `secret-access` | BLOCK | reading or copying SSH private keys, cloud/registry/GitHub tokens (`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config`, ...), agent login files, keychains (`security find-generic-password -w`, `dump-keychain`), browser cookies and saved logins, `gh auth token`, plus any paths in `secretPaths` |
 | `agent-permission-bypass` | BLOCK | `claude --dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox` / `--yolo` / `-s danger-full-access` / `approval_policy=never`, `gemini --yolo` / `-y`, `cursor-agent --force`, `aider --yes-always`, `q chat --trust-all-tools`, `amp --dangerously-allow-all` |
 | package install signals | BLOCK / ASK | see [Pre-install package checks](INSTALL_CHECK.md) |
-| `persistence-change` | ASK | launch agents and daemons, `launchctl load/bootstrap`, `crontab`, login items, shell startup files such as `~/.zshrc` |
+| `persistence-change` | ASK | launch agents and daemons, `launchctl load/bootstrap`, `crontab`, login items, shell startup files such as `~/.zshrc`, git hooks (`.git/hooks/*`, `git config core.hooksPath`) |
+| `obfuscated-execution` | BLOCK | decoding hidden content and running it: `base64 -d \| sh`, `xxd -r \| python3`, `gunzip \| sh`, `eval "$(... base64 -d)"` |
+
+Some cases deserve a note:
+- `secret-access` also covers sending environment dumps (`env`, `printenv`) or `.env` files over the network with `curl`, `nc`, `scp` and similar tools.
+- `guard-tamper` also covers `claude mcp add`, `codex mcp add`, and similar commands that register MCP servers.
+- Paths written inside one-line code (`python3 -c`, `node -e`) are checked.
+- Relative paths after a `cd` within the same command resolve against the new directory.
 
 The following stay allowed:
 - reading settings (`cat`, `jq`, `grep`, `Read`)
@@ -95,6 +102,18 @@ The agent cannot approve its own action in three ways:
 The running TrustDex copy, the policy file, and the state directory are protected automatically. `--protect` adds more files, such as the wrapper. The install policy accepts `secretPaths`: absolute or `~/` paths of extra credential files to protect.
 
 If the hook cannot read its input or configuration, it denies file tools and Bash commands that could be risky rather than failing open. Unrelated tools keep working.
+
+## Settings that switch hooks off
+
+Any settings file, including a project's `.claude/settings.json` that arrives with a cloned repository, can contain `disableAllHooks`. When hooks are disabled, this hook does not run at all, so it cannot protect that session.
+
+The hook stops agents from writing such a setting. A repository can still ship one, though. Before opening an untrusted repository, check it:
+
+```bash
+trustdex inspect-claude-settings path/to/repo/.claude/settings.json
+```
+
+The check reports `claude-hooks-disabled` as BLOCK. Organisations can also deliver the hook through Claude Code's managed settings, which project files cannot override.
 
 ## Limits
 

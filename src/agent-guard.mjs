@@ -75,7 +75,9 @@ export function guardPaths({ home = os.homedir(), trustdexRoot = null, policyPat
       '/etc/crontab', '/etc/profile', '/etc/zshrc', '/etc/bashrc',
       ...['.zshrc', '.zshenv', '.zprofile', '.zlogin', '.bashrc', '.bash_profile', '.profile', '.config/fish/config.fish'].map(h),
       h('.config/autostart/'), h('.config/systemd/user/')
-    ]
+    ],
+    // Git hooks run code on every commit, checkout or push.
+    persistenceNames: [/(^|\/)\.git\/hooks\/[^/]+$/i]
   };
 }
 
@@ -113,7 +115,7 @@ export function classifyPath(file, paths, { cwd = null, home = os.homedir() } = 
   const kinds = [];
   if (matchesAny(resolved, paths.secrets, paths.secretNames)) kinds.push('secret');
   if (matchesAny(resolved, paths.config, paths.configNames)) kinds.push('config');
-  if (matchesAny(resolved, paths.persistence)) kinds.push('persistence');
+  if (matchesAny(resolved, paths.persistence, paths.persistenceNames || [])) kinds.push('persistence');
   return kinds;
 }
 
@@ -271,12 +273,21 @@ function stripWrappers(argv) {
 function pathCandidates(word) {
   const out = [];
   for (const part of String(word).split(/[=:,]/)) {
-    const cleaned = part.replace(/^\d*[<>]+&?/, '').replace(/^["']|["']$/g, '');
+    const cleaned = part.replace(/^\d*[<>]+&?/, '').replace(/^[@"']|["']$/g, '');
     if (!cleaned) continue;
     if (/^(?:~|\$HOME|\$\{HOME\}|\/|\.{1,2}\/)/.test(cleaned) || cleaned.includes('/') || /^\.[A-Za-z]/.test(cleaned)) out.push(cleaned);
   }
+  // Paths embedded in code strings (python3 -c "open('~/.ssh/id_rsa')", node -e ...).
+  for (const match of String(word).match(BODY_PATH_RE) || []) {
+    if (!out.includes(match)) out.push(match);
+  }
   return out;
 }
+
+const NETWORK_SENDERS = new Set(['curl', 'wget', 'nc', 'ncat', 'netcat', 'socat', 'http', 'https', 'xh', 'telnet', 'ftp', 'sftp', 'scp', 'rsync']);
+const ENV_DUMPERS = new Set(['env', 'printenv', 'set', 'declare', 'compgen']);
+const DOTENV_RE = /(?:^|[/@'"=])\.env(?:\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)?['"]?$/;
+const AGENT_CONFIG_CLIS = /^(?:claude|codex[\w.-]*|gemini|cursor-agent|amp|q)$/;
 
 const KEYCHAIN_READ = /^(?:find-generic-password|find-internet-password|find-certificate|dump-keychain|export)$/;
 
@@ -323,10 +334,46 @@ export function guardBashCommand(command, paths, options = {}) {
     }
   }
 
+  // Environment dumps or .env files sent anywhere over the network.
+  const sendsToNetwork = allPrograms.some((program) => NETWORK_SENDERS.has(program));
+  if (sendsToNetwork) {
+    const dumpsEnv = commands.some((argv) => {
+      // Not stripWrappers: a bare `env` is the dump itself, not a wrapper.
+      const words = argv.filter((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
+      const program = programName(words[0] || '');
+      const args = words.slice(1).filter((word, index, all) =>
+        !/^\d*[<>]/.test(word) && !(index > 0 && /^\d*[<>]{1,2}&?$/.test(all[index - 1])));
+      return ENV_DUMPERS.has(program) && args.length === 0 || program === 'export' && args[0] === '-p';
+    });
+    const touchesDotenv = commands.some((argv) => argv.some((word) => DOTENV_RE.test(word)));
+    if (dumpsEnv || touchesDotenv) {
+      add('command:secrets-to-network', 'secret-access', 'Sends environment variables or a .env file over the network; they usually hold API keys and passwords.');
+    }
+  }
+
+  // `cd` inside the command changes where later relative paths point.
+  let currentCwd = options.cwd && path.isAbsolute(options.cwd) ? options.cwd : null;
+  // After a cd, bare file names (cat id_ed25519) may name protected files too.
+  let movedDirectory = false;
+
   for (const rawArgv of commands) {
     const argv = rawArgv.map(substitute);
     const words = stripWrappers(argv);
     const program = programName(words[0] || '');
+    if (program === 'cd') {
+      const target = words[1] && words[1] !== '-' ? expandHome(words[1], options.home || os.homedir()) : options.home || os.homedir();
+      currentCwd = path.isAbsolute(target) ? path.resolve(target) : currentCwd ? path.resolve(currentCwd, target) : null;
+      movedDirectory = true;
+      continue;
+    }
+    const pathOptions = { ...options, cwd: currentCwd };
+
+    if (AGENT_CONFIG_CLIS.test(program) && words[1] === 'mcp' && /^(?:add|add-json|add-from-claude-desktop|remove|login)$/.test(words[2] || '')) {
+      add('command:agent-or-gate-config', 'guard-tamper', 'Adds or removes an MCP server for an AI agent; a new server gets access to your tools and data.');
+    }
+    if (program === 'git' && words.some((word) => /^core\.hookspath$/i.test(word)) && words[1] === 'config' && words.length > 3) {
+      add('command:startup-item', 'persistence-change', 'Points git at a different hooks directory, which runs code on every commit or checkout.');
+    }
 
     const trustdexIndex = argv.findIndex((word) => /^trustdex(?:\.mjs)?$/i.test(programName(word)));
     if (trustdexIndex >= 0 && argv.slice(trustdexIndex + 1).some((word) => /^allow-once$/i.test(word))) {
@@ -354,8 +401,10 @@ export function guardBashCommand(command, paths, options = {}) {
     }
 
     for (const word of argv) {
-      for (const candidate of pathCandidates(word)) {
-        const kinds = classifyPath(candidate, paths, options);
+      const candidates = pathCandidates(word);
+      if (movedDirectory && currentCwd && /^[\w@][\w.@+-]*$/.test(word) && word !== words[0]) candidates.push(word);
+      for (const candidate of candidates) {
+        const kinds = classifyPath(candidate, paths, pathOptions);
         if (kinds.includes('secret') && !existenceOnly && !KEY_USERS.has(program)) {
           add('command:credential-store', 'secret-access', 'Reads or copies a credential store such as an SSH key, token file, keychain, or browser login data.');
         }

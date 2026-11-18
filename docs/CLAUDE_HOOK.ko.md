@@ -26,7 +26,14 @@
 | `secret-access` | BLOCK | SSH 개인 키, 클라우드·저장소·깃허브 토큰(`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config` 등), 에이전트 로그인 파일, 키체인(`security find-generic-password -w`, `dump-keychain`), 브라우저 쿠키·저장된 로그인, `gh auth token` 읽기·복사. `secretPaths`에 넣은 경로도 포함 |
 | `agent-permission-bypass` | BLOCK | `claude --dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox` / `--yolo` / `-s danger-full-access` / `approval_policy=never`, `gemini --yolo` / `-y`, `cursor-agent --force`, `aider --yes-always`, `q chat --trust-all-tools`, `amp --dangerously-allow-all` |
 | 패키지 설치 신호 | BLOCK / ASK | [설치 전 패키지 검사](INSTALL_CHECK.ko.md) 참고 |
-| `persistence-change` | ASK | 런치 에이전트·데몬, `launchctl load/bootstrap`, `crontab`, 로그인 항목, `~/.zshrc` 같은 셸 시작 파일 |
+| `persistence-change` | ASK | 런치 에이전트·데몬, `launchctl load/bootstrap`, `crontab`, 로그인 항목, `~/.zshrc` 같은 셸 시작 파일, git 훅(`.git/hooks/*`, `git config core.hooksPath`) |
+| `obfuscated-execution` | BLOCK | 숨긴 내용을 풀어서 실행: `base64 -d \| sh`, `xxd -r \| python3`, `gunzip \| sh`, `eval "$(... base64 -d)"` |
+
+몇 가지는 따로 적어 둡니다.
+- `secret-access`는 환경변수 목록(`env`, `printenv`)이나 `.env` 파일을 `curl`, `nc`, `scp` 같은 도구로 네트워크에 보내는 것도 포함합니다.
+- `guard-tamper`는 MCP 서버를 등록하는 `claude mcp add`, `codex mcp add` 같은 명령도 포함합니다.
+- 한 줄 코드(`python3 -c`, `node -e`) 안에 적힌 경로도 검사합니다.
+- 같은 명령 안에서 `cd`로 옮긴 뒤의 상대 경로는 새 폴더 기준으로 봅니다.
 
 다음은 계속 허용됩니다.
 - 설정 읽기(`cat`, `jq`, `grep`, `Read`)
@@ -95,6 +102,18 @@ If the user understands it and still wants it, they type this in their own termi
 실행 중인 TrustDex 사본, 정책 파일, 상태 폴더는 자동으로 보호됩니다. `--protect`로 실행 파일 같은 다른 파일을 더 보호할 수 있습니다. 설치 정책의 `secretPaths`에는 더 보호할 자격 증명 파일의 절대 경로나 `~/` 경로를 넣습니다.
 
 훅이 입력이나 설정을 읽지 못하면, 위험할 수 있는 파일 도구와 Bash 명령을 그냥 통과시키지 않고 거부합니다. 관계없는 도구는 계속 동작합니다.
+
+## 훅을 끄는 설정
+
+어떤 설정 파일이든 `disableAllHooks`를 넣을 수 있습니다. 저장소를 받을 때 함께 오는 프로젝트의 `.claude/settings.json`도 마찬가지입니다. 훅이 꺼지면 이 훅은 아예 실행되지 않으므로, 그 세션은 보호받지 못합니다.
+
+이 훅은 에이전트가 그런 설정을 쓰는 것은 막습니다. 하지만 저장소가 처음부터 그 설정을 담고 올 수는 있습니다. 믿을 수 없는 저장소는 열기 전에 확인하세요.
+
+```bash
+trustdex inspect-claude-settings 저장소경로/.claude/settings.json
+```
+
+이 검사는 `claude-hooks-disabled`를 BLOCK으로 보고합니다. 조직은 프로젝트 파일이 덮어쓸 수 없는 Claude Code 관리자 설정으로 훅을 배포할 수도 있습니다.
 
 ## 한계
 

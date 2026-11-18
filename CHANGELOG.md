@@ -14,6 +14,13 @@
   - AI coding CLIs launched with permission or sandbox checks off (`agent-permission-bypass`)
   - startup items (`persistence-change`)
 - by default a risky action is denied instead of becoming a one-click dialog. Add `trustdex allow-once <code>` to allow that exact action once within 30 minutes. It requires a person at an interactive terminal and cannot be run or forged by the agent. `--on-risk ask` keeps dialogs for ASK-level findings
+- the hook also checks:
+  - here-document bodies run by a shell or interpreter, local script files run directly, variables assigned in the same command, `cd` within the command, and paths inside one-line code (`python3 -c`, `node -e`)
+  - environment dumps and `.env` files sent over the network
+  - `claude`/`codex`/`gemini` `mcp add` commands
+  - git hooks (`.git/hooks`, `core.hooksPath`)
+- block decoded payloads run as programs (`base64 -d | sh`, `eval "$(... base64 -d)"`, `xxd -r | python3`, `gunzip | sh`) as `obfuscated-execution`
+- report `disableAllHooks` in Claude settings as `claude-hooks-disabled` (BLOCK in every pack)
 - add a strict install policy file (`--install-policy`) for release and package age thresholds, manifest installs, and narrowly scoped allowlists that cannot silence BLOCK signals, `recent-release`, or `publisher-changed`
 - accept Codex `approvals_reviewer = "guardian_subagent"` as an automatic reviewer (`codex-auto-review`) in settings inspection and permission posture
 

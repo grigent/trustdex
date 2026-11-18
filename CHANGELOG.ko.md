@@ -18,6 +18,13 @@
   - 권한·샌드박스 검사를 끈 AI 코딩 CLI 실행(`agent-permission-bypass`)
   - 자동 실행 항목(`persistence-change`)
 - 기본값에서는 위험한 행동을 클릭 한 번짜리 확인 창으로 바꾸지 않고 거부함. `trustdex allow-once <코드>`를 추가해, 대화형 터미널 앞의 사람이 그 행동 하나만 30분 안에 한 번 허용하게 함(에이전트가 실행하거나 위조할 수 없음). `--on-risk ask`로 ASK 수준은 확인 창을 유지할 수 있음
+- 훅이 다음도 검사함
+  - 셸·해석기가 실행하는 히어독 본문, 바로 실행하는 로컬 스크립트 파일, 같은 명령 안의 변수와 `cd`, 한 줄 코드(`python3 -c`, `node -e`) 속 경로
+  - 환경변수 목록과 `.env` 파일을 네트워크로 보내는 것
+  - `claude`/`codex`/`gemini`의 `mcp add` 명령
+  - git 훅(`.git/hooks`, `core.hooksPath`)
+- 숨긴 내용을 풀어서 실행하는 것(`base64 -d | sh`, `eval "$(... base64 -d)"`, `xxd -r | python3`, `gunzip | sh`)을 `obfuscated-execution`으로 차단
+- Claude 설정의 `disableAllHooks`를 `claude-hooks-disabled`로 보고(모든 정책 팩에서 BLOCK)
 - 엄격한 설치 정책 파일(`--install-policy`) 추가: 릴리스·패키지 나이 기준, 매니페스트 설치 처리, 좁은 범위의 허용 목록. 허용 목록은 BLOCK 신호, `recent-release`, `publisher-changed`를 끌 수 없음
 - Codex `approvals_reviewer = "guardian_subagent"`를 설정 검사와 권한 상태에서 자동 검토자(`codex-auto-review`)로 인정
 

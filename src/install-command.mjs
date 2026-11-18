@@ -234,6 +234,23 @@ const SUBSTITUTION_RULES = [
   /(?:^|[\s;&|(])python[0-9.]*\s+(?:-\S+\s+)*-c\s+["']?(?:\$\(|`)\s*(?:curl|wget)\b/
 ];
 
+// Decoders that turn an opaque payload back into a program: base64, hex dumps,
+// openssl, and compression wrappers.
+const DECODE_RE = /\b(?:base64\s+(?:-\S*\s+)*(?:-d|-D|--decode)\b|xxd\s+(?:-\S+\s+)*-r\b|openssl\s+(?:enc|base64)\b[^|)]*\s-d\b|(?:gunzip|zcat|gzip\s+-d|bzip2\s+-d|xz\s+-d)\b)/;
+const DECODED_SUBSTITUTION_RULES = [
+  new RegExp(`(?:^|[\\s;&|(])(?:eval|(?:sudo\\s+(?:-\\S+\\s+)*)?(?:${SHELL_ALT})\\s+(?:-\\S+\\s+)*-[A-Za-z]*c[A-Za-z]*)\\s+["']?(?:\\$\\(|\`)[^)\`]*${DECODE_RE.source}`),
+  new RegExp(`(?:^|[\\s;&|(])(?:source|\\.|(?:${SHELL_ALT}))\\s+(?:-\\S+\\s+)*<\\([^)]*${DECODE_RE.source}`)
+];
+
+function isDecoder(program, args) {
+  if (program === 'base64') return args.some((arg) => /^(?:-d|-D|--decode)$/.test(arg));
+  if (program === 'xxd') return args.some((arg) => /^-[A-Za-z]*r/.test(arg));
+  if (program === 'openssl') return /^(?:enc|base64)$/.test(args[0] || '') && args.includes('-d');
+  if (program === 'gunzip' || program === 'zcat' || program === 'bzcat' || program === 'xzcat') return true;
+  if (program === 'gzip' || program === 'bzip2' || program === 'xz') return args.some((arg) => /^-[A-Za-z]*d/.test(arg));
+  return false;
+}
+
 // ------------------------------------------------------- npm family
 
 const NPM_INSTALL = new Set(['install', 'i', 'in', 'ins', 'inst', 'insta', 'instal', 'isnt', 'isnta', 'isntal', 'isntall', 'add']);
@@ -559,15 +576,24 @@ function analyzeText(fullText, depth, findings, downloadedFiles = new Set()) {
       break;
     }
   }
+  if (DECODED_SUBSTITUTION_RULES.some((rule) => rule.test(text))) {
+    findings.push({ ecosystem: 'shell', kind: 'decoded-to-interpreter' });
+  }
 
   const pipelines = toPipelines(lexShell(text));
   for (const pipeline of pipelines) {
     let downloaded = false;
+    let decoded = false;
     for (const rawArgv of pipeline) {
       const argv = stripPrefixes(rawArgv);
       if (!argv.length) continue;
       const program = programName(argv[0]);
       const args = argv.slice(1);
+
+      if (decoded && INTERPRETERS.has(program) && readsProgramFromStdin(program, args)) {
+        findings.push({ ecosystem: 'shell', kind: 'decoded-to-interpreter' });
+      }
+      if (isDecoder(program, args)) decoded = true;
 
       if (downloaded && INTERPRETERS.has(program) && readsProgramFromStdin(program, args) ||
           runsDownloadedFile(program, argv, downloadedFiles)) {

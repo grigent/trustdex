@@ -22,6 +22,16 @@ function run(...args) {
   return result;
 }
 
+test('Claude settings that switch off every hook are blocked', () => {
+  for (const pack of ['strict', 'official-first', 'development']) {
+    const result = evaluate({ disableAllHooks: true }, pack);
+    assert.equal(result.action, 'block', pack);
+    assert.ok(result.signals.includes('claude-hooks-disabled'));
+    assert.ok(!result.signals.includes('uninspected-claude-settings'));
+  }
+  assert.ok(!evaluate({ disableAllHooks: false }).signals.includes('claude-hooks-disabled'));
+});
+
 test('Claude settings inspection treats deny and ask rules as restrictions', () => {
   const result = evaluate({
     permissions: {

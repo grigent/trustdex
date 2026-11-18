@@ -43,6 +43,7 @@ const RUNTIME_SIGNALS = Object.freeze({
     'claude-additional-directories',
     'claude-outside-read-access',
     'claude-hooks',
+    'claude-hooks-disabled',
     'claude-credential-helper',
     'claude-environment',
     'claude-sandbox-settings',

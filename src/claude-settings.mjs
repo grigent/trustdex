@@ -147,6 +147,9 @@ export function inspectClaudeSettings(settings, sourceName = 'settings.json') {
     if (envKeys.some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
   }
   if (settings.hooks !== undefined) signals.add('claude-hooks');
+  // A project or user settings file can switch off every hook, including a
+  // security gate installed at another scope.
+  if (settings.disableAllHooks !== undefined && settings.disableAllHooks !== false) signals.add('claude-hooks-disabled');
   if (settings.apiKeyHelper !== undefined) signals.add('claude-credential-helper');
   if (settings.sandbox !== undefined) signals.add('claude-sandbox-settings');
   if (settings.enabledPlugins !== undefined || settings.extraKnownMarketplaces !== undefined) {
@@ -154,7 +157,7 @@ export function inspectClaudeSettings(settings, sourceName = 'settings.json') {
   }
 
   const inspectedAdjacentKeys = new Set([
-    'env', 'hooks', 'apiKeyHelper', 'sandbox', 'enabledPlugins', 'extraKnownMarketplaces'
+    'env', 'hooks', 'disableAllHooks', 'apiKeyHelper', 'sandbox', 'enabledPlugins', 'extraKnownMarketplaces'
   ]);
   const uninspectedRootKeys = Object.keys(settings)
     .filter((key) => !NON_PERMISSION_ROOT_KEYS.has(key) && !inspectedAdjacentKeys.has(key))

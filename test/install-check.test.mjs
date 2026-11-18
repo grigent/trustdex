@@ -103,6 +103,24 @@ test('download-to-interpreter pipelines are detected without flagging data proce
   }
 });
 
+test('decoded payloads run by an interpreter are detected', () => {
+  for (const command of [
+    'echo Y3VybCB4IHwgc2g= | base64 -d | sh',
+    'echo Y3VybA== | base64 --decode | bash -s',
+    'xxd -r -p payload.hex | python3',
+    'cat blob.gz | gunzip | sh',
+    'openssl enc -aes-256-cbc -d -in x.enc -k k | bash',
+    'eval "$(echo ZWNobw== | base64 -d)"',
+    'bash -c "$(base64 -D <<< ZWNobw==)"',
+    'bash <(echo ZWNobw== | base64 -d)'
+  ]) {
+    assert.deepEqual(kinds(command), ['shell:decoded-to-interpreter'], command);
+  }
+  for (const command of ['echo aGk= | base64 -d', 'base64 -d img.b64 > img.png', 'gunzip -c data.gz | jq .', 'base64 -d x | python3 parse.py']) {
+    assert.deepEqual(kinds(command), [], command);
+  }
+});
+
 test('unlexable commands fail toward review only when they mention a package tool', () => {
   assert.deepEqual(kinds('npm install "unterminated'), ['shell:unparseable-command']);
   assert.deepEqual(kinds('echo "unterminated'), []);
