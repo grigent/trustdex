@@ -31,9 +31,10 @@ export const GUARD_SIGNAL_ACTIONS = Object.freeze({
 
 const READ_ONLY_PROGRAMS = new Set([
   'cat', 'head', 'tail', 'less', 'more', 'grep', 'egrep', 'fgrep', 'rg', 'ls', 'stat', 'wc', 'jq',
-  'diff', 'file', 'test', '[', 'echo', 'printf', 'true', 'cmp', 'shasum', 'sha256sum', 'md5', 'plutil'
+  'diff', 'file', 'test', '[', 'echo', 'printf', 'true', 'cmp', 'shasum', 'sha256sum', 'md5', 'plutil',
+  'cd', 'pwd', 'sort', 'uniq', 'cut', 'tr', 'basename', 'dirname', 'realpath', 'readlink', 'du', 'tree', 'nl', 'column'
 ]);
-const EXISTENCE_PROGRAMS = new Set(['ls', 'stat', 'test', '[', 'true', 'echo', 'printf']);
+const EXISTENCE_PROGRAMS = new Set(['ls', 'stat', 'test', '[', 'true', 'echo', 'printf', 'cd', 'pwd']);
 const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh', 'ash', 'fish']);
 // SSH tools use private keys without revealing them; passing a key path to them is normal.
 const KEY_USERS = new Set(['ssh', 'scp', 'sftp', 'ssh-add', 'ssh-keygen', 'autossh', 'mosh']);

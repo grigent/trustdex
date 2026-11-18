@@ -53,7 +53,9 @@ test('changing agent settings, MCP config, or TrustDex itself is blocked; readin
   ]) {
     assert.ok(bash(command).includes('guard-tamper'), command);
   }
-  for (const command of ['cat ~/.claude/settings.json', 'jq .hooks ~/.claude/settings.json', 'grep -n mcp .mcp.json', 'git status']) {
+  for (const command of ['cat ~/.claude/settings.json', 'jq .hooks ~/.claude/settings.json', 'grep -n mcp .mcp.json', 'git status',
+    'cd /Users/tester/repo && diff -rq src ~/.local/libexec/trustdex/src && echo same',
+    'cd ~ && ls ~/.claude/settings.json | sort']) {
     assert.deepEqual(bash(command), [], command);
   }
   assert.deepEqual(file('Edit', '/Users/tester/.claude/settings.json'), ['guard-tamper']);
