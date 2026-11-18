@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- bind Bash one-time approvals to the effective starting directory plus the command after any leading `cd`, so an approval matches when Claude Code drops a leading `cd` to the current directory, and does not carry over to the same command in another directory
+
 ## 0.14.0 - 2026-11-18
 
 - add `check-install`: parse npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, and pdm install commands offline, block download-to-interpreter pipelines (`curl ... | sh`, `bash <(curl ...)`), and look up each registry package on the public npm registry or PyPI (only package names are sent). Missing packages and invalid integrity metadata are BLOCK. Recent releases (48h), new packages (30 days), install scripts and source builds, first-time publishers on recent releases, deprecated or yanked versions, look-alike names, git/URL sources, custom registries, unresolved ranges, manifest installs, and failed lookups are ASK

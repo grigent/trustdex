@@ -62,7 +62,7 @@ Running `trustdex allow-once K7M2QX9P` works like this:
 2. It asks the person to type `yes`.
 3. It records a one-time approval.
 
-The approval is bound to the SHA-256 digest of that exact tool call (the same command text, or the same file and content). It expires after 30 minutes and is used up by the first matching call. Codes expire after an hour.
+The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory); for file tools, the same file and content. It expires after 30 minutes and is used up by the first matching call. Codes expire after an hour.
 
 Package findings work differently, to keep everyday work smooth.
 - Covered findings: a release that is too recent, install scripts, a new package, a deprecated or yanked version, a first-time publisher, or a look-alike name.
