@@ -307,7 +307,24 @@ export function guardBashCommand(command, paths, options = {}) {
   const readOnly = !writesSomewhere && allPrograms.every((program) => !program || READ_ONLY_PROGRAMS.has(program));
   const existenceOnly = !writesSomewhere && allPrograms.every((program) => !program || EXISTENCE_PROGRAMS.has(program));
 
+  // Variables assigned within the command (D=~/x; export D=~/x) are substituted,
+  // so `D=<path> && rm -rf "$D"` is recognised. Values are resolved in order and
+  // may refer to earlier ones. Variables from the environment are not known.
+  const vars = new Map([['HOME', options.home || os.homedir()]]);
+  const substitute = (word) => String(word).replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g,
+    (whole, braced, bare) => (vars.has(braced || bare) ? vars.get(braced || bare) : whole));
   for (const argv of commands) {
+    const first = programName(argv[0] || '');
+    const start = first === 'export' || first === 'local' || first === 'declare' ? 1 : 0;
+    for (const word of argv.slice(start)) {
+      const assignment = /^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/s.exec(word);
+      if (!assignment) break;
+      vars.set(assignment[1], substitute(assignment[2]));
+    }
+  }
+
+  for (const rawArgv of commands) {
+    const argv = rawArgv.map(substitute);
     const words = stripWrappers(argv);
     const program = programName(words[0] || '');
 
@@ -336,7 +353,7 @@ export function guardBashCommand(command, paths, options = {}) {
       add('command:startup-item', 'persistence-change', 'Adds a login item.');
     }
 
-    for (const word of argv.slice(1)) {
+    for (const word of argv) {
       for (const candidate of pathCandidates(word)) {
         const kinds = classifyPath(candidate, paths, options);
         if (kinds.includes('secret') && !existenceOnly && !KEY_USERS.has(program)) {

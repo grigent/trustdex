@@ -96,6 +96,15 @@ test('script files run by a shell or interpreter are checked too', () => {
   assert.deepEqual(run('python3 -c "print(1)"'), []);
 });
 
+test('paths held in variables set by the same command are recognised', () => {
+  assert.ok(bash('D=$HOME/.local/libexec/trustdex && rm -rf "$D.new" && mv x "$D"').includes('guard-tamper'));
+  assert.ok(bash('export K=~/.ssh; cat "$K/id_ed25519"').includes('secret-access'));
+  assert.ok(bash('A=~/.claude; B="${A}/settings.json"; cp evil.json $B').includes('guard-tamper'));
+  assert.ok(bash('P=~/.config/trustdex/state; echo x > "$P/approved.json"').includes('guard-tamper'));
+  assert.deepEqual(bash('OUT=dist && rm -rf "$OUT"'), []);
+  assert.deepEqual(bash('S=~/.claude/settings.json; jq .hooks "$S"'), [], 'reading through a variable stays allowed');
+});
+
 test('credential stores cannot be read or copied, but their existence can be checked', () => {
   for (const command of [
     'cat ~/.ssh/id_ed25519',
