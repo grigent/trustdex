@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.14.0 - 2026-11-18
+
 - `check-install` 추가
   - npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, pdm 설치 명령을 오프라인으로 해석하고, 내려받아 바로 실행하는 파이프라인(`curl ... | sh`, `bash <(curl ...)`)을 차단
   - 레지스트리 패키지마다 공개 npm 저장소나 PyPI를 조회(패키지 이름만 전송)
