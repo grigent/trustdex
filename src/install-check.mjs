@@ -13,7 +13,6 @@
 
 import {
   analyzeInstallCommand,
-  mentionsPackageTool,
   normalizePypiName,
   parseNpmSpec,
   parsePypiSpec
@@ -59,7 +58,8 @@ export const DEFAULT_INSTALL_POLICY = Object.freeze({
   minPackageAgeDays: 30,
   manifestInstall: 'ask',
   allowPackages: [],
-  allowInstallScripts: []
+  allowInstallScripts: [],
+  secretPaths: []
 });
 
 const POLICY_KEYS = new Set(['version', ...Object.keys(DEFAULT_INSTALL_POLICY)]);
@@ -90,6 +90,12 @@ export function parseInstallPolicy(value) {
   if (value.manifestInstall !== undefined) {
     if (!['allow', 'ask'].includes(value.manifestInstall)) throw new Error('Install policy manifestInstall must be "allow" or "ask".');
     policy.manifestInstall = value.manifestInstall;
+  }
+  if (value.secretPaths !== undefined) {
+    if (!Array.isArray(value.secretPaths) || value.secretPaths.some((entry) => typeof entry !== 'string' || !/^(?:~\/|\/)/.test(entry))) {
+      throw new Error('Install policy secretPaths must be an array of absolute or ~/ paths.');
+    }
+    policy.secretPaths = [...new Set(value.secretPaths)].sort();
   }
   for (const key of ['allowPackages', 'allowInstallScripts']) {
     if (value[key] === undefined) continue;
@@ -533,67 +539,4 @@ export async function evaluateInstallCommand(command, options = {}) {
   }
 
   return { policy, items: items.map(finish) };
-}
-
-// --------------------------------------------------------- Claude hook
-
-// Permission modes in which an "ask" decision reaches no human: Claude Code runs
-// the command anyway (bypassPermissions) or refuses it silently (dontAsk).
-const UNATTENDED_MODES = new Set(['bypassPermissions', 'dontAsk']);
-
-const UNATTENDED_NOTE = 'No one can be asked in the current permission mode, so TrustDex denied it instead of asking. ' +
-  'Stop and tell the user what was found. Safer alternatives: pin an older exact version, add --ignore-scripts, ' +
-  'or let the user run the command themselves.';
-
-function summarize(items, action, unattended = false) {
-  const lines = items
-    .filter((item) => item.action === action)
-    .map((item) => `${item.name}: ${item.reasons.join(' ')}`);
-  const head = action === 'block' ? 'TrustDex blocked this install command.' : 'TrustDex needs review for this install command.';
-  return [head, ...lines, ...(unattended && action === 'ask' ? [UNATTENDED_NOTE] : [])].join('\n');
-}
-
-// Builds the Claude Code PreToolUse hook response. Returns null when the hook
-// should stay silent (not a Bash call, nothing detected, or everything allowed),
-// so the normal permission flow continues and TrustDex never grants approval.
-//
-// In permission modes where an "ask" reaches no human, ASK becomes "deny" unless
-// options.unattendedAsk is "ask" (then the mode decides, which in
-// bypassPermissions means the command runs).
-export async function claudeHookResponse(input, options = {}) {
-  if (!input || typeof input !== 'object' || input.tool_name !== 'Bash') return null;
-  const command = input.tool_input?.command;
-  if (typeof command !== 'string' || !command.trim()) return null;
-  const { items } = await evaluateInstallCommand(command, options);
-  const action = overallAction(items);
-  if (action === 'allow') return null;
-  const unattended = UNATTENDED_MODES.has(input.permission_mode) && options.unattendedAsk !== 'ask';
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: action === 'block' || unattended ? 'deny' : 'ask',
-      permissionDecisionReason: summarize(items, action, unattended)
-    }
-  };
-}
-
-// Used when the hook cannot evaluate its input or configuration. Unreadable input
-// always needs review; a readable call stays silent unless it is a Bash command
-// that mentions a package tool or downloader, so a broken policy file cannot stop
-// every unrelated command.
-export function claudeHookFailure(input = null, options = {}) {
-  if (input && typeof input === 'object' && typeof input.tool_name === 'string') {
-    if (input.tool_name !== 'Bash') return null;
-    if (!mentionsPackageTool(input.tool_input?.command)) return null;
-  }
-  const unattended = UNATTENDED_MODES.has(input?.permission_mode) && options.unattendedAsk !== 'ask';
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      permissionDecision: unattended ? 'deny' : 'ask',
-      permissionDecisionReason: unattended
-        ? `TrustDex could not evaluate this command. ${UNATTENDED_NOTE}`
-        : 'TrustDex could not evaluate this command, so it needs review.'
-    }
-  };
 }

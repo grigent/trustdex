@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, statSync, constants } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -50,13 +51,10 @@ import {
   verifyRuntimeInventoryAttestation
 } from '../src/runtime-attestation.mjs';
 import { gateMcpConfig } from '../src/gate.mjs';
-import {
-  claudeHookFailure,
-  claudeHookResponse,
-  evaluateInstallCommand,
-  overallAction,
-  parseInstallPolicy
-} from '../src/install-check.mjs';
+import { evaluateInstallCommand, overallAction, parseInstallPolicy } from '../src/install-check.mjs';
+import { claudeHookFailure, claudeHookResponse } from '../src/claude-hook.mjs';
+import { guardPaths } from '../src/agent-guard.mjs';
+import { createApprovalStore, defaultStateDir } from '../src/approvals.mjs';
 import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
 import { parseEd25519PublicKeyPem, parseKeysetText, spkiKeyId } from '../src/keyset.mjs';
@@ -67,6 +65,7 @@ import {
 } from '../src/trust-record.mjs';
 
 // Read the version from the package manifest so --version cannot drift from releases.
+const TRUSTDEX_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 function usage() {
@@ -158,11 +157,15 @@ Usage:
       Parse npm/pnpm/yarn/bun/npx and pip/uv/uvx/pipx/poetry/pdm install commands and
       curl|sh pipelines, then look up each registry package on registry.npmjs.org or
       pypi.org (explicit network lookup; only package names are sent).
-  trustdex claude-hook [--install-policy policy.json] [--unattended-ask deny|ask]
-      Claude Code PreToolUse hook: reads the hook JSON on stdin and denies or asks for
-      risky Bash install commands. It never approves a command. In bypassPermissions and
-      dontAsk modes nobody can be asked, so ASK becomes deny unless --unattended-ask ask
-      (see docs/INSTALL_CHECK.md).
+  trustdex claude-hook [--install-policy policy.json] [--on-risk deny|ask]
+      [--state-dir dir] [--protect path ...]
+      Claude Code PreToolUse hook for Bash, Read, Grep, Glob, Write, Edit, MultiEdit and
+      NotebookEdit. Stops risky package installs, changes to agent settings or TrustDex
+      itself, credential-store access, AI agents launched without guardrails, and startup
+      items. It never approves anything; by default a stopped action can only be allowed
+      once by a person with trustdex allow-once (see docs/CLAUDE_HOOK.md).
+  trustdex allow-once <code> | --list [--state-dir dir]
+      Allow one stopped action once within 30 minutes. Requires an interactive terminal.
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
   trustdex sign <snapshot.json> --private trustdex-private.pem --out trust-record.json
@@ -554,6 +557,14 @@ async function loadInstallPolicy(args) {
   return parseInstallPolicy(file ? await readJson(file) : undefined);
 }
 
+function readLocalScript(file, cwd, limit) {
+  const resolved = path.resolve(typeof cwd === 'string' && path.isAbsolute(cwd) ? cwd : process.cwd(),
+    String(file).replace(/^~(?=\/)/, process.env.HOME || '~'));
+  const stat = statSync(resolved);
+  if (!stat.isFile() || stat.size > limit) return null;
+  return readFileSync(resolved, 'utf8');
+}
+
 function localBinChecker(cwd) {
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return () => false;
   return (name) => {
@@ -911,22 +922,75 @@ async function main() {
 
   if (command === 'claude-hook') {
     // A hook that crashes is treated by Claude Code as a non-blocking error, which
-    // would let the command run unchecked; a failure on an install-related command
-    // becomes ASK (deny when nobody can be asked) instead.
+    // would let the action run unchecked; failures are denied instead.
     let response;
     let input = null;
-    let unattendedAsk = 'deny';
     try {
       input = JSON.parse(await readStdin(MAX_HOOK_INPUT_BYTES));
-      const requested = getFlag(args, '--unattended-ask') || 'deny';
-      if (!['deny', 'ask'].includes(requested)) throw new Error('invalid --unattended-ask');
-      unattendedAsk = requested;
+      const onRisk = getFlag(args, '--on-risk') || 'deny';
+      if (!['deny', 'ask'].includes(onRisk)) throw new Error('invalid --on-risk');
       const policy = await loadInstallPolicy(args);
-      response = await claudeHookResponse(input, { policy, unattendedAsk, localBinExists: localBinChecker(input?.cwd) });
+      const policyPath = getFlag(args, '--install-policy');
+      const stateDir = getFlag(args, '--state-dir') || defaultStateDir();
+      const paths = guardPaths({
+        trustdexRoot: TRUSTDEX_ROOT,
+        policyPath,
+        stateDir,
+        secretPaths: policy.secretPaths
+      });
+      for (const extra of getFlags(args, '--protect')) paths.config.push(path.resolve(extra.replace(/^~(?=\/)/, process.env.HOME || '')));
+      response = await claudeHookResponse(input, {
+        policy,
+        onRisk,
+        paths,
+        approvals: createApprovalStore(stateDir),
+        readScript: readLocalScript,
+        localBinExists: localBinChecker(input?.cwd)
+      });
     } catch {
-      response = claudeHookFailure(input, { unattendedAsk });
+      response = claudeHookFailure(input);
     }
     if (response) console.log(JSON.stringify(response));
+    return;
+  }
+
+  if (command === 'allow-once') {
+    const stateDir = getFlag(args, '--state-dir') || defaultStateDir();
+    const store = createApprovalStore(stateDir);
+    if (hasFlag(args, '--list')) {
+      const pending = store.listPending();
+      if (!pending.length) console.log('No actions are waiting for approval.');
+      for (const entry of pending) {
+        console.log(`${entry.code}  (expires ${new Date(entry.expiresAt).toLocaleTimeString()})`);
+        for (const item of entry.summary || []) console.log(`  - ${item.name}: ${(item.reasons || []).join(' ')}`);
+      }
+      return;
+    }
+    const code = String(args[1] || '').toUpperCase();
+    if (!/^[2-9A-HJ-NP-Z]{8}$/.test(code)) throw new Error('allow-once requires the 8-character code shown when TrustDex stopped the action.');
+    // Approval must come from a person. Agent shells are not interactive terminals.
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      throw new Error('allow-once must be run by a person in an interactive terminal.');
+    }
+    const entry = store.findPending(code);
+    if (!entry) throw new Error('No waiting action has this code (it may have expired after an hour).');
+    console.log('TrustDex stopped this action:');
+    for (const item of entry.summary || []) console.log(`  - ${item.name}: ${(item.reasons || []).join(' ')}`);
+    console.log('');
+    console.log('Approve only if you understand the risk and asked for this yourself.');
+    process.stdout.write('Type "yes" to allow this exact action once within 30 minutes: ');
+    const answer = await new Promise((resolve) => {
+      process.stdin.setEncoding('utf8');
+      process.stdin.once('data', (data) => resolve(String(data).trim()));
+    });
+    process.stdin.pause();
+    if (answer.toLowerCase() !== 'yes') {
+      console.log('Not approved.');
+      process.exitCode = 1;
+      return;
+    }
+    store.approve(code);
+    console.log('Approved once. Ask the agent to run the same action again.');
     return;
   }
 

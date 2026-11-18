@@ -7,7 +7,13 @@
 ## Unreleased
 
 - add `check-install`: parse npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, and pdm install commands offline, block download-to-interpreter pipelines (`curl ... | sh`, `bash <(curl ...)`), and look up each registry package on the public npm registry or PyPI (only package names are sent). Missing packages and invalid integrity metadata are BLOCK. Recent releases (48h), new packages (30 days), install scripts and source builds, first-time publishers on recent releases, deprecated or yanked versions, look-alike names, git/URL sources, custom registries, unresolved ranges, manifest installs, and failed lookups are ASK
-- add `claude-hook`: a Claude Code `PreToolUse` hook that denies or asks for risky Bash install commands and never approves. It turns ASK into deny in `bypassPermissions` and `dontAsk` modes, where an ask reaches no one (opt out with `--unattended-ask ask`). It answers ASK for install-related commands when it cannot evaluate its input
+- add `claude-hook`: a Claude Code `PreToolUse` hook for Bash, Read, Grep, Glob, Write, Edit, MultiEdit, and NotebookEdit. It never approves anything, and fails closed for risky tools. It stops:
+  - risky package installs
+  - changes to agent settings, MCP configuration, or TrustDex itself (`guard-tamper`)
+  - credential-store reads, including keychains, browser logins, and `gh auth token` (`secret-access`)
+  - AI coding CLIs launched with permission or sandbox checks off (`agent-permission-bypass`)
+  - startup items (`persistence-change`)
+- by default a risky action is denied instead of becoming a one-click dialog. Add `trustdex allow-once <code>` to allow that exact action once within 30 minutes. It requires a person at an interactive terminal and cannot be run or forged by the agent. `--on-risk ask` keeps dialogs for ASK-level findings
 - add a strict install policy file (`--install-policy`) for release and package age thresholds, manifest installs, and narrowly scoped allowlists that cannot silence BLOCK signals, `recent-release`, or `publisher-changed`
 - accept Codex `approvals_reviewer = "guardian_subagent"` as an automatic reviewer (`codex-auto-review`) in settings inspection and permission posture
 

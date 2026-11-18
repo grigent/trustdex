@@ -94,31 +94,4 @@ BLOCK command:download-to-interpreter
 
 ## Claude Code 훅
 
-`trustdex claude-hook`은 Claude Code의 `PreToolUse` 훅 이벤트를 표준 입력으로 받습니다.
-
-- 위험한 설치를 하는 `Bash` 호출에는 이유와 함께 `deny`(BLOCK)나 `ask`(ASK) 판정을 출력합니다.
-- 나머지에는 아무것도 출력하지 않아 원래의 권한 흐름이 그대로 이어집니다. 명령을 승인하는 일은 없습니다.
-- 입력이나 설정을 읽거나 평가하지 못하면, 설치 관련 명령은 그냥 통과시키지 않고 `ask`로 답합니다. 정책 파일이 깨져도 관계없는 명령은 막지 않습니다.
-
-훅은 권한 확인을 건너뛰는 모드에서도 실행되고, 그 모드에서도 `deny`는 명령을 막습니다. 하지만 `bypassPermissions` 모드(그대로 실행됨)나 `dontAsk` 모드에서는 `ask`가 아무에게도 전달되지 않습니다. 그래서 이 모드들에서는 훅이 ASK를 `deny`로 바꾸고, 에이전트에게 멈추고 사용자에게 보고하라는 이유를 함께 보냅니다. 에이전트는 더 안전한 방법을 고를 수도 있습니다. 이전의 정확한 버전으로 고정하거나, `--ignore-scripts`를 붙이거나, 사용자가 직접 실행하게 하는 방법입니다. 이 모드에서도 그냥 `ask`를 쓰려면 `--unattended-ask ask`를 넘기세요.
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node /path/to/trustdex/bin/trustdex.mjs claude-hook --install-policy ~/.config/trustdex/install-policy.json",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-훅은 `npx trustdex`가 아니라 검토한 로컬 TrustDex 사본을 가리키게 하세요. 그래야 검사 도구 자체를 실행할 때마다 내려받지 않습니다.
+`trustdex claude-hook`은 이 검사를 설정 변조, 자격 증명 접근, 안전장치를 끈 AI 에이전트 실행, 자동 실행 항목에 대한 보호와 함께 Claude Code `PreToolUse` 훅으로 실행합니다. 기본값에서는 위험한 설치를 거부하고, 사람이 자기 터미널에서 `trustdex allow-once <코드>`를 입력해야만 한 번 허용됩니다. 설정, 승인, 한계는 [Claude Code 훅](CLAUDE_HOOK.ko.md)을 참고하세요.

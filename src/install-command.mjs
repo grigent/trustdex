@@ -20,7 +20,43 @@ const MAX_DEPTH = 4;
 
 export class CommandParseError extends Error {}
 
-// ---------------------------------------------------------------- lexer
+// ------------------------------------------------------------ heredocs
+
+const HEREDOC_RE = /(?<!<)<<(?!<)(-?)\s*(?:'([^'\n]+)'|"([^"\n]+)"|\\?([A-Za-z_][A-Za-z0-9_.-]*))/g;
+
+// Removes here-document bodies from a command so their text is not lexed as
+// shell syntax. Each body is returned with the program that receives it, so a
+// body fed to a shell (bash <<'EOF') can be analysed as a script while a body
+// fed to git, cat or tee stays data. An unterminated body runs to the end.
+export function splitHeredocs(text) {
+  const lines = String(text).split('\n');
+  const kept = [];
+  const bodies = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    kept.push(line);
+    i += 1;
+    for (const match of line.matchAll(HEREDOC_RE)) {
+      const strip = match[1] === '-';
+      const delimiter = match[2] ?? match[3] ?? match[4];
+      const body = [];
+      while (i < lines.length) {
+        const current = strip ? lines[i].replace(/^\t+/, '') : lines[i];
+        i += 1;
+        if (current === delimiter) break;
+        body.push(lines[i - 1]);
+      }
+      const segment = line.slice(0, match.index).split(/&&|\|\||;|\||\(/).pop().trim();
+      const words = segment.split(/\s+/).filter((word) => word && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
+      while (words.length && /^(?:sudo|doas|command|env|time|exec|nohup|nice)$/.test(words[0].split('/').pop())) words.shift();
+      bodies.push({ program: programName(words[0] || ''), args: words.slice(1), text: body.join('\n') });
+    }
+  }
+  return { text: kept.join('\n'), bodies };
+}
+
+// ------------------------------------------------------------ lexer
 
 const OPERATORS = ['&&', '||', '|&', ';;', '|', ';', '&', '\n'];
 
@@ -509,7 +545,14 @@ function runsDownloadedFile(program, argv, downloaded) {
   return script !== undefined && files.some((file) => sameFile(script, file));
 }
 
-function analyzeText(text, depth, findings, downloadedFiles = new Set()) {
+function analyzeText(fullText, depth, findings, downloadedFiles = new Set()) {
+  const { text, bodies } = splitHeredocs(fullText);
+  for (const body of bodies) {
+    if (SHELLS.has(body.program) && !body.args.some((arg) => /^-[A-Za-z]*c[A-Za-z]*$/.test(arg))) {
+      if (depth >= MAX_DEPTH) throw new CommandParseError('nested shell depth exceeded');
+      analyzeText(body.text, depth + 1, findings, downloadedFiles);
+    }
+  }
   for (const rule of SUBSTITUTION_RULES) {
     if (rule.test(text)) {
       findings.push({ ecosystem: 'shell', kind: 'pipe-to-shell' });

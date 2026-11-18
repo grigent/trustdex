@@ -11,10 +11,13 @@
   - 레지스트리 패키지마다 공개 npm 저장소나 PyPI를 조회(패키지 이름만 전송)
   - BLOCK: 없는 패키지, 잘못된 무결성 메타데이터
   - ASK: 최근 릴리스(48시간), 새 패키지(30일), 설치 스크립트·소스 빌드, 최근 릴리스의 처음 보는 게시자, 사용 중단·철회 버전, 유명 이름 흉내, git/URL 출처, 별도 레지스트리, 풀지 못한 범위, 매니페스트 설치, 조회 실패
-- `claude-hook` 추가: 위험한 Bash 설치 명령을 거부하거나 묻는 Claude Code `PreToolUse` 훅
-  - 승인하지 않음
-  - 물어도 아무에게 가지 않는 `bypassPermissions`·`dontAsk` 모드에서는 ASK를 거부로 바꿈(`--unattended-ask ask`로 끌 수 있음)
-  - 입력을 평가하지 못하면 설치 관련 명령에 ASK로 답함
+- `claude-hook` 추가: Bash, Read, Grep, Glob, Write, Edit, MultiEdit, NotebookEdit용 Claude Code `PreToolUse` 훅. 스스로 승인하지 않고, 위험할 수 있는 도구는 실패 시 막음. 막는 것:
+  - 위험한 패키지 설치
+  - 에이전트 설정·MCP 설정·TrustDex 자체 변경(`guard-tamper`)
+  - 키체인·브라우저 로그인·`gh auth token`을 포함한 자격 증명 읽기(`secret-access`)
+  - 권한·샌드박스 검사를 끈 AI 코딩 CLI 실행(`agent-permission-bypass`)
+  - 자동 실행 항목(`persistence-change`)
+- 기본값에서는 위험한 행동을 클릭 한 번짜리 확인 창으로 바꾸지 않고 거부함. `trustdex allow-once <코드>`를 추가해, 대화형 터미널 앞의 사람이 그 행동 하나만 30분 안에 한 번 허용하게 함(에이전트가 실행하거나 위조할 수 없음). `--on-risk ask`로 ASK 수준은 확인 창을 유지할 수 있음
 - 엄격한 설치 정책 파일(`--install-policy`) 추가: 릴리스·패키지 나이 기준, 매니페스트 설치 처리, 좁은 범위의 허용 목록. 허용 목록은 BLOCK 신호, `recent-release`, `publisher-changed`를 끌 수 없음
 - Codex `approvals_reviewer = "guardian_subagent"`를 설정 검사와 권한 상태에서 자동 검토자(`codex-auto-review`)로 인정
 

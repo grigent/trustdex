@@ -85,31 +85,4 @@ Pass it with `--install-policy policy.json`. Unknown keys are rejected.
 
 ## Claude Code hook
 
-`trustdex claude-hook` reads a Claude Code `PreToolUse` hook event on stdin.
-
-- For `Bash` calls whose command would install something risky, it prints a `deny` (BLOCK) or `ask` (ASK) decision with the reasons.
-- It prints nothing for everything else, so the normal permission flow continues. It never approves a command.
-- If its input or configuration cannot be read or evaluated, it answers `ask` for install-related commands rather than failing open. Unrelated commands are not stopped by a broken policy file.
-
-Hooks still run when permission prompts are bypassed, and a `deny` still stops the command there. An `ask`, however, reaches no one in `bypassPermissions` (the command runs) or `dontAsk` mode. In those modes the hook therefore turns ASK into `deny`, and its reason tells the agent to stop and report to the user. The agent can also take a safer route: pin an older exact version, add `--ignore-scripts`, or let the user run the command. Pass `--unattended-ask ask` to keep plain `ask` in those modes instead.
-
-```json
-{
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node /path/to/trustdex/bin/trustdex.mjs claude-hook --install-policy ~/.config/trustdex/install-policy.json",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-Point the hook at a reviewed local copy of TrustDex, not at `npx trustdex`, so that the gate itself is not downloaded at run time.
+`trustdex claude-hook` runs these checks, together with guards for settings tampering, credential access, AI agents launched without guardrails, and startup items, as a Claude Code `PreToolUse` hook. By default a risky install is denied and can be allowed once only by a person in their own terminal with `trustdex allow-once <code>`. See [Claude Code hook](CLAUDE_HOOK.md) for setup, approvals, and limits.

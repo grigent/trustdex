@@ -93,7 +93,7 @@ Official references:
 
 ## Claude Code permission settings
 
-To check package installs before Claude Code runs them, including when permission prompts are bypassed, use the `claude-hook` command as a `PreToolUse` hook; see [Pre-install package checks](INSTALL_CHECK.md#claude-code-hook).
+To check package installs before Claude Code runs them, including when permission prompts are bypassed, use the `claude-hook` command as a `PreToolUse` hook; see [Claude Code hook](CLAUDE_HOOK.md).
 
 
 MCP gating controls which external servers are exposed. Claude Code's own permission
