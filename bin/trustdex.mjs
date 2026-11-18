@@ -565,14 +565,28 @@ function readLocalScript(file, cwd, limit) {
   return readFileSync(resolved, 'utf8');
 }
 
+// Like npx, look for node_modules/.bin/<name> in the directory the command runs
+// in (after any cd inside the command) and its parents.
 function localBinChecker(cwd) {
   if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return () => false;
-  return (name) => {
-    try {
-      return statSync(path.join(cwd, 'node_modules', '.bin', name)).isFile();
-    } catch {
-      return false;
+  const home = process.env.HOME || '';
+  return (name, dir = null) => {
+    let current = cwd;
+    if (typeof dir === 'string' && dir) {
+      const expanded = dir.replace(/^~(?=\/|$)/, home);
+      current = path.isAbsolute(expanded) ? expanded : path.resolve(cwd, expanded);
     }
+    for (let depth = 0; depth < 32; depth += 1) {
+      try {
+        if (statSync(path.join(current, 'node_modules', '.bin', name)).isFile()) return true;
+      } catch {
+        // keep walking up
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+    return false;
   };
 }
 
@@ -978,7 +992,10 @@ async function main() {
     for (const item of entry.summary || []) console.log(`  - ${item.name}: ${(item.reasons || []).join(' ')}`);
     console.log('');
     console.log('Approve only if you understand the risk and asked for this yourself.');
-    process.stdout.write('Type "yes" to allow this exact action once within 30 minutes: ');
+    const itemScoped = Array.isArray(entry.itemKeys) && entry.itemKeys.length > 0;
+    process.stdout.write(itemScoped
+      ? 'Type "yes" to allow these exact package versions for 24 hours: '
+      : 'Type "yes" to allow this exact action once within 30 minutes: ');
     const answer = await new Promise((resolve) => {
       process.stdin.setEncoding('utf8');
       process.stdin.once('data', (data) => resolve(String(data).trim()));
@@ -990,7 +1007,9 @@ async function main() {
       return;
     }
     store.approve(code);
-    console.log('Approved once. Ask the agent to run the same action again.');
+    console.log(itemScoped
+      ? 'Approved for 24 hours. Ask the agent to continue.'
+      : 'Approved once. Ask the agent to run the same action again.');
     return;
   }
 

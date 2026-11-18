@@ -21,18 +21,50 @@ import { mentionsPackageTool } from './install-command.mjs';
 
 export const HOOK_TOOLS = ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
-function reasonText(items, code) {
+// Package findings that an approval may cover by name for a day: they concern one
+// exact package version, not the command around it.
+const ITEM_SCOPED_SIGNALS = new Set([
+  'recent-release', 'new-package', 'install-scripts', 'source-build', 'publisher-changed',
+  'deprecated', 'yanked', 'similar-to-popular'
+]);
+
+export function itemApprovalKeys(items) {
+  const risky = items.filter((item) => item.action !== 'allow');
+  if (!risky.length) return null;
+  const keys = [];
+  for (const item of risky) {
+    if (!/^(?:npm|pypi):[^:\s]+@[^\s]+$/.test(item.name)) return null;
+    for (const signal of item.signals) {
+      if ((item.action === 'block') || !ITEM_SCOPED_SIGNALS.has(signal) && signal !== 'install-scripts-disabled') return null;
+      if (ITEM_SCOPED_SIGNALS.has(signal)) keys.push(`${item.name}#${signal}`);
+    }
+  }
+  return keys.length ? keys : null;
+}
+
+function reasonText(items, code, itemScoped) {
   const risky = items.filter((item) => item.action !== 'allow');
   const lines = risky.map((item) => `- ${item.name} [${item.signals.join(', ')}]: ${item.reasons.join(' ')}`);
-  const head = 'TrustDex stopped this action because it could harm this computer or leak credentials.';
-  const next = code
-    ? [
-        'Do not retry it in another form or work around this check.',
-        'Explain the risk to the user in plain words.',
-        `If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`,
-        'That allows this exact action once within 30 minutes; then run the identical action again.'
-      ]
-    : ['Do not retry it in another form or work around this check. Explain the risk to the user in plain words.'];
+  const head = itemScoped
+    ? 'TrustDex stopped this package install because the exact version looks risky.'
+    : 'TrustDex stopped this action because it could harm this computer or leak credentials.';
+  const next = [];
+  if (itemScoped) {
+    next.push('If a safer alternative is named above (an older exact version, or --ignore-scripts), use it without asking the user.');
+    if (code) {
+      next.push(`Only if no alternative works: explain the risk in plain words; if the user still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`);
+      next.push('That allows these exact package versions for 24 hours, in any command.');
+    }
+  } else if (code) {
+    next.push(
+      'Do not retry it in another form or work around this check.',
+      'Explain the risk to the user in plain words.',
+      `If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`,
+      'That allows this exact action once within 30 minutes; then run the identical action again.'
+    );
+  } else {
+    next.push('Do not retry it in another form or work around this check. Explain the risk to the user in plain words.');
+  }
   return [head, ...lines, ...next].join('\n');
 }
 
@@ -89,22 +121,23 @@ export async function claudeHookResponse(input, options = {}) {
   if (action === 'allow') return null;
 
   const digest = actionDigest(input.tool_name, approvalSubject(input.tool_name, input.tool_input));
+  const itemKeys = itemApprovalKeys(items);
   const store = options.approvals ?? null;
-  if (store?.consume(digest)) return null;
+  if (store?.consume(digest, itemKeys ?? [])) return null;
 
   if (action === 'ask' && options.onRisk === 'ask') {
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'ask',
-        permissionDecisionReason: reasonText(items, null).replace('TrustDex stopped this action', 'TrustDex flagged this action')
+        permissionDecisionReason: reasonText(items, null, Boolean(itemKeys)).replace('TrustDex stopped', 'TrustDex flagged')
       }
     };
   }
 
   let code = null;
   try {
-    code = store ? store.recordPending(digest, summary(items)) : null;
+    code = store ? store.recordPending(digest, summary(items), itemKeys) : null;
   } catch {
     code = null;
   }
@@ -112,7 +145,7 @@ export async function claudeHookResponse(input, options = {}) {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
-      permissionDecisionReason: reasonText(items, code)
+      permissionDecisionReason: reasonText(items, code, Boolean(itemKeys))
     }
   };
 }

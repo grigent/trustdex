@@ -62,7 +62,14 @@ Running `trustdex allow-once K7M2QX9P` works like this:
 2. It asks the person to type `yes`.
 3. It records a one-time approval.
 
-The approval is bound to the SHA-256 digest of that exact tool call (the same command text, or the same file and content). It expires after 30 minutes and is used up by the first matching call. Codes expire after an hour. `trustdex allow-once --list` shows what is waiting.
+The approval is bound to the SHA-256 digest of that exact tool call (the same command text, or the same file and content). It expires after 30 minutes and is used up by the first matching call. Codes expire after an hour.
+
+Package findings work differently, to keep everyday work smooth.
+- Covered findings: a release that is too recent, install scripts, a new package, a deprecated or yanked version, a first-time publisher, or a look-alike name.
+- Safer alternative first: a too-recent release names the newest older version that is outside the waiting window (for example `Use wrangler@4.160.1 instead`). The agent is told to use such an alternative, or `--ignore-scripts`, without asking you.
+- Approval by version: if you approve, the approval covers those exact package versions and findings for 24 hours, in any command. Deploys and migrations that call the same tool do not need a new code each time.
+- Limits: a package approval never covers BLOCK findings or anything outside those packages.
+- Installed tools pass: tools already installed in the project's `node_modules/.bin` are used as installed, also after a `cd` inside the command and from parent folders. They do not trigger a registry check. `trustdex allow-once --list` shows what is waiting.
 
 The agent cannot approve its own action in three ways:
 

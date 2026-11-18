@@ -16,6 +16,7 @@ import path from 'node:path';
 
 export const PENDING_TTL_MS = 60 * 60 * 1000;
 export const APPROVAL_TTL_MS = 30 * 60 * 1000;
+export const ITEM_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 100;
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const CODE_RE = /^[2-9A-HJ-NP-Z]{8}$/;
@@ -76,11 +77,14 @@ export function createApprovalStore(stateDir = defaultStateDir(), { now = () => 
 
     // Records a stopped action and returns its approval code. The summary holds
     // only item names and signals, never command text or file contents.
-    recordPending(digest, summary) {
+    // itemKeys, when given, make the approval cover those exact package versions
+    // and signals for a day instead of one exact tool call.
+    recordPending(digest, summary, itemKeys = null) {
       ensureDir(stateDir);
       const entries = live(readEntries(pendingFile)).filter((entry) => entry.digest !== digest);
       const code = newCode();
-      entries.push({ code, digest, summary, createdAt: now(), expiresAt: now() + PENDING_TTL_MS });
+      const keys = Array.isArray(itemKeys) && itemKeys.length ? [...new Set(itemKeys.map(String))].sort() : null;
+      entries.push({ code, digest, summary, ...(keys ? { itemKeys: keys } : {}), createdAt: now(), expiresAt: now() + PENDING_TTL_MS });
       writeEntries(pendingFile, entries);
       return code;
     },
@@ -100,25 +104,38 @@ export function createApprovalStore(stateDir = defaultStateDir(), { now = () => 
       const entry = pending.find((candidate) => candidate.code === code);
       if (!entry) return null;
       const approved = live(readEntries(approvedFile)).filter((candidate) => candidate.digest !== entry.digest);
-      approved.push({ digest: entry.digest, summary: entry.summary, approvedAt: now(), expiresAt: now() + APPROVAL_TTL_MS });
+      const itemScoped = Array.isArray(entry.itemKeys) && entry.itemKeys.length > 0;
+      approved.push({
+        digest: entry.digest,
+        summary: entry.summary,
+        ...(itemScoped ? { itemKeys: entry.itemKeys } : {}),
+        approvedAt: now(),
+        expiresAt: now() + (itemScoped ? ITEM_APPROVAL_TTL_MS : APPROVAL_TTL_MS)
+      });
       writeEntries(approvedFile, approved);
       writeEntries(pendingFile, pending.filter((candidate) => candidate !== entry));
       return entry;
     },
 
-    // Returns true and removes the approval when one matches this exact action.
-    consume(digest) {
+    // Returns true when an approval covers this action: an exact-call approval is
+    // used up; package approvals stay valid for a day and cover any call whose
+    // findings are all among the approved package versions and signals.
+    consume(digest, itemKeys = []) {
       let approved;
       try {
         approved = live(readEntries(approvedFile));
       } catch {
         return false;
       }
-      const index = approved.findIndex((entry) => entry.digest === digest);
-      if (index < 0) return false;
-      approved.splice(index, 1);
-      writeEntries(approvedFile, approved);
-      return true;
+      const index = approved.findIndex((entry) => entry.digest === digest && !entry.itemKeys);
+      if (index >= 0) {
+        approved.splice(index, 1);
+        writeEntries(approvedFile, approved);
+        return true;
+      }
+      if (!Array.isArray(itemKeys) || !itemKeys.length) return false;
+      const covered = new Set(approved.flatMap((entry) => (Array.isArray(entry.itemKeys) ? entry.itemKeys : [])));
+      return itemKeys.every((key) => covered.has(key));
     }
   };
 }

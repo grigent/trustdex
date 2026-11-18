@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { guardBashCommand, guardFileTool, guardPaths } from '../src/agent-guard.mjs';
 import { actionDigest, createApprovalStore } from '../src/approvals.mjs';
 import { claudeHookFailure, claudeHookResponse } from '../src/claude-hook.mjs';
+import { evaluateInstallCommand } from '../src/install-check.mjs';
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
 const HOME = '/Users/tester';
@@ -259,6 +260,50 @@ test('an approval matches the same action even when incidental fields differ', a
   store.approve(/trustdex allow-once (\w{8})/.exec(editDenied.hookSpecificOutput.permissionDecisionReason)[1]);
   assert.equal((await claudeHookResponse(edit('c'), options)).hookSpecificOutput.permissionDecision, 'deny', 'different content needs its own approval');
   assert.equal(await claudeHookResponse(edit('b'), options), null);
+});
+
+test('package approvals cover the same versions in any command for a day', async (t) => {
+  let now = 1_000_000;
+  const store = createApprovalStore(tempDir(t), { now: () => now });
+  const fresh = new Date(Date.parse('2026-11-18T00:00:00Z') - 3_600_000).toISOString();
+  const old = '2025-01-01T00:00:00.000Z';
+  const integrity = `sha512-${Buffer.alloc(64, 1).toString('base64')}`;
+  const doc = {
+    name: 'wrangler',
+    'dist-tags': { latest: '4.164.0' },
+    versions: {
+      '4.160.1': { name: 'wrangler', version: '4.160.1', dist: { integrity }, _npmUser: { name: 'cf' } },
+      '4.164.0': { name: 'wrangler', version: '4.164.0', dist: { integrity }, _npmUser: { name: 'cf' } }
+    },
+    time: { created: old, '4.160.1': old, '4.164.0': fresh }
+  };
+  const fetchImpl = async () => ({ ok: true, status: 200, headers: new Map(), json: async () => doc });
+  const options = { paths: PATHS, fetchImpl, now: Date.parse('2026-11-18T00:00:00Z'), approvals: store };
+
+  const denied = await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'npx wrangler deploy' } }, options);
+  const reason = denied.hookSpecificOutput.permissionDecisionReason;
+  assert.match(reason, /Use wrangler@4\.160\.1 instead/, 'a safe older version is suggested');
+  assert.match(reason, /use it without asking the user/);
+  assert.match(reason, /24 hours/);
+  store.approve(/trustdex allow-once (\w{8})/.exec(reason)[1]);
+
+  for (const command of ['npx wrangler deploy', 'npx wrangler r2 bucket create photos', 'cd app && npx wrangler d1 migrations apply db']) {
+    assert.equal(await claudeHookResponse({ tool_name: 'Bash', tool_input: { command } }, options), null, command);
+  }
+  const mixed = await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'npx wrangler deploy && cat ~/.ssh/id_rsa' } }, options);
+  assert.equal(mixed.hookSpecificOutput.permissionDecision, 'deny', 'a package approval never covers other findings');
+  assert.doesNotMatch(mixed.hookSpecificOutput.permissionDecisionReason, /24 hours/);
+
+  now += 25 * 60 * 60 * 1000;
+  assert.equal((await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'npx wrangler deploy' } }, options)).hookSpecificOutput.permissionDecision, 'deny', 'package approvals expire after a day');
+});
+
+test('runners use binaries the project already installed, after cd and in parent folders', async () => {
+  const seen = [];
+  const localBinExists = (name, dir) => { seen.push([name, dir]); return name === 'wrangler'; };
+  const items = (await evaluateInstallCommand('cd apps/web && npx wrangler deploy', { fetchImpl: offline, localBinExists })).items;
+  assert.deepEqual(items.map((item) => [item.name, item.action]), [['npm:local-bin:wrangler', 'allow']]);
+  assert.deepEqual(seen, [['wrangler', 'apps/web']]);
 });
 
 test('ask mode turns ASK findings into a dialog but keeps BLOCK findings denied', async () => {

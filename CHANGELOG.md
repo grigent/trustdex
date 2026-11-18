@@ -21,6 +21,10 @@
   - git hooks (`.git/hooks`, `core.hooksPath`)
 - block decoded payloads run as programs (`base64 -d | sh`, `eval "$(... base64 -d)"`, `xxd -r | python3`, `gunzip | sh`) as `obfuscated-execution`
 - report `disableAllHooks` in Claude settings as `claude-hooks-disabled` (BLOCK in every pack)
+- less friction for everyday package use:
+  - runners find binaries the project already installed after a `cd` and in parent folders
+  - too-recent releases name the newest older version as a safe alternative
+  - approving package findings covers those exact versions in any command for 24 hours, instead of one exact command for 30 minutes
 - add a strict install policy file (`--install-policy`) for release and package age thresholds, manifest installs, and narrowly scoped allowlists that cannot silence BLOCK signals, `recent-release`, or `publisher-changed`
 - accept Codex `approvals_reviewer = "guardian_subagent"` as an automatic reviewer (`codex-auto-review`) in settings inspection and permission posture
 

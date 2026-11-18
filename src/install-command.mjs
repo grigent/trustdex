@@ -562,12 +562,12 @@ function runsDownloadedFile(program, argv, downloaded) {
   return script !== undefined && files.some((file) => sameFile(script, file));
 }
 
-function analyzeText(fullText, depth, findings, downloadedFiles = new Set()) {
+function analyzeText(fullText, depth, findings, downloadedFiles = new Set(), state = { dir: null }) {
   const { text, bodies } = splitHeredocs(fullText);
   for (const body of bodies) {
     if (SHELLS.has(body.program) && !body.args.some((arg) => /^-[A-Za-z]*c[A-Za-z]*$/.test(arg))) {
       if (depth >= MAX_DEPTH) throw new CommandParseError('nested shell depth exceeded');
-      analyzeText(body.text, depth + 1, findings, downloadedFiles);
+      analyzeText(body.text, depth + 1, findings, downloadedFiles, state);
     }
   }
   for (const rule of SUBSTITUTION_RULES) {
@@ -610,7 +610,7 @@ function analyzeText(fullText, depth, findings, downloadedFiles = new Set()) {
         const script = program === 'eval' ? args.join(' ') : flagIndex >= 0 ? args[flagIndex + 1] : null;
         if (script) {
           if (depth >= MAX_DEPTH) throw new CommandParseError('nested shell depth exceeded');
-          analyzeText(script, depth + 1, findings, downloadedFiles);
+          analyzeText(script, depth + 1, findings, downloadedFiles, state);
         }
         continue;
       }
@@ -621,8 +621,17 @@ function analyzeText(fullText, depth, findings, downloadedFiles = new Set()) {
         }
         continue;
       }
-      if (NPM_PROGRAMS.has(program)) findings.push(...markCustomRegistry(npmFamily(program, args)));
-      else if (PYPI_PROGRAMS.has(program)) findings.push(...markCustomRegistry(pypiFamily(program, args)));
+      if (program === 'cd') {
+        // Remember where later commands run, so runners can find binaries the
+        // project already installed (cd app && npx wrangler deploy).
+        const target = args.find((arg) => !arg.startsWith('-'));
+        state.dir = !target ? '~' : /^(?:\/|~)/.test(target) || !state.dir ? target : `${state.dir}/${target}`;
+        continue;
+      }
+      const family = NPM_PROGRAMS.has(program) ? npmFamily(program, args) : PYPI_PROGRAMS.has(program) ? pypiFamily(program, args) : [];
+      for (const finding of markCustomRegistry(family)) {
+        findings.push(state.dir && finding.localBinCandidate ? { ...finding, dir: state.dir } : finding);
+      }
     }
   }
 }

@@ -332,7 +332,11 @@ async function checkNpm(item, parsed, context) {
   const released = age(now, doc.time?.[version]);
   if (released === null) item.signal('lookup-failed', 'The registry does not report when this version was published.');
   else if (released < policy.minReleaseAgeHours * HOUR) {
-    item.signal('recent-release', `Version published ${hours(released)}h ago (policy minimum ${policy.minReleaseAgeHours}h); hijacked releases are usually caught within this window.`);
+    const older = olderNpmRelease(doc, parsed.selector, now - policy.minReleaseAgeHours * HOUR);
+    const alternative = older
+      ? ` Use ${parsed.name}@${older} instead (published ${Math.floor((now - Date.parse(doc.time[older])) / DAY)} days ago), or wait.`
+      : '';
+    item.signal('recent-release', `Version published ${hours(released)}h ago (policy minimum ${policy.minReleaseAgeHours}h); hijacked releases are usually caught within this window.${alternative}`);
   }
   const created = age(now, doc.time?.created);
   if (created !== null && created < policy.minPackageAgeDays * DAY && !policy.allowPackages.includes(ref)) {
@@ -373,6 +377,21 @@ async function checkNpm(item, parsed, context) {
   }
 }
 
+// The newest stable, non-deprecated version published before `cutoff`, within the
+// requested range when there is one, as a safe alternative to a too-recent release.
+function olderNpmRelease(doc, selector, cutoff) {
+  const satisfies = selector.kind === 'range' ? compileNpmRange(selector.value) : null;
+  const candidates = Object.keys(doc.versions || {})
+    .filter((version) => {
+      const parsed = parseVersion(version);
+      const published = Date.parse(doc.time?.[version]);
+      return parsed && !parsed.pre.length && Number.isFinite(published) && published < cutoff &&
+        !doc.versions[version]?.deprecated && (!satisfies || satisfies(version));
+    })
+    .sort((a, b) => compareVersions(parseVersion(b), parseVersion(a)));
+  return candidates[0] ?? null;
+}
+
 function pypiReleaseTime(files) {
   const times = (Array.isArray(files) ? files : [])
     .map((file) => Date.parse(file?.upload_time_iso_8601 || file?.upload_time))
@@ -405,7 +424,13 @@ async function checkPypi(item, parsed, context) {
   const releasedAt = pypiReleaseTime(files);
   if (releasedAt === null) item.signal('lookup-failed', 'PyPI does not report when this release was uploaded.');
   else if (now - releasedAt < policy.minReleaseAgeHours * HOUR) {
-    item.signal('recent-release', `Release uploaded ${hours(now - releasedAt)}h ago (policy minimum ${policy.minReleaseAgeHours}h); hijacked releases are usually caught within this window.`);
+    const cutoff = now - policy.minReleaseAgeHours * HOUR;
+    const older = Object.entries(doc.releases)
+      .filter(([candidate, candidateFiles]) => /^\d+(?:\.\d+)*$/.test(candidate) && Array.isArray(candidateFiles) &&
+        candidateFiles.length && !candidateFiles.every((file) => file.yanked === true) && pypiReleaseTime(candidateFiles) < cutoff)
+      .sort((a, b) => pypiReleaseTime(b[1]) - pypiReleaseTime(a[1]))[0]?.[0];
+    const alternative = older ? ` Use ${parsed.name}==${older} instead, or wait.` : '';
+    item.signal('recent-release', `Release uploaded ${hours(now - releasedAt)}h ago (policy minimum ${policy.minReleaseAgeHours}h); hijacked releases are usually caught within this window.${alternative}`);
   }
   const firstAt = Math.min(...Object.values(doc.releases).map(pypiReleaseTime).filter((value) => value !== null));
   if (Number.isFinite(firstAt) && now - firstAt < policy.minPackageAgeDays * DAY && !policy.allowPackages.includes(ref)) {
@@ -518,7 +543,7 @@ export async function evaluateInstallCommand(command, options = {}) {
       continue;
     }
     if (finding.localBinCandidate && !parsed.name.includes('/') && parsed.selector.kind === 'tag' &&
-        parsed.selector.value === 'latest' && !finding.spec.includes('@') && localBinExists(parsed.name)) {
+        parsed.selector.value === 'latest' && !finding.spec.includes('@') && localBinExists(parsed.name, finding.dir ?? null)) {
       const item = makeItem(`npm:local-bin:${parsed.name}`);
       item.signal('local-bin', 'Runs an executable already installed in the project node_modules/.bin.');
       items.push(item);

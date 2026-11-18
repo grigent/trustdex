@@ -25,6 +25,10 @@
   - git 훅(`.git/hooks`, `core.hooksPath`)
 - 숨긴 내용을 풀어서 실행하는 것(`base64 -d | sh`, `eval "$(... base64 -d)"`, `xxd -r | python3`, `gunzip | sh`)을 `obfuscated-execution`으로 차단
 - Claude 설정의 `disableAllHooks`를 `claude-hooks-disabled`로 보고(모든 정책 팩에서 BLOCK)
+- 평소 패키지 사용의 불편 줄임
+  - 프로젝트에 이미 깔린 실행 파일을 `cd` 뒤와 상위 폴더에서도 찾음
+  - 너무 최근 릴리스면 가장 새로운 이전 버전을 안전한 대안으로 알려 줌
+  - 패키지 경고를 승인하면 정확한 명령 하나에 30분이 아니라, 그 정확한 버전에 대해 어떤 명령이든 24시간 통과
 - 엄격한 설치 정책 파일(`--install-policy`) 추가: 릴리스·패키지 나이 기준, 매니페스트 설치 처리, 좁은 범위의 허용 목록. 허용 목록은 BLOCK 신호, `recent-release`, `publisher-changed`를 끌 수 없음
 - Codex `approvals_reviewer = "guardian_subagent"`를 설정 검사와 권한 상태에서 자동 검토자(`codex-auto-review`)로 인정
 
