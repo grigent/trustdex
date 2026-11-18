@@ -63,6 +63,9 @@ claude --strict-mcp-config --mcp-config ./.trustdex/claude-mcp.json
 
 ## Claude Code 권한 설정
 
+Claude Code가 패키지를 설치하기 전에 검사하려면(권한 확인을 건너뛰는 모드 포함) `claude-hook` 명령을 `PreToolUse` 훅으로 쓰세요. [Claude Code 훅](CLAUDE_HOOK.ko.md)을 참고하세요.
+
+
 MCP 게이트는 노출되는 외부 서버를 제어합니다. Claude Code 자체 권한 규칙은 별도 확인 없이 실행되는 에이전트 작업을 따로 제어합니다. 사용자, 프로젝트, 로컬 또는 관리형 설정 파일을 별도 단계로 검사하세요.
 
 ```bash

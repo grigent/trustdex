@@ -6,6 +6,28 @@
 
 ## Unreleased
 
+- add `check-install`: parse npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, and pdm install commands offline, block download-to-interpreter pipelines (`curl ... | sh`, `bash <(curl ...)`), and look up each registry package on the public npm registry or PyPI (only package names are sent). Missing packages and invalid integrity metadata are BLOCK. Recent releases (48h), new packages (30 days), install scripts and source builds, first-time publishers on recent releases, deprecated or yanked versions, look-alike names, git/URL sources, custom registries, unresolved ranges, manifest installs, and failed lookups are ASK
+- add `claude-hook`: a Claude Code `PreToolUse` hook for Bash, Read, Grep, Glob, Write, Edit, MultiEdit, and NotebookEdit. It never approves anything, and fails closed for risky tools. It stops:
+  - risky package installs
+  - changes to agent settings, MCP configuration, or TrustDex itself (`guard-tamper`)
+  - credential-store reads, including keychains, browser logins, and `gh auth token` (`secret-access`)
+  - AI coding CLIs launched with permission or sandbox checks off (`agent-permission-bypass`)
+  - startup items (`persistence-change`)
+- by default a risky action is denied instead of becoming a one-click dialog. Add `trustdex allow-once <code>` to allow that exact action once within 30 minutes. It requires a person at an interactive terminal and cannot be run or forged by the agent. `--on-risk ask` keeps dialogs for ASK-level findings
+- the hook also checks:
+  - here-document bodies run by a shell or interpreter, local script files run directly, variables assigned in the same command, `cd` within the command, and paths inside one-line code (`python3 -c`, `node -e`)
+  - environment dumps and `.env` files sent over the network
+  - `claude`/`codex`/`gemini` `mcp add` commands
+  - git hooks (`.git/hooks`, `core.hooksPath`)
+- block decoded payloads run as programs (`base64 -d | sh`, `eval "$(... base64 -d)"`, `xxd -r | python3`, `gunzip | sh`) as `obfuscated-execution`
+- report `disableAllHooks` in Claude settings as `claude-hooks-disabled` (BLOCK in every pack)
+- less friction for everyday package use:
+  - runners find binaries the project already installed after a `cd` and in parent folders
+  - too-recent releases name the newest older version as a safe alternative
+  - approving package findings covers those exact versions in any command for 24 hours, instead of one exact command for 30 minutes
+- add a strict install policy file (`--install-policy`) for release and package age thresholds, manifest installs, and narrowly scoped allowlists that cannot silence BLOCK signals, `recent-release`, or `publisher-changed`
+- accept Codex `approvals_reviewer = "guardian_subagent"` as an automatic reviewer (`codex-auto-review`) in settings inspection and permission posture
+
 ## 0.13.1 - 2026-11-08
 
 - **security:** apply fixed budgets to installed IDE extension trees (maximum 50,000 files, 100,000 entries, 2 GiB of content, 64 nested directories), failing closed on any resource limit and streaming directory enumeration

@@ -6,6 +6,32 @@
 
 ## 미출시
 
+- `check-install` 추가
+  - npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, pdm 설치 명령을 오프라인으로 해석하고, 내려받아 바로 실행하는 파이프라인(`curl ... | sh`, `bash <(curl ...)`)을 차단
+  - 레지스트리 패키지마다 공개 npm 저장소나 PyPI를 조회(패키지 이름만 전송)
+  - BLOCK: 없는 패키지, 잘못된 무결성 메타데이터
+  - ASK: 최근 릴리스(48시간), 새 패키지(30일), 설치 스크립트·소스 빌드, 최근 릴리스의 처음 보는 게시자, 사용 중단·철회 버전, 유명 이름 흉내, git/URL 출처, 별도 레지스트리, 풀지 못한 범위, 매니페스트 설치, 조회 실패
+- `claude-hook` 추가: Bash, Read, Grep, Glob, Write, Edit, MultiEdit, NotebookEdit용 Claude Code `PreToolUse` 훅. 스스로 승인하지 않고, 위험할 수 있는 도구는 실패 시 막음. 막는 것:
+  - 위험한 패키지 설치
+  - 에이전트 설정·MCP 설정·TrustDex 자체 변경(`guard-tamper`)
+  - 키체인·브라우저 로그인·`gh auth token`을 포함한 자격 증명 읽기(`secret-access`)
+  - 권한·샌드박스 검사를 끈 AI 코딩 CLI 실행(`agent-permission-bypass`)
+  - 자동 실행 항목(`persistence-change`)
+- 기본값에서는 위험한 행동을 클릭 한 번짜리 확인 창으로 바꾸지 않고 거부함. `trustdex allow-once <코드>`를 추가해, 대화형 터미널 앞의 사람이 그 행동 하나만 30분 안에 한 번 허용하게 함(에이전트가 실행하거나 위조할 수 없음). `--on-risk ask`로 ASK 수준은 확인 창을 유지할 수 있음
+- 훅이 다음도 검사함
+  - 셸·해석기가 실행하는 히어독 본문, 바로 실행하는 로컬 스크립트 파일, 같은 명령 안의 변수와 `cd`, 한 줄 코드(`python3 -c`, `node -e`) 속 경로
+  - 환경변수 목록과 `.env` 파일을 네트워크로 보내는 것
+  - `claude`/`codex`/`gemini`의 `mcp add` 명령
+  - git 훅(`.git/hooks`, `core.hooksPath`)
+- 숨긴 내용을 풀어서 실행하는 것(`base64 -d | sh`, `eval "$(... base64 -d)"`, `xxd -r | python3`, `gunzip | sh`)을 `obfuscated-execution`으로 차단
+- Claude 설정의 `disableAllHooks`를 `claude-hooks-disabled`로 보고(모든 정책 팩에서 BLOCK)
+- 평소 패키지 사용의 불편 줄임
+  - 프로젝트에 이미 깔린 실행 파일을 `cd` 뒤와 상위 폴더에서도 찾음
+  - 너무 최근 릴리스면 가장 새로운 이전 버전을 안전한 대안으로 알려 줌
+  - 패키지 경고를 승인하면 정확한 명령 하나에 30분이 아니라, 그 정확한 버전에 대해 어떤 명령이든 24시간 통과
+- 엄격한 설치 정책 파일(`--install-policy`) 추가: 릴리스·패키지 나이 기준, 매니페스트 설치 처리, 좁은 범위의 허용 목록. 허용 목록은 BLOCK 신호, `recent-release`, `publisher-changed`를 끌 수 없음
+- Codex `approvals_reviewer = "guardian_subagent"`를 설정 검사와 권한 상태에서 자동 검토자(`codex-auto-review`)로 인정
+
 ## 0.13.1 - 2026-11-08
 
 - **보안:** 설치된 IDE 확장 폴더 검사에 최대 5만 파일, 10만 항목, 파일 총량 2GiB, 디렉터리 깊이 64단계 제한 적용. 한도 초과 시 부분 지문을 승인에 사용하지 않고 차단하며 디렉터리 목록을 순차적으로 읽음

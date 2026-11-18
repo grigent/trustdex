@@ -77,6 +77,8 @@ TrustDex deliberately does not infer "official" status from names, stars, or bra
 - verify review records and runtime attestations against a strict keyset allowlist with key purposes, validity windows, rotation, and revocation
 - inspect VS Code-compatible editor extensions (VS Code, Cursor) by exact version and installed-file digest, and require re-review when an extension is added, updated, or modified
 - emit a versioned, fail-closed JSON decision contract for agents and automation, and validate policy files strictly against a published schema
+- check npm and PyPI install commands (and `curl | sh` pipelines) before an agent runs them, as a CLI or a Claude Code `PreToolUse` hook
+- stop agent tool calls that tamper with agent or TrustDex settings, read credential stores, launch AI agents without guardrails, or add startup items, with person-only one-time approval instead of one-click dialogs
 
 ## Compatibility
 
@@ -178,6 +180,18 @@ node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
 ```
 
 An unreviewed update, such as a pinned `2.1.312` becoming `2.1.313`, is never ALLOW (BLOCK under `strict` and `official-first`, ASK under `development`) and is reported as `NEEDS_REVIEW` by `recheck-ide-extensions`. Nothing is executed and no network request is made. See [IDE extensions](docs/IDE_EXTENSIONS.md) for signals, policy fields, and limits.
+
+## Check package installs before they run
+
+```bash
+node ./bin/trustdex.mjs check-install "pip3 install reqeusts"
+```
+
+`check-install` parses npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, and pdm install commands offline and blocks download-to-interpreter pipelines such as `curl ... | sh`. It then looks up each registry package on `registry.npmjs.org` or `pypi.org`, sending only the package name.
+- BLOCK: names that do not exist, and broken integrity metadata.
+- ASK: releases younger than 48 hours, packages younger than 30 days, install scripts or source builds, a first-time publisher, deprecated or yanked versions, look-alike names, and git/URL/custom-registry sources.
+
+`claude-hook` runs the same check as a Claude Code `PreToolUse` hook, together with guards against settings tampering, credential access, AI agents launched without guardrails, and startup items. It never approves anything. By default a risky action is denied, not turned into a one-click dialog, and a person can allow that exact action once with `trustdex allow-once <code>` in their own terminal. See [Claude Code hook](docs/CLAUDE_HOOK.md). See [Pre-install package checks](docs/INSTALL_CHECK.md) for signals, policy, limits, and hook setup.
 
 ## Use from agents and automation
 

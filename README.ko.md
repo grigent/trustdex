@@ -77,6 +77,8 @@ TrustDex는 이름, 스타 수 또는 브랜딩만으로 "공식" 여부를 추�
 - 키 용도, 유효 기간, 교체, 폐기를 담은 엄격한 키셋 허용 목록으로 검토 기록과 런타임 증명 검증
 - VS Code 호환 에디터 확장(VS Code, Cursor)을 정확한 버전과 설치 파일 다이제스트로 검사하고, 확장이 추가·업데이트·변경되면 재검토 요구
 - 에이전트와 자동화를 위한 버전 있는 실패 시 차단 JSON 판정 계약을 출력하고, 공개 스키마에 맞춰 정책 파일을 엄격하게 검증
+- 에이전트가 실행하기 전에 npm·PyPI 설치 명령(과 `curl | sh` 파이프라인)을 CLI나 Claude Code `PreToolUse` 훅으로 검사
+- 에이전트·TrustDex 설정 변조, 자격 증명 읽기, 안전장치를 끈 AI 에이전트 실행, 자동 실행 항목 추가를 막고, 클릭 한 번짜리 확인 창 대신 사람만 할 수 있는 1회 승인 사용
 
 ## 호환성
 
@@ -178,6 +180,18 @@ node ./bin/trustdex.mjs recheck-ide-extensions ~/.cursor/extensions \
 ```
 
 고정한 `2.1.312`가 `2.1.313`으로 바뀌는 것처럼 검토하지 않은 업데이트는 절대 ALLOW가 되지 않고(`strict`, `official-first`는 BLOCK, `development`는 ASK), `recheck-ide-extensions`에서 `NEEDS_REVIEW`로 보고됩니다. 아무것도 실행하지 않으며 네트워크 요청도 하지 않습니다. 신호, 정책 필드, 한계는 [IDE 확장](docs/IDE_EXTENSIONS.ko.md)을 참고하세요.
+
+## 실행 전에 패키지 설치 검사
+
+```bash
+node ./bin/trustdex.mjs check-install "pip3 install reqeusts"
+```
+
+`check-install`은 npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, pdm 설치 명령을 오프라인으로 해석하고, `curl ... | sh` 같은 내려받아 바로 실행하는 파이프라인을 차단합니다. 그다음 각 레지스트리 패키지를 `registry.npmjs.org`나 `pypi.org`에서 조회하며, 보내는 것은 패키지 이름뿐입니다.
+- BLOCK: 존재하지 않는 이름, 깨진 무결성 메타데이터
+- ASK: 48시간이 안 된 릴리스, 30일이 안 된 패키지, 설치 스크립트나 소스 빌드, 처음 보는 게시자, 사용 중단·철회된 버전, 유명 이름 흉내, git/URL/별도 레지스트리 출처
+
+`claude-hook`은 같은 검사를 설정 변조, 자격 증명 접근, 안전장치를 끈 AI 에이전트 실행, 자동 실행 항목에 대한 보호와 함께 Claude Code `PreToolUse` 훅으로 실행합니다. 스스로 승인하지 않습니다. 기본값에서는 위험한 행동을 클릭 한 번짜리 확인 창으로 바꾸지 않고 거부하며, 사람이 자기 터미널에서 `trustdex allow-once <코드>`를 입력해야 그 행동 하나만 한 번 허용됩니다. [Claude Code 훅](docs/CLAUDE_HOOK.ko.md)을 참고하세요. 신호, 정책, 한계, 훅 설정은 [설치 전 패키지 검사](docs/INSTALL_CHECK.ko.md)를 참고하세요.
 
 ## 에이전트와 자동화에서 사용
 
