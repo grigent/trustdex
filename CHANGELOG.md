@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.14.0 - 2026-11-18
+
 - add `check-install`: parse npm, pnpm, yarn, bun, npx, pip, uv, uvx, pipx, poetry, and pdm install commands offline, block download-to-interpreter pipelines (`curl ... | sh`, `bash <(curl ...)`), and look up each registry package on the public npm registry or PyPI (only package names are sent). Missing packages and invalid integrity metadata are BLOCK. Recent releases (48h), new packages (30 days), install scripts and source builds, first-time publishers on recent releases, deprecated or yanked versions, look-alike names, git/URL sources, custom registries, unresolved ranges, manifest installs, and failed lookups are ASK
 - add `claude-hook`: a Claude Code `PreToolUse` hook for Bash, Read, Grep, Glob, Write, Edit, MultiEdit, and NotebookEdit. It never approves anything, and fails closed for risky tools. It stops:
   - risky package installs
