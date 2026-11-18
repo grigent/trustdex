@@ -42,6 +42,27 @@ function summary(items) {
     .map((item) => ({ name: item.name, signals: item.signals, reasons: item.reasons }));
 }
 
+// The part of a tool call an approval is bound to: what the action does, not
+// incidental fields (descriptions, timeouts, client metadata) that can differ
+// between two otherwise identical calls.
+const APPROVAL_FIELDS = {
+  Bash: ['command'],
+  Read: ['file_path'],
+  Grep: ['path', 'pattern', 'glob'],
+  Glob: ['path', 'pattern'],
+  Write: ['file_path', 'content'],
+  Edit: ['file_path', 'old_string', 'new_string', 'replace_all'],
+  MultiEdit: ['file_path', 'edits'],
+  NotebookEdit: ['notebook_path', 'cell_id', 'new_source', 'cell_type', 'edit_mode']
+};
+
+export function approvalSubject(toolName, toolInput) {
+  const input = toolInput && typeof toolInput === 'object' ? toolInput : {};
+  const fields = APPROVAL_FIELDS[toolName];
+  if (!fields) return input;
+  return Object.fromEntries(fields.filter((field) => input[field] !== undefined).map((field) => [field, input[field]]));
+}
+
 export async function evaluateToolCall(input, options = {}) {
   const tool = input.tool_name;
   const toolInput = input.tool_input && typeof input.tool_input === 'object' ? input.tool_input : {};
@@ -67,7 +88,7 @@ export async function claudeHookResponse(input, options = {}) {
   const action = overallAction(items);
   if (action === 'allow') return null;
 
-  const digest = actionDigest(input.tool_name, input.tool_input ?? null);
+  const digest = actionDigest(input.tool_name, approvalSubject(input.tool_name, input.tool_input));
   const store = options.approvals ?? null;
   if (store?.consume(digest)) return null;
 

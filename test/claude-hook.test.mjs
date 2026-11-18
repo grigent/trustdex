@@ -207,6 +207,22 @@ test('risky actions are denied with a one-time code instead of a one-click dialo
   assert.equal((await claudeHookResponse(different, options)).hookSpecificOutput.permissionDecision, 'deny', 'approval is bound to the exact action');
 });
 
+test('an approval matches the same action even when incidental fields differ', async (t) => {
+  const store = createApprovalStore(tempDir(t));
+  const options = { paths: PATHS, fetchImpl: offline, approvals: store };
+  const first = { tool_name: 'Bash', tool_input: { command: 'cat ~/.ssh/id_ed25519', description: 'first', timeout: 1000 } };
+  const denied = await claudeHookResponse(first, options);
+  store.approve(/trustdex allow-once (\w{8})/.exec(denied.hookSpecificOutput.permissionDecisionReason)[1]);
+  const retry = { tool_name: 'Bash', tool_input: { command: 'cat ~/.ssh/id_ed25519', description: 'retry', run_in_background: false } };
+  assert.equal(await claudeHookResponse(retry, options), null);
+
+  const edit = (newString) => ({ tool_name: 'Edit', tool_input: { file_path: '/Users/tester/.claude/settings.json', old_string: 'a', new_string: newString } });
+  const editDenied = await claudeHookResponse(edit('b'), options);
+  store.approve(/trustdex allow-once (\w{8})/.exec(editDenied.hookSpecificOutput.permissionDecisionReason)[1]);
+  assert.equal((await claudeHookResponse(edit('c'), options)).hookSpecificOutput.permissionDecision, 'deny', 'different content needs its own approval');
+  assert.equal(await claudeHookResponse(edit('b'), options), null);
+});
+
 test('ask mode turns ASK findings into a dialog but keeps BLOCK findings denied', async () => {
   const options = { paths: PATHS, fetchImpl: offline, onRisk: 'ask' };
   const ask = await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'launchctl bootstrap gui/501 x.plist' } }, options);
