@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.14.1 - 2026-11-18
+
 - bind Bash one-time approvals to the effective starting directory plus the command after any leading `cd`, so an approval matches when Claude Code drops a leading `cd` to the current directory, and does not carry over to the same command in another directory
 
 ## 0.14.0 - 2026-11-18
