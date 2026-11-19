@@ -34,7 +34,7 @@ const ITEM_SCOPED_SIGNALS = new Set([
 
 // ASK-level guard findings about routine maintenance that one approval may cover
 // as a kind of work for a short time, instead of one exact command.
-export const SIGNAL_SCOPED = new Set(['persistence-change']);
+export const SIGNAL_SCOPED = new Set(['persistence-change', 'remote-secret-access', 'remote-config-change']);
 
 export function itemApprovalKeys(items) {
   const risky = items.filter((item) => item.action !== 'allow');
@@ -43,7 +43,8 @@ export function itemApprovalKeys(items) {
   for (const item of risky) {
     if (item.action === 'block') return null;
     if (item.signals.length && item.signals.every((signal) => SIGNAL_SCOPED.has(signal))) {
-      for (const signal of item.signals) keys.push(`signal:${signal}`);
+      // Remote findings are scoped to their host.
+      for (const signal of item.signals) keys.push(`signal:${signal}${item.scope ? `@${item.scope}` : ''}`);
       continue;
     }
     if (!/^(?:npm|pypi):[^:\s]+@[^\s]+$/.test(item.name)) return null;
@@ -59,6 +60,9 @@ function scopeText(keys) {
   const parts = [];
   if (keys.some((key) => !key.startsWith('signal:'))) parts.push('these exact package versions for 24 hours');
   if (keys.includes('signal:persistence-change')) parts.push('changes to startup items and scheduled jobs for 1 hour');
+  const hosts = (prefix) => [...new Set(keys.filter((key) => key.startsWith(prefix)).map((key) => key.slice(prefix.length)))].join(', ');
+  if (hosts('signal:remote-secret-access@')) parts.push(`reading secret files on ${hosts('signal:remote-secret-access@')} over SSH for 1 hour`);
+  if (hosts('signal:remote-config-change@')) parts.push(`changing settings and secret files on ${hosts('signal:remote-config-change@')} over SSH for 1 hour`);
   return `That allows ${parts.join(' and ')}, in any command.`;
 }
 
@@ -70,13 +74,15 @@ function reasonText(items, code, itemKeys) {
   const head = packageScoped
     ? 'TrustDex stopped this action because a package version looks risky.'
     : itemScoped
-      ? 'TrustDex stopped this action because it changes what runs automatically on this computer.'
+      ? (itemKeys.every((key) => key.startsWith('signal:remote-'))
+        ? 'TrustDex stopped this action because it reads secrets or changes settings on a remote server over SSH.'
+        : 'TrustDex stopped this action because it changes what runs automatically on this computer or settings on a server.')
       : 'TrustDex stopped this action because it could harm this computer or leak credentials.';
   const next = [];
   if (itemScoped) {
     if (packageScoped) next.push('If a safer alternative is named above (an older exact version, or --ignore-scripts), use it without asking the user.');
     if (code) {
-      next.push(`${packageScoped ? 'Only if no alternative works: explain' : 'Explain'} what will run automatically in plain words; if the user wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`);
+      next.push(`${packageScoped ? 'Only if no alternative works: explain' : 'Explain'} in plain words what it reads or changes; if the user wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`);
       next.push(scopeText(itemKeys));
     }
   } else if (code) {
@@ -84,7 +90,7 @@ function reasonText(items, code, itemKeys) {
       'Do not retry it in another form or work around this check.',
       'Explain the risk to the user in plain words.',
       `If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`,
-      'That allows this exact action once within 30 minutes; then run the identical action again.'
+      'That allows this exact action once within an hour; then run the identical action again.'
     );
   } else {
     next.push('Do not retry it in another form or work around this check. Explain the risk to the user in plain words.');
@@ -151,7 +157,7 @@ export async function evaluateToolCall(input, options = {}) {
   if (tool === 'Bash') {
     const command = toolInput.command;
     if (typeof command !== 'string' || !command.trim()) return items;
-    items.push(...guardBashCommand(command, paths, { cwd, readScript: options.readScript }));
+    items.push(...guardBashCommand(command, paths, { cwd, readScript: options.readScript, allowStartupItems: options.policy?.allowStartupItems }));
     items.push(...(await evaluateInstallCommand(command, options)).items);
   } else {
     items.push(...guardFileTool(tool, toolInput, paths, { cwd }));

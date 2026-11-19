@@ -6,6 +6,16 @@
 
 ## 미출시
 
+- SSH로 다른 컴퓨터에 보내는 명령(`ssh host 'cmd'`, `ssh host <<EOF`, `scp`/`rsync host:경로`)을 일반적인 이름으로 검사함. 보통 비밀값이 든 파일 읽기, 환경변수·`kubectl` 비밀값 출력은 `remote-secret-access`(ASK), 그런 파일·`/etc`·`authorized_keys`·셸 시작 파일·`crontab` 바꾸기는 `remote-config-change`(ASK). 승인하면 그 서버에서 그 종류의 작업을 1시간 허용함. 평소 서버 작업은 조용히 지나가고, 같은 컴퓨터로 가는 `ssh`는 로컬 명령처럼 검사함
+- 안내하는 훅 명령 끝에 `|| { ...; exit 2; }`를 붙임. `node`가 없거나 TrustDex 사본이 옮겨졌거나 시작하다 죽어도, 막지 않는 훅 오류로 통과하지 않고 행동을 멈춤
+- 확인 창 모드에서도 계속 막는 것과 그 대가를 문서에 적음
+- 하루 실제로 써 본 결과를 반영해 Claude Code 훅을 덜 번거롭게 함
+  - 읽기만 하는 파이썬·노드 한 줄 코드(`python3 -c "print(json.load(open(p)))"`, `node -e "...readFileSync(p)..."`)는 에이전트 설정이나 시작 항목을 바꾸는 것으로 보지 않음. 쓰거나, 다른 프로그램을 실행하거나, 무엇을 부르는지 숨길 수 있는 코드는 그대로 막음
+  - `trustdex allow-once --list` 허용. 승인 자체는 여전히 사람만 할 수 있음
+  - launchd 작업을 멈추는 것(`launchctl unload`, `bootout`, `disable`, `remove`)은 시작 항목 변경으로 보지 않음
+  - 설치 정책에 `allowStartupItems` 추가: 내 예약 작업의 launchd 라벨(`"com.example.*"`)을 넣으면, 에이전트가 `launchctl enable`이나 `~/Library/LaunchAgents`에서 `load`/`bootstrap`으로 승인 없이 켤 수 있음. 그 폴더에 plist를 쓰는 것은 여전히 승인 필요
+  - 정확히 그 행동 하나에 대한 한 번짜리 승인을 30분에서 1시간으로 늘려, 코드·시작 항목 승인과 같은 기준으로 맞춤
+
 ## 0.14.2 - 2026-11-19
 
 - 에이전트 보호의 오탐 줄임

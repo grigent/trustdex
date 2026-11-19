@@ -11,6 +11,9 @@
 // - agent-permission-bypass: launching an AI coding CLI with its permission or
 //   sandbox checks turned off, as the 2025 Nx "s1ngularity" malware did
 // - persistence-change: login items, launch agents, cron, shell startup files
+// - remote-secret-access / remote-config-change: over SSH, reading files that
+//   look like secrets, or changing server settings, secret files, SSH keys or
+//   scheduled jobs
 //
 // Matching is static and conservative. It cannot follow arbitrary code (for
 // example a Python script that builds a path at run time), so it is one layer
@@ -36,7 +39,9 @@ export const GUARD_SIGNAL_ACTIONS = Object.freeze({
   'secret-access': 'block',
   'agent-permission-bypass': 'block',
   'unparseable-guarded-command': 'block',
-  'persistence-change': 'ask'
+  'persistence-change': 'ask',
+  'remote-secret-access': 'ask',
+  'remote-config-change': 'ask'
 });
 
 const READ_ONLY_PROGRAMS = new Set([
@@ -222,6 +227,11 @@ function collectCommands(fullText, depth = 0) {
       const script = program === 'eval' ? words.slice(1).join(' ') : index >= 0 ? words[index + 1] : null;
       if (script) nested.push(...collectCommands(script, depth + 1));
     }
+    // ssh to this same computer runs the command here: check it like a local one.
+    if (program === 'ssh') {
+      const remote = sshRemote(words);
+      if (remote && isLoopbackHost(remote.host) && remote.command.trim()) nested.push(...collectCommands(remote.command, depth + 1));
+    }
     for (const word of argv) {
       const sub = /\$\(([^]*)\)/.exec(word) || /`([^`]*)`/.exec(word);
       if (sub) nested.push(...collectCommands(sub[1], depth + 1));
@@ -309,6 +319,151 @@ const ENV_DUMPERS = new Set(['env', 'printenv', 'set', 'declare', 'compgen']);
 const DOTENV_RE = /(?:^|[/@'"=])\.env(?:\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)?['"]?$/;
 const AGENT_CONFIG_CLIS = /^(?:claude|codex[\w.-]*|gemini|cursor-agent|amp|q)$/;
 
+// ------------------------------------------------------- SSH (remote)
+//
+// The local guards above know this computer's paths. Commands run on another
+// computer over SSH (ssh host 'cmd', ssh host <<EOF, scp/rsync host:path) are
+// checked by generic names instead: files that usually hold secrets, server
+// settings under /etc, SSH authorized keys, shell startup files and scheduled
+// jobs. The finding is scoped to the host, so approving work on one server
+// does not cover another.
+
+const SSH_VALUE_OPTIONS = new Set('BbcDEeFIiJLlmOoPpQRSWw'.split(''));
+const REMOTE_SECRET_NAME = /(?:^|\/)(?:\.env(?:\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)?|[\w.-]+\.env|id_(?:rsa|ecdsa|ed25519|dsa)|[\w.-]+\.(?:pem|key|p12|pfx|jks|keystore|kdbx)|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.my\.cnf|\.git-credentials|credentials(?:\.[\w-]+)?|shadow|gshadow|[\w.-]*(?:secret|token|password|passwd|api[_-]?key)s?(?:\.[\w-]+)?)$/i;
+const REMOTE_CONFIG_PATH = /^\/etc\/|(?:^|\/)\.ssh\/authorized_keys2?$|(?:^|\/)\.(?:bashrc|bash_profile|profile|zshrc|zshenv|zprofile)$|^\/var\/spool\/cron\//;
+const REMOTE_METADATA_PROGRAMS = new Set([...EXISTENCE_PROGRAMS, 'chmod', 'chown', 'touch', 'du', 'wc', 'file', 'basename', 'dirname', 'realpath', 'readlink']);
+
+// The command an `ssh` invocation runs remotely, and the host it runs on.
+export function sshRemote(words) {
+  let i = 1;
+  while (i < words.length && words[i].startsWith('-') && words[i] !== '--') {
+    const flags = words[i].slice(1);
+    const at = [...flags].findIndex((flag) => SSH_VALUE_OPTIONS.has(flag));
+    i += at >= 0 && at === flags.length - 1 ? 2 : 1;
+  }
+  if (words[i] === '--') i += 1;
+  const host = words[i];
+  if (!host) return null;
+  return { host: normalizeHost(host), hostIndex: i, command: words.slice(i + 1).join(' ') };
+}
+
+function isLoopbackHost(host) {
+  const names = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0', '?']);
+  try {
+    const own = os.hostname().toLowerCase();
+    names.add(own);
+    names.add(own.split('.')[0]);
+    names.add(own.replace(/\.local$/, ''));
+  } catch { /* hostname unavailable */ }
+  return names.has(host) || /^127\./.test(host) || /^\$|`/.test(host);
+}
+
+function normalizeHost(host) {
+  return String(host).replace(/^ssh:\/\//i, '').replace(/^[^@]*@/, '').replace(/[:/].*$/, '').toLowerCase() || '?';
+}
+
+function remotePathParts(word) {
+  const out = [];
+  for (const part of String(word).split(/[=,\s]/)) {
+    const cleaned = part.replace(/^\d*[<>]+&?/, '').replace(/^[@"'(]+|["');]+$/g, '');
+    if (cleaned) out.push(cleaned);
+  }
+  return out;
+}
+
+function remoteCommandFindings(text, host, add, depth = 0) {
+  let commands;
+  try {
+    commands = collectCommands(text, 1);
+  } catch {
+    if (REMOTE_SECRET_NAME.test(text) || /\/etc\//.test(text)) add(host, 'remote-config-change', 'Runs a command on a remote server that could not be parsed and mentions secrets or server settings.');
+    return;
+  }
+  for (const argv of commands) {
+    const words = stripWrappers(argv);
+    const program = programName(words[0] || '');
+    if (program === 'ssh' && depth < 2) {
+      const nested = sshRemote(words);
+      if (nested) remoteCommandFindings(nested.command, nested.host, add, depth + 1);
+      continue;
+    }
+    const readOnly = commandIsReadOnly(words);
+    const metadataOnly = REMOTE_METADATA_PROGRAMS.has(program);
+    const args = words.slice(1);
+    // Not stripWrappers: a bare `env` is the dump itself, not a wrapper.
+    const bare = argv.filter((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word) && !isRedirection(word));
+    const dumpsEnv = bare.length === 1 && ENV_DUMPERS.has(programName(bare[0])) || program === 'sudo' && bare.length === 2 && ENV_DUMPERS.has(programName(bare[1]));
+    if (dumpsEnv ||
+        program === 'docker' && args[0] === 'exec' && args.some((word, index) => index > 0 && ENV_DUMPERS.has(programName(word)) && index === args.length - 1) ||
+        program === 'kubectl' && /^(?:get|describe|edit)$/.test(args[0] || '') && /^secrets?$/.test(args[1] || '')) {
+      add(host, 'remote-secret-access', 'Prints secrets on a remote server (environment variables or stored secrets).');
+    }
+    if (program === 'crontab' && !args.every((word) => word === '-l')) {
+      add(host, 'remote-config-change', 'Changes scheduled jobs on a remote server.');
+    }
+    for (const target of redirectionTargets(argv)) {
+      if (REMOTE_SECRET_NAME.test(target) || REMOTE_CONFIG_PATH.test(target)) {
+        add(host, 'remote-config-change', 'Writes a secret file or server setting on a remote server.');
+      }
+    }
+    // kubectl names resources, not files.
+    if (program === 'kubectl') continue;
+    for (const word of argv) {
+      if (isRedirection(word)) continue;
+      for (const candidate of remotePathParts(word)) {
+        const secret = REMOTE_SECRET_NAME.test(candidate) && candidate !== words[0];
+        const config = REMOTE_CONFIG_PATH.test(candidate);
+        if (secret && !metadataOnly) {
+          if (readOnly) add(host, 'remote-secret-access', 'Reads a file that usually holds secrets (keys, tokens, passwords, .env) on a remote server.');
+          else add(host, 'remote-config-change', 'Changes or copies a file that usually holds secrets on a remote server.');
+        }
+        if (config && !readOnly && !metadataOnly) {
+          add(host, 'remote-config-change', 'Changes server settings, SSH authorized keys, or shell startup files on a remote server.');
+        }
+      }
+    }
+  }
+}
+
+function remoteFindings(text, commands) {
+  const items = [];
+  const add = (host, signal, reason) => {
+    const name = `remote:${host}`;
+    if (!items.some((item) => item.name === name && item.signals[0] === signal)) {
+      items.push({ ...signalItem(name, signal, reason), scope: host });
+    }
+  };
+  const { bodies } = splitHeredocs(text);
+  for (const body of bodies) {
+    if (body.program !== 'ssh') continue;
+    const remote = sshRemote(['ssh', ...body.args]);
+    remoteCommandFindings(body.text, remote ? remote.host : '?', add);
+  }
+  for (const argv of commands) {
+    const words = stripWrappers(argv);
+    const program = programName(words[0] || '');
+    if (program === 'ssh') {
+      const remote = sshRemote(words);
+      if (remote && remote.command.trim()) remoteCommandFindings(remote.command, remote.host, add);
+    } else if (program === 'scp' || program === 'rsync' || program === 'sftp') {
+      const specs = words.slice(1).filter((word) => !word.startsWith('-') && /^[^/\s:]+:/.test(word));
+      const last = words[words.length - 1];
+      for (const spec of specs) {
+        const remotePath = spec.slice(spec.indexOf(':') + 1);
+        const host = normalizeHost(spec.slice(0, spec.indexOf(':')));
+        if (spec === last && words.length > 2) {
+          if (REMOTE_SECRET_NAME.test(remotePath) || REMOTE_CONFIG_PATH.test(remotePath) || /\/(?:etc|\.ssh)\/?$/.test(remotePath)) {
+            add(host, 'remote-config-change', 'Copies a file over a secret file, server setting, or SSH key on a remote server.');
+          }
+        } else if (REMOTE_SECRET_NAME.test(remotePath)) {
+          add(host, 'remote-secret-access', 'Copies a file that usually holds secrets off a remote server.');
+        }
+      }
+    }
+  }
+  return items;
+}
+
 // ------------------------------------------------- read-only judgement
 
 const HARMLESS_REDIRECT = /^(?:\/dev\/(?:null|stdout|stderr|tty|fd\/\d+)|&?\d*|-)$/;
@@ -348,12 +503,99 @@ const READ_ONLY_SUBCOMMANDS = {
   security: /^(?:list-keychains|default-keychain|show-keychain-info)$/
 };
 
+// launchctl subcommands that stop or unload a job; they never add one.
+const LAUNCHCTL_STOP = /^(?:unload|bootout|disable|remove|kill|stop)$/;
+
+// One-line Python or Node code (python3 -c, node -e/-p) that only reads files,
+// such as json.load(open(p)) or fs.readFileSync(p). Anything that may write,
+// start another program, or hide what it calls keeps the code treated as a
+// possible writer. This is deliberately strict: when in doubt, it is a writer.
+const INLINE_CODE_FLAG = { python: /^-[A-Za-z]*c$/, node: /^(?:-e|-p|--eval|--print)$/ };
+const INLINE_WRITE_RE = new RegExp([
+  'write', 'dump\\b', 'append', 'unlink', 'remove', 'rename', 'replace', 'rmtree', '\\brm', '\\bcp\\b', 'cpsync',
+  '\\bmove', 'copy', 'chmod', 'chown', 'utime', 'truncate', 'mkdir', 'makedirs', 'touch', 'symlink', 'hardlink', '\\blink',
+  'system', 'popen', 'subprocess', 'spawn', 'exec', 'eval', 'compile', 'import\\s*\\(', '__', 'importlib', 'getattr',
+  'setattr', 'globals', '\\bvars\\b', 'chr\\s*\\(', 'fromcharcode', '\\\\x', '\\\\u', 'base64', 'codecs', 'decode',
+  'pickle', 'marshal', 'socket', 'urllib', 'requests', 'http', 'fetch', 'shutil', 'child_process', 'binding', 'dlopen',
+  'ctypes', 'ffi', 'mode\\s*=', '\\bfunction\\s*\\(', 'constructor', '\\bvm\\b', 'worker', '\\bmodule\\b', 'reflect',
+  'require\\s*\\(\\s*[^\'"\\s]', '\\b(?:fs|os|process|globalthis|global)\\s*\\[', '\\[[^\\]]*\\+'
+].join('|'), 'i');
+
+function inlineCodeIsReadOnly(program, words) {
+  const kind = program.replace(/\d+(?:\.\d+)*$/, '');
+  const flag = INLINE_CODE_FLAG[kind];
+  if (!flag) return false;
+  const index = words.findIndex((word, i) => i > 0 && flag.test(word));
+  if (index < 0 || typeof words[index + 1] !== 'string') return false;
+  const code = words[index + 1]
+    // open(p, 'r') and open(p, mode='rb') read; any other second argument may write.
+    .replace(/,\s*(?:encoding\s*=\s*|\{\s*encoding\s*:\s*)?['"]utf-?8['"]\s*\}?\s*\)/gi, ')')
+    .replace(/,\s*(?:mode\s*=\s*)?['"]r[bt]?['"]\s*\)/g, ')');
+  if (INLINE_WRITE_RE.test(code)) return false;
+  // open() with a second argument, open passed around or called with *args,
+  // openSync, or any short string that looks like a write mode ('w', "a+").
+  if (/open\s*\([^)]*,|open(?!\s*\()|open\s*\(\s*\*/i.test(code)) return false;
+  if (/(['"`])(?![rbt]{1,2}\1)[rwaxbt+]{1,3}\1/i.test(code)) return false;
+  if (/\bos\.(?!path\.|environ\b|getenv\b|listdir\b|stat\b|getcwd\b|scandir\b)/.test(code)) return false;
+  if (/\bfs\.(?!readFileSync\b|existsSync\b|statSync\b|lstatSync\b|readdirSync\b)/.test(code)) return false;
+  return true;
+}
+
+// launchd labels allowed by the install policy (allowStartupItems).
+function startupLabelAllowed(label, patterns) {
+  return patterns.some((pattern) => (pattern.endsWith('.*')
+    ? label.length > pattern.length - 1 && label.startsWith(pattern.slice(0, -1))
+    : label === pattern));
+}
+
+// Starting one of the user's own launchd jobs that the policy lists:
+// `launchctl enable gui/<uid>/<label>`, or `launchctl load|bootstrap` of
+// plists in ~/Library/LaunchAgents whose file name is an allowed label. Writing
+// into ~/Library/LaunchAgents is still checked, so an agent cannot plant a new
+// job under an allowed name without the user's approval.
+function launchctlStartAllowed(words, options, cwd) {
+  const patterns = Array.isArray(options.allowStartupItems) ? options.allowStartupItems : [];
+  if (!patterns.length) return false;
+  const sub = words[1];
+  const args = words.slice(2);
+  if (sub === 'enable') {
+    const match = /^(?:gui|user)\/\d+\/([^/]+)$/.exec(args[0] || '');
+    return args.length === 1 && !!match && startupLabelAllowed(match[1], patterns);
+  }
+  if (sub !== 'load' && sub !== 'bootstrap') return false;
+  let rest = args;
+  if (sub === 'bootstrap') {
+    if (!/^(?:gui|user)\/\d+$/.test(rest[0] || '')) return false;
+    rest = rest.slice(1);
+  } else {
+    rest = rest.filter((word) => word !== '-w' && word !== '-F');
+  }
+  if (!rest.length) return false;
+  const home = toPosix(options.home || os.homedir());
+  const agentsDir = path.join(home, 'Library', 'LaunchAgents');
+  return rest.every((word) => {
+    if (word.startsWith('-')) return false;
+    let resolved = expandHome(toPosix(word), home);
+    if (!path.isAbsolute(resolved)) {
+      if (!cwd) return false;
+      resolved = path.resolve(cwd, resolved);
+    } else {
+      resolved = path.resolve(resolved);
+    }
+    const base = path.basename(resolved);
+    return path.dirname(resolved) === agentsDir && base.endsWith('.plist') &&
+      startupLabelAllowed(base.slice(0, -'.plist'.length), patterns);
+  });
+}
+
 // Is this simple command read-only for the files it names?
 function commandIsReadOnly(words) {
   // Only variable assignments (S=~/.claude/settings.json): nothing is written.
   if (!words.length) return true;
   const program = programName(words[0] || '');
   if (READ_ONLY_PROGRAMS.has(program)) return true;
+  if (program === 'launchctl' && LAUNCHCTL_STOP.test(words[1] || '')) return true;
+  if (inlineCodeIsReadOnly(program, words)) return true;
   if (READ_ONLY_SUBCOMMANDS[program]) return READ_ONLY_SUBCOMMANDS[program].test(words[1] || '');
   if (program === 'sed' || program === 'awk') {
     return !words.some((word) => /^-[A-Za-z]*i|^--in-place|system\(|print\s*>|>\s*"/.test(word));
@@ -448,7 +690,10 @@ export function guardBashCommand(command, paths, options = {}) {
     }
 
     const trustdexIndex = argv.findIndex((word) => /^trustdex(?:\.mjs)?$/i.test(programName(word)));
-    if (trustdexIndex >= 0 && argv.slice(trustdexIndex + 1).some((word) => /^allow-once$/i.test(word))) {
+    const trustdexArgs = trustdexIndex >= 0 ? argv.slice(trustdexIndex + 1) : [];
+    // Listing what is waiting is harmless; approving is for the person only.
+    const listsOnly = trustdexArgs.length === 2 && /^allow-once$/i.test(trustdexArgs[0]) && trustdexArgs[1] === '--list';
+    if (trustdexIndex >= 0 && !listsOnly && trustdexArgs.some((word) => /^allow-once$/i.test(word))) {
       add('command:trustdex-approve', 'guard-tamper', 'Approvals must be given by a person in their own terminal, not by the agent.');
     }
     if (startsAgentWithoutGuardrails(words)) {
@@ -465,7 +710,8 @@ export function guardBashCommand(command, paths, options = {}) {
     if (program === 'crontab' && !words.slice(1).every((word) => word === '-l')) {
       add('command:startup-item', 'persistence-change', 'Changes scheduled jobs (crontab).');
     }
-    if (program === 'launchctl' && /^(?:load|bootstrap|enable|submit)$/.test(words[1] || '')) {
+    const allowedStart = program === 'launchctl' && launchctlStartAllowed(words, options, currentCwd);
+    if (program === 'launchctl' && /^(?:load|bootstrap|enable|submit)$/.test(words[1] || '') && !allowedStart) {
       add('command:startup-item', 'persistence-change', 'Loads a background job with launchctl.');
     }
     if (program === 'osascript' && words.some((word) => /login item/i.test(word))) {
@@ -476,7 +722,7 @@ export function guardBashCommand(command, paths, options = {}) {
     // protected file stays allowed even when other, unrelated commands in the
     // same line write elsewhere. Writes through redirection are checked by
     // target, and redirections to /dev/null or another descriptor are harmless.
-    const readOnly = commandIsReadOnly(words);
+    const readOnly = commandIsReadOnly(words) || allowedStart;
     const existenceOnly = EXISTENCE_PROGRAMS.has(program);
     const redirectTargets = redirectionTargets(argv);
     for (const target of redirectTargets) {
@@ -485,7 +731,11 @@ export function guardBashCommand(command, paths, options = {}) {
       if (kinds.includes('persistence')) add('command:startup-item', 'persistence-change', 'Adds or changes something that runs automatically at login or on a schedule.');
       if (kinds.includes('secret')) add('command:credential-store', 'secret-access', 'Writes into a credential store.');
     }
-    for (const word of argv) {
+    // For ssh, words after the host are a command for the remote computer, where
+    // ~ and paths mean something else; they are checked by remoteFindings.
+    const remote = program === 'ssh' ? sshRemote(words) : null;
+    const localWords = remote ? argv.slice(0, argv.length - words.length + remote.hostIndex + 1) : argv;
+    for (const word of localWords) {
       if (isRedirection(word)) continue;
       const candidates = pathCandidates(word);
       if (movedDirectory && currentCwd && /^[\w@][\w.@+-]*$/.test(word) && word !== words[0]) candidates.push(word);
@@ -504,5 +754,6 @@ export function guardBashCommand(command, paths, options = {}) {
       }
     }
   }
+  items.push(...remoteFindings(text, commands));
   return items;
 }

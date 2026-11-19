@@ -6,8 +6,8 @@
 // approve on the user's behalf, and the hook separately blocks agent commands
 // that mention `trustdex allow-once` or touch this state directory.
 //
-// An approval is bound to the SHA-256 digest of the exact tool call, lasts 30
-// minutes, and is consumed by its first use.
+// An approval is bound to the SHA-256 digest of the exact tool call, lasts an
+// hour, and is consumed by its first use.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const PENDING_TTL_MS = 60 * 60 * 1000;
-export const APPROVAL_TTL_MS = 30 * 60 * 1000;
+export const APPROVAL_TTL_MS = 60 * 60 * 1000;
 export const ITEM_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 export const SIGNAL_APPROVAL_TTL_MS = 60 * 60 * 1000;
 const MAX_ENTRIES = 100;

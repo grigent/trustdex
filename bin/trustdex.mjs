@@ -166,7 +166,7 @@ Usage:
       items. It never approves anything; by default a stopped action can only be allowed
       once by a person with trustdex allow-once (see docs/CLAUDE_HOOK.md).
   trustdex allow-once <code> | --list [--state-dir dir]
-      Allow one stopped action once within 30 minutes. Requires an interactive terminal.
+      Allow one stopped action once within an hour. Requires an interactive terminal.
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
   trustdex sign <snapshot.json> --private trustdex-private.pem --out trust-record.json
@@ -1010,11 +1010,14 @@ async function main() {
     const itemScoped = keys.length > 0;
     const scope = [
       ...(keys.some((key) => !key.startsWith('signal:')) ? ['these exact package versions for 24 hours'] : []),
-      ...(keys.includes('signal:persistence-change') ? ['startup-item and scheduled-job changes for 1 hour'] : [])
+      ...(keys.includes('signal:persistence-change') ? ['startup-item and scheduled-job changes for 1 hour'] : []),
+      ...(keys.some((key) => key.startsWith('signal:remote-'))
+        ? [`reading secrets or changing settings over SSH on ${[...new Set(keys.filter((key) => key.startsWith('signal:remote-')).map((key) => key.split('@')[1]))].join(', ')} for 1 hour`]
+        : [])
     ].join(' and ');
     process.stdout.write(itemScoped
       ? `Type "yes" to allow ${scope}: `
-      : 'Type "yes" to allow this exact action once within 30 minutes: ');
+      : 'Type "yes" to allow this exact action once within an hour: ');
     const answer = await new Promise((resolve) => {
       process.stdin.setEncoding('utf8');
       process.stdin.once('data', (data) => resolve(String(data).trim()));

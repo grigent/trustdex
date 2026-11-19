@@ -6,6 +6,16 @@
 
 ## Unreleased
 
+- check commands sent to other computers over SSH (`ssh host 'cmd'`, `ssh host <<EOF`, `scp`/`rsync host:path`) by generic names: reading files that usually hold secrets, printing environment variables or `kubectl` secrets (`remote-secret-access`, ASK), and changing those files, `/etc`, `authorized_keys`, shell startup files or `crontab` (`remote-config-change`, ASK). Approval covers that kind of work on that host for 1 hour. Everyday server work stays quiet, and `ssh` to this same computer is checked like a local command
+- the documented hook command now ends with `|| { ...; exit 2; }`, so a missing `node`, a moved TrustDex copy or a crash at start-up stops the action instead of letting it through as a non-blocking hook error
+- document what ask mode keeps denied and its trade-off
+- less friction in the Claude Code hook, from a day of real use:
+  - one-line Python or Node code that only reads (`python3 -c "print(json.load(open(p)))"`, `node -e "...readFileSync(p)..."`) no longer counts as changing agent settings or startup items; code that may write, run another program, or hide what it calls still does
+  - `trustdex allow-once --list` is allowed; approving still is not
+  - stopping a launchd job (`launchctl unload`, `bootout`, `disable`, `remove`) is no longer a startup-item change
+  - new install-policy key `allowStartupItems`: launchd labels of your own jobs (`"com.example.*"`) that agents may start with `launchctl enable`, or `load`/`bootstrap` from `~/Library/LaunchAgents`, without approval. Writing a plist there still needs approval
+  - one-time approvals of an exact action now last an hour, the same as codes and startup-item approvals (was 30 minutes)
+
 ## 0.14.2 - 2026-11-19
 
 - fewer false positives in the agent guards: each simple command is judged on its own (a read-only command next to unrelated commands stays allowed), redirections to `/dev/null` or another descriptor are not writes, and `bash -n`, `plutil -lint`/`-p`, `launchctl print`/`list`, `defaults read`, read-only `git`, `sed`/`awk` without in-place edits and `find` without `-delete`/`-exec` count as read-only

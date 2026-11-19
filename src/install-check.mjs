@@ -60,8 +60,14 @@ export const DEFAULT_INSTALL_POLICY = Object.freeze({
   manifestInstall: 'ask',
   allowPackages: [],
   allowInstallScripts: [],
-  secretPaths: []
+  secretPaths: [],
+  allowStartupItems: []
 });
+
+// launchd labels the user created and starts or stops often, e.g.
+// "com.example.backup" or "com.example.*". At least two segments must come
+// before a trailing wildcard, so "*" or "com.*" cannot allow everything.
+const STARTUP_LABEL_RE = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)+(?:\.\*)?$/;
 
 const POLICY_KEYS = new Set(['version', ...Object.keys(DEFAULT_INSTALL_POLICY)]);
 const PACKAGE_REF_RE = /^(npm|pypi):((?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*)$/i;
@@ -97,6 +103,12 @@ export function parseInstallPolicy(value) {
       throw new Error('Install policy secretPaths must be an array of absolute or ~/ paths.');
     }
     policy.secretPaths = [...new Set(value.secretPaths)].sort();
+  }
+  if (value.allowStartupItems !== undefined) {
+    if (!Array.isArray(value.allowStartupItems) || value.allowStartupItems.some((entry) => typeof entry !== 'string' || !STARTUP_LABEL_RE.test(entry))) {
+      throw new Error('Install policy allowStartupItems must be an array of launchd labels such as "com.example.job" or "com.example.*".');
+    }
+    policy.allowStartupItems = [...new Set(value.allowStartupItems)].sort();
   }
   for (const key of ['allowPackages', 'allowInstallScripts']) {
     if (value[key] === undefined) continue;

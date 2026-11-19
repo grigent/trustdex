@@ -28,15 +28,20 @@ So by default the hook does not turn a risky action into a dialog. It denies the
 | package install signals | BLOCK / ASK | see [Pre-install package checks](INSTALL_CHECK.md) |
 | `persistence-change` | ASK | launch agents and daemons, `launchctl load/bootstrap`, `crontab`, login items, shell startup files such as `~/.zshrc`, git hooks (`.git/hooks/*`, `git config core.hooksPath`) |
 | `obfuscated-execution` | BLOCK | decoding hidden content and running it: `base64 -d \| sh`, `xxd -r \| python3`, `gunzip \| sh`, `eval "$(... base64 -d)"` |
+| `remote-secret-access` | ASK | over SSH: reading files that usually hold secrets (`.env`, `*.env`, `*.pem`, `*.key`, `id_*`, `credentials`, `*token*`, `*secret*`, `*password*`, `*api_key*`), printing environment variables (`env`, `docker exec ... printenv`), `kubectl get secret`, or copying such files off a server with `scp`/`rsync` |
+| `remote-config-change` | ASK | over SSH: changing or overwriting those files, server settings under `/etc`, `~/.ssh/authorized_keys`, shell startup files, or scheduled jobs (`crontab`) |
 
 Some cases deserve a note:
 - `secret-access` also covers sending environment dumps (`env`, `printenv`) or `.env` files over the network with `curl`, `nc`, `scp` and similar tools.
 - `guard-tamper` also covers `claude mcp add`, `codex mcp add`, and similar commands that register MCP servers.
 - Paths written inside one-line code (`python3 -c`, `node -e`) are checked.
 - Relative paths after a `cd` within the same command resolve against the new directory.
+- Stopping a job (`launchctl unload`, `bootout`, `disable`, `remove`) is not a startup-item change.
+- Commands run on another computer (`ssh host 'cmd'`, `ssh host <<EOF`, `scp`/`rsync host:path`) are checked by generic file names, because this computer's paths mean nothing there. Everyday server work (`uptime`, `docker ps`, logs, `systemctl restart`, reading `/etc/nginx/nginx.conf`, `ls`/`chmod` on a `.env`) stays quiet. `ssh` to this same computer (`localhost`, its own host name) is checked like a local command.
 
 The following stay allowed:
-- reading settings (`cat`, `jq`, `grep`, `Read`)
+- reading settings (`cat`, `jq`, `grep`, `Read`, and one-line Python or Node code that only reads, such as `python3 -c "print(json.load(open(p)))"`; code that may write, run another program, or hide what it calls is still treated as a change)
+- listing waiting approvals (`trustdex allow-once --list`)
 - checking that a key exists (`ls ~/.ssh`, `test -f`)
 - SSH tools that use a key without revealing it (`ssh -i`, `scp -i`)
 - ordinary project edits
@@ -62,7 +67,7 @@ Running `trustdex allow-once K7M2QX9P` works like this:
 2. It asks the person to type `yes`.
 3. It records a one-time approval.
 
-The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory); for file tools, the same file and content. It expires after 30 minutes and is used up by the first matching call. Codes expire after an hour.
+The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory); for file tools, the same file and content. It expires after an hour and is used up by the first matching call. Codes also expire after an hour.
 
 Package findings work differently, to keep everyday work smooth.
 - Covered findings: a release that is too recent, install scripts, a new package, a deprecated or yanked version, a first-time publisher, or a look-alike name.
@@ -70,6 +75,7 @@ Package findings work differently, to keep everyday work smooth.
 - Approval by version: if you approve, the approval covers those exact package versions and findings for 24 hours, in any command. Deploys and migrations that call the same tool do not need a new code each time.
 - Limits: a package approval never covers BLOCK findings or anything outside those packages.
 - Startup items: approving a `persistence-change` finding covers startup-item and scheduled-job changes for 1 hour in any command, so one maintenance session needs one approval. It never covers other findings.
+- Servers: approving a `remote-secret-access` or `remote-config-change` finding covers that kind of work on that host for 1 hour. Another host, the other kind, and local findings still stop.
 - Installed tools pass: tools already installed in the project's `node_modules/.bin` are used as installed, also after a `cd` inside the command and from parent folders. They do not trigger a registry check. `trustdex allow-once --list` shows what is waiting.
 
 The agent cannot approve its own action in three ways:
@@ -80,7 +86,9 @@ The agent cannot approve its own action in three ways:
 
 ## Ask mode
 
-`--on-risk ask` keeps Claude Code's own dialog for ASK-level findings (for example a package with install scripts) for people who prefer it. BLOCK-level findings are still denied.
+`--on-risk ask` keeps Claude Code's own dialog for ASK-level findings (for example a package with install scripts, a startup item, or reading a secret file on a server) for people who prefer it, for example when working from a phone. BLOCK-level findings are still denied and never become a dialog: changing agent settings or TrustDex itself, reading local credentials, starting an agent without its guardrails, and running decoded content.
+
+The trade-off: a dialog is one tap, and dialogs that appear often get tapped out of habit. Typing a code in a terminal is a deliberate second step. Use ask mode if the friction would otherwise make you switch the hook off, and keep the default where you can.
 
 ## Setup
 
@@ -97,7 +105,7 @@ The agent cannot approve its own action in three ways:
         "hooks": [
           {
             "type": "command",
-            "command": "node /opt/trustdex/bin/trustdex.mjs claude-hook --install-policy ~/.config/trustdex/install-policy.json --protect ~/.local/bin/trustdex",
+            "command": "node /opt/trustdex/bin/trustdex.mjs claude-hook --install-policy ~/.config/trustdex/install-policy.json --protect ~/.local/bin/trustdex || { echo 'TrustDex could not run, so this action was stopped.' >&2; exit 2; }",
             "timeout": 60
           }
         ]
@@ -107,7 +115,19 @@ The agent cannot approve its own action in three ways:
 }
 ```
 
-The running TrustDex copy, the policy file, and the state directory are protected automatically. `--protect` adds more files, such as the wrapper. The install policy accepts `secretPaths`: absolute or `~/` paths of extra credential files to protect.
+Keep the `|| { ...; exit 2; }` part. Claude Code treats a hook that exits with any code other than 0 or 2 as a non-blocking error and runs the tool anyway. Without it, a missing `node`, a moved TrustDex copy, or a crash at start-up would let every action through silently. With it, those cases stop the action (exit 2) and tell the agent why. TrustDex itself always exits 0 and reports its decision as JSON, including when it cannot read its input or policy.
+
+The running TrustDex copy, the policy file, and the state directory are protected automatically. `--protect` adds more files, such as the wrapper. The install policy also accepts:
+
+- `secretPaths`: absolute or `~/` paths of extra credential files to protect.
+- `allowStartupItems`: launchd labels of your own jobs that agents may start without approval, such as `"com.example.backup"` or `"com.example.*"`. It covers `launchctl enable gui/<uid>/<label>` and `launchctl load|bootstrap` of plists in `~/Library/LaunchAgents` whose file name is an allowed label. Writing or copying a plist into `~/Library/LaunchAgents` still needs approval, so an agent cannot plant a new job under an allowed name. A wildcard needs at least two segments before it (`com.*` and `*` are rejected).
+
+```json
+{
+  "version": 1,
+  "allowStartupItems": ["com.example.*"]
+}
+```
 
 If the hook cannot read its input or configuration, it denies file tools and Bash commands that could be risky rather than failing open. Unrelated tools keep working.
 
@@ -129,6 +149,7 @@ These are static checks of what a tool call says it will do:
 
 - They do not follow code that builds paths or commands at run time, for example a Python script that decodes a hidden path. They do not stop a program that the user has already allowed from misbehaving later.
 - An agent with unrestricted shell access can, in principle, find a way around any check that runs in the same account.
+- Server checks see only the command text sent over SSH. A script already on the server, a secret file with an unusual name, or a program that reads secrets by itself are not seen. Give agents server accounts with the least access they need.
 
 Use the hook as one layer next to:
 - an OS sandbox for the agent
