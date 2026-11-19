@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- add `slack-approver`: sends each action the hook stopped to the configured owner as a Slack direct message, and records the one-time approval when the owner (by Slack user id, never the bot) reacts with ✅. ❌ refuses. Changes to agent settings or TrustDex itself and unparsed commands near protected files stay terminal-only. At most 20 messages an hour by default. Its message state lives in the protected approval state directory, and the hook now protects `slack-approver.json` next to the install policy. See [docs/SLACK_APPROVER.md](docs/SLACK_APPROVER.md)
+- the hook's stop message mentions the Slack message as an alternative to `allow-once`
+
 ## 0.15.1 - 2026-11-19
 
 - a one-time approval of a Bash command that runs a local script (`bash x.sh`, `python3 x.py`, `source x`, `./x.sh`) is now also bound to a SHA-256 of each such script, of any size. Changing the script after approval, or creating a script that did not exist yet, makes it a different action that needs its own approval

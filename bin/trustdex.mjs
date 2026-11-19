@@ -56,6 +56,7 @@ import { evaluateInstallCommand, overallAction, parseInstallPolicy } from '../sr
 import { claudeHookFailure, claudeHookResponse } from '../src/claude-hook.mjs';
 import { guardPaths } from '../src/agent-guard.mjs';
 import { createApprovalStore, defaultStateDir } from '../src/approvals.mjs';
+import { createSlackApprover, parseApproverConfig, readToken, slackClient } from '../src/slack-approver.mjs';
 import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
 import { parseEd25519PublicKeyPem, parseKeysetText, spkiKeyId } from '../src/keyset.mjs';
@@ -167,6 +168,10 @@ Usage:
       once by a person with trustdex allow-once (see docs/CLAUDE_HOOK.md).
   trustdex allow-once <code> | --list [--state-dir dir]
       Allow one stopped action once within an hour. Requires an interactive terminal.
+  trustdex slack-approver --config slack-approver.json [--state-dir dir] [--once]
+      Send each stopped action to the owner on Slack and record the approval when the
+      owner reacts with a check mark. Changes to agent settings or TrustDex itself stay
+      terminal-only (see docs/SLACK_APPROVER.md).
 
   trustdex keygen --private trustdex-private.pem --public trustdex-public.pem
   trustdex sign <snapshot.json> --private trustdex-private.pem --out trust-record.json
@@ -987,7 +992,10 @@ async function main() {
         stateDir,
         secretPaths: policy.secretPaths
       });
-      for (const extra of getFlags(args, '--protect')) {
+      // The Slack approver config next to the policy decides who may approve, so it
+      // is protected like the policy itself.
+      const approverConfigs = policyPath ? [path.join(path.dirname(policyPath), 'slack-approver.json')] : [];
+      for (const extra of [...approverConfigs, ...getFlags(args, '--protect')]) {
         const expanded = extra.replace(/^~(?=[\\/])/, process.env.HOME || os.homedir());
         // Keep POSIX absolute paths as written; resolve others natively.
         paths.config.push(expanded.startsWith('/') ? expanded : path.resolve(expanded));
@@ -1006,6 +1014,30 @@ async function main() {
     }
     if (response) console.log(JSON.stringify(response));
     return;
+  }
+
+  if (command === 'slack-approver') {
+    const configPath = getFlag(args, '--config');
+    if (!configPath) throw new Error('slack-approver requires --config <file>.');
+    const config = parseApproverConfig(JSON.parse(await fs.readFile(configPath, 'utf8')));
+    const stateDir = getFlag(args, '--state-dir') || defaultStateDir();
+    const store = createApprovalStore(stateDir);
+    const log = (message) => console.error(`${new Date().toISOString()} ${message}`);
+    const approver = createSlackApprover({ store, slack: slackClient(readToken(config.tokenFile)), config, stateDir, log });
+    await approver.start();
+    if (hasFlag(args, '--once')) {
+      await approver.tick();
+      return;
+    }
+    log('slack-approver running');
+    for (;;) {
+      try {
+        await approver.tick();
+      } catch (error) {
+        log(`tick failed: ${error.message}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, config.pollSeconds * 1000));
+    }
   }
 
   if (command === 'allow-once') {

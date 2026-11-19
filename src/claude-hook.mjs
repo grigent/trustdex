@@ -90,7 +90,7 @@ function reasonText(items, code, itemKeys) {
     next.push(
       'Do not retry it in another form or work around this check.',
       'Explain the risk to the user in plain words.',
-      `If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`,
+      `If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code} (or react with ✅ to the TrustDex Slack message, if they set one up)`,
       'That allows this exact action once within an hour; then run the identical action again.'
     );
   } else {

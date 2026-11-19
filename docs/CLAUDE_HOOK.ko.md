@@ -78,6 +78,8 @@ If the user understands it and still wants it, they type this in their own termi
 - 서버: `remote-secret-access`나 `remote-config-change` 경고를 승인하면 그 서버에서 그 종류의 작업을 1시간 동안 허용합니다. 다른 서버, 다른 종류, 이 컴퓨터의 경고는 그대로 멈춥니다.
 - 설치된 도구 통과: 프로젝트의 `node_modules/.bin`에 이미 깔린 도구는 설치된 그대로 씁니다. 명령 안에서 `cd`로 옮긴 뒤나 상위 폴더에 있어도 마찬가지이며, 저장소 조회를 하지 않습니다. `trustdex allow-once --list`로 기다리는 항목을 볼 수 있습니다.
 
+컴퓨터 앞에 없을 때는 같은 사람이 슬랙에서 허용할 수도 있습니다. [슬랙으로 허용하기](SLACK_APPROVER.ko.md)를 보세요. 에이전트 설정이나 TrustDex 자체 변경은 여전히 터미널에서만 허용됩니다.
+
 에이전트는 세 가지 이유로 자기 행동을 스스로 승인할 수 없습니다.
 
 - `allow-once`는 대화형 터미널이 아니면 실행을 거부합니다. 에이전트의 셸은 대화형 터미널이 아닙니다.

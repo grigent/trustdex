@@ -78,6 +78,8 @@ Package findings work differently, to keep everyday work smooth.
 - Servers: approving a `remote-secret-access` or `remote-config-change` finding covers that kind of work on that host for 1 hour. Another host, the other kind, and local findings still stop.
 - Installed tools pass: tools already installed in the project's `node_modules/.bin` are used as installed, also after a `cd` inside the command and from parent folders. They do not trigger a registry check. `trustdex allow-once --list` shows what is waiting.
 
+Away from the computer, the same person can approve from Slack instead: see [Approving from Slack](SLACK_APPROVER.md). Changes to agent settings or TrustDex itself stay terminal-only.
+
 The agent cannot approve its own action in three ways:
 
 - `allow-once` refuses to run without an interactive terminal, and agent shells are not interactive terminals.
