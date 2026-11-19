@@ -67,7 +67,7 @@ Running `trustdex allow-once K7M2QX9P` works like this:
 2. It asks the person to type `yes`.
 3. It records a one-time approval.
 
-The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory); for file tools, the same file and content. It expires after an hour and is used up by the first matching call. Codes also expire after an hour.
+The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory), plus a SHA-256 of every local script file the command runs that the hook reads (`bash x.sh`, `python3 x.py`, `source x`, `./x.sh`, of any size), so changing the script after approval makes it a different action; for file tools, the same file and content. It expires after an hour and is used up by the first matching call. Codes also expire after an hour.
 
 Package findings work differently, to keep everyday work smooth.
 - Covered findings: a release that is too recent, install scripts, a new package, a deprecated or yanked version, a first-time publisher, or a look-alike name.
@@ -149,6 +149,7 @@ These are static checks of what a tool call says it will do:
 
 - They do not follow code that builds paths or commands at run time, for example a Python script that decodes a hidden path. They do not stop a program that the user has already allowed from misbehaving later.
 - An agent with unrestricted shell access can, in principle, find a way around any check that runs in the same account.
+- Programs that run other files the hook does not recognise as scripts (an executable without a script extension, `make`, `npm run`) are not read, and approvals are not bound to those files.
 - Server checks see only the command text sent over SSH. A script already on the server, a secret file with an unusual name, or a program that reads secrets by itself are not seen. Give agents server accounts with the least access they need.
 
 Use the hook as one layer next to:

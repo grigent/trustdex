@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- a one-time approval of a Bash command that runs a local script (`bash x.sh`, `python3 x.py`, `source x`, `./x.sh`) is now also bound to a SHA-256 of each such script, of any size. Changing the script after approval, or creating a script that did not exist yet, makes it a different action that needs its own approval
+
 ## 0.15.0 - 2026-11-19
 
 - check commands sent to other computers over SSH (`ssh host 'cmd'`, `ssh host <<EOF`, `scp`/`rsync host:path`) by generic names: reading files that usually hold secrets, printing environment variables or `kubectl` secrets (`remote-secret-access`, ASK), and changing those files, `/etc`, `authorized_keys`, shell startup files or `crontab` (`remote-config-change`, ASK). Approval covers that kind of work on that host for 1 hour. Everyday server work stays quiet, and `ssh` to this same computer is checked like a local command

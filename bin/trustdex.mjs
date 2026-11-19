@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { closeSync, constants, fstatSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -558,9 +558,34 @@ async function loadInstallPolicy(args) {
   return parseInstallPolicy(file ? await readJson(file) : undefined);
 }
 
-function readLocalScript(file, cwd, limit) {
-  const resolved = path.resolve(typeof cwd === 'string' && path.isAbsolute(cwd) ? cwd : process.cwd(),
+function resolveLocalScript(file, cwd) {
+  return path.resolve(typeof cwd === 'string' && path.isAbsolute(cwd) ? cwd : process.cwd(),
     String(file).replace(/^~(?=\/)/, process.env.HOME || '~'));
+}
+
+// SHA-256 of a whole script file, of any size, read through one descriptor.
+// Approvals of commands that run local scripts are bound to it.
+function fingerprintLocalScript(file, cwd) {
+  let fd;
+  try {
+    fd = openSync(resolveLocalScript(file, cwd), constants.O_RDONLY);
+  } catch (error) {
+    return error.code === 'ENOENT' ? 'missing' : 'unreadable';
+  }
+  try {
+    if (!fstatSync(fd).isFile()) return 'not-a-file';
+    const hash = createHash('sha256');
+    const buffer = Buffer.alloc(1024 * 1024);
+    let bytes;
+    while ((bytes = readSync(fd, buffer, 0, buffer.length, null)) > 0) hash.update(buffer.subarray(0, bytes));
+    return hash.digest('hex');
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function readLocalScript(file, cwd, limit) {
+  const resolved = resolveLocalScript(file, cwd);
   // Check and read through one descriptor so the file cannot change in between,
   // and never read more than the limit.
   const fd = openSync(resolved, constants.O_RDONLY);
@@ -973,6 +998,7 @@ async function main() {
         paths,
         approvals: createApprovalStore(stateDir),
         readScript: readLocalScript,
+        fingerprintScript: fingerprintLocalScript,
         localBinExists: localBinChecker(input?.cwd)
       });
     } catch {
