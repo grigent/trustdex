@@ -425,3 +425,50 @@ test('Bash approvals bind to the effective directory, with or without a leading 
   const rerun = { tool_name: 'Bash', cwd: '/Users/tester', tool_input: { command: `cd ${repo} && cat ~/.ssh/id_ed25519` } };
   assert.equal(await claudeHookResponse(rerun, options), null);
 });
+
+test('read-only commands stay allowed next to unrelated commands and harmless redirections', () => {
+  for (const command of [
+    'grep -l caffeinate ~/Library/LaunchAgents/*.plist 2>/dev/null',
+    'ls ~/Library/LaunchAgents && ioreg -r -k AppleClamshellState && pmset -g batt',
+    'cat ~/.local/libexec/trustdex/SOURCE; gh run list -R o/r; curl -s https://example.invalid | python3 -c "print(1)"',
+    'launchctl print gui/501/com.x.job && launchctl list | grep x',
+    'plutil -lint ~/Library/LaunchAgents/x.plist',
+    'bash -n ~/.local/libexec/x/run.sh',
+    'sed -n 1,5p ~/.zshrc',
+    'defaults read ~/Library/LaunchAgents/x.plist Label',
+    'git -C ~/.claude status'
+  ]) {
+    assert.deepEqual(bash(command), [], command);
+  }
+  for (const [command, signal] of [
+    ['echo x > ~/.zshrc 2>/dev/null', 'persistence-change'],
+    ['grep x ~/.zshrc && echo y >> ~/.zshrc', 'persistence-change'],
+    ['cat evil.json > ~/.claude/settings.json', 'guard-tamper'],
+    ['sed -i "" s/a/b/ ~/.zshrc', 'persistence-change'],
+    ['plutil -replace Label -string x ~/Library/LaunchAgents/x.plist', 'persistence-change'],
+    ['launchctl bootstrap gui/501 ~/Library/LaunchAgents/x.plist', 'persistence-change'],
+    ['find ~/Library/LaunchAgents -name "*.plist" -delete', 'persistence-change'],
+    ['cat ~/.ssh/id_rsa 2>/dev/null', 'secret-access']
+  ]) {
+    assert.ok(bash(command).includes(signal), command);
+  }
+});
+
+test('approving a startup-item change covers that kind of work for an hour', async (t) => {
+  let now = 1_000_000;
+  const store = createApprovalStore(tempDir(t), { now: () => now });
+  const options = { paths: PATHS, fetchImpl: offline, approvals: store };
+  const denied = await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'launchctl bootstrap gui/501 ~/Library/LaunchAgents/a.plist' } }, options);
+  const reason = denied.hookSpecificOutput.permissionDecisionReason;
+  assert.match(reason, /startup items and scheduled jobs for 1 hour/);
+  store.approve(/trustdex allow-once (\w{8})/.exec(reason)[1]);
+
+  for (const command of ['cp b.plist ~/Library/LaunchAgents/ && launchctl bootstrap gui/501 ~/Library/LaunchAgents/b.plist', 'crontab -l | crontab -']) {
+    assert.equal(await claudeHookResponse({ tool_name: 'Bash', tool_input: { command } }, options), null, command);
+  }
+  const secret = await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'launchctl bootstrap gui/501 x.plist && cat ~/.ssh/id_rsa' } }, options);
+  assert.equal(secret.hookSpecificOutput.permissionDecision, 'deny', 'a startup-item approval never covers other findings');
+
+  now += 61 * 60 * 1000;
+  assert.equal((await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'crontab -l | crontab -' } }, options)).hookSpecificOutput.permissionDecision, 'deny', 'it expires after an hour');
+});

@@ -41,7 +41,7 @@ export const GUARD_SIGNAL_ACTIONS = Object.freeze({
 
 const READ_ONLY_PROGRAMS = new Set([
   'cat', 'head', 'tail', 'less', 'more', 'grep', 'egrep', 'fgrep', 'rg', 'ls', 'stat', 'wc', 'jq',
-  'diff', 'file', 'test', '[', 'echo', 'printf', 'true', 'cmp', 'shasum', 'sha256sum', 'md5', 'plutil',
+  'diff', 'file', 'test', '[', 'echo', 'printf', 'true', 'cmp', 'shasum', 'sha256sum', 'md5',
   'cd', 'pwd', 'sort', 'uniq', 'cut', 'tr', 'basename', 'dirname', 'realpath', 'readlink', 'du', 'tree', 'nl', 'column'
 ]);
 const EXISTENCE_PROGRAMS = new Set(['ls', 'stat', 'test', '[', 'true', 'echo', 'printf', 'cd', 'pwd']);
@@ -246,6 +246,8 @@ function scriptFileCommands(commands, options, depth = 0) {
     if (program === 'source' || program === '.') script = words[1];
     else if (SHELLS.has(program) || SCRIPT_INTERPRETERS.has(program)) {
       if (words.slice(1).some((word) => /^-[A-Za-z]*[cem]$/.test(word) || word === '-')) continue;
+      // bash -n only checks syntax; the script does not run.
+      if (SHELLS.has(program) && words.slice(1).some((word) => /^-[A-Za-z]*n[A-Za-z]*$/.test(word))) continue;
       script = words.slice(1).find((word) => !word.startsWith('-'));
     } else if (/^\.{0,2}\//.test(words[0] || '') && /\.(?:sh|bash|zsh|py|js|mjs|cjs|rb|pl)$/.test(words[0])) {
       script = words[0];
@@ -307,7 +309,62 @@ const ENV_DUMPERS = new Set(['env', 'printenv', 'set', 'declare', 'compgen']);
 const DOTENV_RE = /(?:^|[/@'"=])\.env(?:\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)?['"]?$/;
 const AGENT_CONFIG_CLIS = /^(?:claude|codex[\w.-]*|gemini|cursor-agent|amp|q)$/;
 
-const KEYCHAIN_READ = /^(?:find-generic-password|find-internet-password|find-certificate|dump-keychain|export)$/;
+// ------------------------------------------------- read-only judgement
+
+const HARMLESS_REDIRECT = /^(?:\/dev\/(?:null|stdout|stderr|tty|fd\/\d+)|&?\d*|-)$/;
+const REDIRECTION_RE = /^(\d*|&)(>>?|>\||<)(&?)(.*)$/s;
+
+function isRedirection(word) {
+  return REDIRECTION_RE.test(word);
+}
+
+// Files written by output redirections (>, >>, &>, 2>), skipping descriptor
+// duplication (2>&1) and harmless targets such as /dev/null.
+function redirectionTargets(argv) {
+  const targets = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const match = REDIRECTION_RE.exec(argv[i]);
+    if (!match || match[2] === '<') {
+      if (match && !match[4]) i += 1;
+      continue;
+    }
+    if (match[3] === '&' && /^\d*-?$/.test(match[4])) continue;
+    let target = match[4];
+    if (!target) {
+      target = argv[i + 1];
+      i += 1;
+    }
+    if (target && !HARMLESS_REDIRECT.test(target)) targets.push(target);
+  }
+  return targets;
+}
+
+const READ_ONLY_SUBCOMMANDS = {
+  launchctl: /^(?:print|print-cache|print-disabled|list|blame|dumpstate|managerpid|managername|error)$/,
+  git: /^(?:status|log|diff|show|rev-parse|ls-files|ls-tree|blame|grep|cat-file|describe|shortlog)$/,
+  defaults: /^(?:read|read-type|domains|find|export)$/,
+  plutil: /^(?:-lint|-p|-help)$/,
+  brew: /^(?:list|info|outdated|search|doctor|config)$/,
+  security: /^(?:list-keychains|default-keychain|show-keychain-info)$/
+};
+
+// Is this simple command read-only for the files it names?
+function commandIsReadOnly(words) {
+  // Only variable assignments (S=~/.claude/settings.json): nothing is written.
+  if (!words.length) return true;
+  const program = programName(words[0] || '');
+  if (READ_ONLY_PROGRAMS.has(program)) return true;
+  if (READ_ONLY_SUBCOMMANDS[program]) return READ_ONLY_SUBCOMMANDS[program].test(words[1] || '');
+  if (program === 'sed' || program === 'awk') {
+    return !words.some((word) => /^-[A-Za-z]*i|^--in-place|system\(|print\s*>|>\s*"/.test(word));
+  }
+  // A shell syntax check (bash -n) reads the script without running it.
+  if (SHELLS.has(program)) return words.slice(1).some((word) => /^-[A-Za-z]*n[A-Za-z]*$/.test(word));
+  if (program === 'find') return !words.some((word) => /^-(?:delete|exec|execdir|ok|okdir|fprint\w*)$/.test(word));
+  return false;
+}
+
+const KEYCHAIN_READ =/^(?:find-generic-password|find-internet-password|find-certificate|dump-keychain|export)$/;
 
 export function guardBashCommand(command, paths, options = {}) {
   const items = [];
@@ -332,9 +389,6 @@ export function guardBashCommand(command, paths, options = {}) {
   }
 
   const allPrograms = commands.map((argv) => programName(stripWrappers(argv)[0] || ''));
-  const writesSomewhere = commands.some((argv) => argv.some((word) => /^\d*>/.test(word) || /^\d*>>/.test(word)));
-  const readOnly = !writesSomewhere && allPrograms.every((program) => !program || READ_ONLY_PROGRAMS.has(program));
-  const existenceOnly = !writesSomewhere && allPrograms.every((program) => !program || EXISTENCE_PROGRAMS.has(program));
 
   // Variables assigned within the command (D=~/x; export D=~/x) are substituted,
   // so `D=<path> && rm -rf "$D"` is recognised. Values are resolved in order and
@@ -418,10 +472,25 @@ export function guardBashCommand(command, paths, options = {}) {
       add('command:startup-item', 'persistence-change', 'Adds a login item.');
     }
 
+    // Each simple command is judged on its own: a read-only command touching a
+    // protected file stays allowed even when other, unrelated commands in the
+    // same line write elsewhere. Writes through redirection are checked by
+    // target, and redirections to /dev/null or another descriptor are harmless.
+    const readOnly = commandIsReadOnly(words);
+    const existenceOnly = EXISTENCE_PROGRAMS.has(program);
+    const redirectTargets = redirectionTargets(argv);
+    for (const target of redirectTargets) {
+      const kinds = classifyPath(target, paths, pathOptions);
+      if (kinds.includes('config')) add('command:agent-or-gate-config', 'guard-tamper', 'Changes agent settings, MCP configuration, or TrustDex itself; a changed gate can no longer protect you.');
+      if (kinds.includes('persistence')) add('command:startup-item', 'persistence-change', 'Adds or changes something that runs automatically at login or on a schedule.');
+      if (kinds.includes('secret')) add('command:credential-store', 'secret-access', 'Writes into a credential store.');
+    }
     for (const word of argv) {
+      if (isRedirection(word)) continue;
       const candidates = pathCandidates(word);
       if (movedDirectory && currentCwd && /^[\w@][\w.@+-]*$/.test(word) && word !== words[0]) candidates.push(word);
       for (const candidate of candidates) {
+        if (redirectTargets.includes(candidate)) continue;
         const kinds = classifyPath(candidate, paths, pathOptions);
         if (kinds.includes('secret') && !existenceOnly && !KEY_USERS.has(program)) {
           add('command:credential-store', 'secret-access', 'Reads or copies a credential store such as an SSH key, token file, keychain, or browser login data.');

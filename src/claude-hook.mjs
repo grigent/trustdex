@@ -32,32 +32,52 @@ const ITEM_SCOPED_SIGNALS = new Set([
   'deprecated', 'yanked', 'similar-to-popular'
 ]);
 
+// ASK-level guard findings about routine maintenance that one approval may cover
+// as a kind of work for a short time, instead of one exact command.
+export const SIGNAL_SCOPED = new Set(['persistence-change']);
+
 export function itemApprovalKeys(items) {
   const risky = items.filter((item) => item.action !== 'allow');
   if (!risky.length) return null;
   const keys = [];
   for (const item of risky) {
+    if (item.action === 'block') return null;
+    if (item.signals.length && item.signals.every((signal) => SIGNAL_SCOPED.has(signal))) {
+      for (const signal of item.signals) keys.push(`signal:${signal}`);
+      continue;
+    }
     if (!/^(?:npm|pypi):[^:\s]+@[^\s]+$/.test(item.name)) return null;
     for (const signal of item.signals) {
-      if ((item.action === 'block') || !ITEM_SCOPED_SIGNALS.has(signal) && signal !== 'install-scripts-disabled') return null;
+      if (!ITEM_SCOPED_SIGNALS.has(signal) && signal !== 'install-scripts-disabled') return null;
       if (ITEM_SCOPED_SIGNALS.has(signal)) keys.push(`${item.name}#${signal}`);
     }
   }
-  return keys.length ? keys : null;
+  return keys.length ? [...new Set(keys)] : null;
 }
 
-function reasonText(items, code, itemScoped) {
+function scopeText(keys) {
+  const parts = [];
+  if (keys.some((key) => !key.startsWith('signal:'))) parts.push('these exact package versions for 24 hours');
+  if (keys.includes('signal:persistence-change')) parts.push('changes to startup items and scheduled jobs for 1 hour');
+  return `That allows ${parts.join(' and ')}, in any command.`;
+}
+
+function reasonText(items, code, itemKeys) {
+  const itemScoped = Array.isArray(itemKeys) && itemKeys.length > 0;
+  const packageScoped = itemScoped && itemKeys.some((key) => !key.startsWith('signal:'));
   const risky = items.filter((item) => item.action !== 'allow');
   const lines = risky.map((item) => `- ${item.name} [${item.signals.join(', ')}]: ${item.reasons.join(' ')}`);
-  const head = itemScoped
-    ? 'TrustDex stopped this package install because the exact version looks risky.'
-    : 'TrustDex stopped this action because it could harm this computer or leak credentials.';
+  const head = packageScoped
+    ? 'TrustDex stopped this action because a package version looks risky.'
+    : itemScoped
+      ? 'TrustDex stopped this action because it changes what runs automatically on this computer.'
+      : 'TrustDex stopped this action because it could harm this computer or leak credentials.';
   const next = [];
   if (itemScoped) {
-    next.push('If a safer alternative is named above (an older exact version, or --ignore-scripts), use it without asking the user.');
+    if (packageScoped) next.push('If a safer alternative is named above (an older exact version, or --ignore-scripts), use it without asking the user.');
     if (code) {
-      next.push(`Only if no alternative works: explain the risk in plain words; if the user still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`);
-      next.push('That allows these exact package versions for 24 hours, in any command.');
+      next.push(`${packageScoped ? 'Only if no alternative works: explain' : 'Explain'} what will run automatically in plain words; if the user wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`);
+      next.push(scopeText(itemKeys));
     }
   } else if (code) {
     next.push(
@@ -157,7 +177,7 @@ export async function claudeHookResponse(input, options = {}) {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'ask',
-        permissionDecisionReason: reasonText(items, null, Boolean(itemKeys)).replace('TrustDex stopped', 'TrustDex flagged')
+        permissionDecisionReason: reasonText(items, null, itemKeys).replace('TrustDex stopped', 'TrustDex flagged')
       }
     };
   }
@@ -172,7 +192,7 @@ export async function claudeHookResponse(input, options = {}) {
     hookSpecificOutput: {
       hookEventName: 'PreToolUse',
       permissionDecision: 'deny',
-      permissionDecisionReason: reasonText(items, code, Boolean(itemKeys))
+      permissionDecisionReason: reasonText(items, code, itemKeys)
     }
   };
 }
