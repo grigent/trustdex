@@ -83,7 +83,10 @@ export function readToken(file) {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   try {
     const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || (stat.mode & 0o077) !== 0 || (typeof process.getuid === 'function' && stat.uid !== process.getuid())) {
+    if (!stat.isFile()) throw new Error('The Slack token file must be a regular file.');
+    // POSIX permission bits; Windows protects files with ACLs instead.
+    if (process.platform !== 'win32' &&
+        ((stat.mode & 0o077) !== 0 || (typeof process.getuid === 'function' && stat.uid !== process.getuid()))) {
       throw new Error('The Slack token file must be a regular file owned by you with mode 600.');
     }
     const token = fs.readFileSync(fd, 'utf8').trim();
