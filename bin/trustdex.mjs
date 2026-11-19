@@ -1010,7 +1010,10 @@ async function main() {
     const itemScoped = keys.length > 0;
     const scope = [
       ...(keys.some((key) => !key.startsWith('signal:')) ? ['these exact package versions for 24 hours'] : []),
-      ...(keys.includes('signal:persistence-change') ? ['startup-item and scheduled-job changes for 1 hour'] : [])
+      ...(keys.includes('signal:persistence-change') ? ['startup-item and scheduled-job changes for 1 hour'] : []),
+      ...(keys.some((key) => key.startsWith('signal:remote-'))
+        ? [`reading secrets or changing settings over SSH on ${[...new Set(keys.filter((key) => key.startsWith('signal:remote-')).map((key) => key.split('@')[1]))].join(', ')} for 1 hour`]
+        : [])
     ].join(' and ');
     process.stdout.write(itemScoped
       ? `Type "yes" to allow ${scope}: `

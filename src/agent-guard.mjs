@@ -11,6 +11,9 @@
 // - agent-permission-bypass: launching an AI coding CLI with its permission or
 //   sandbox checks turned off, as the 2025 Nx "s1ngularity" malware did
 // - persistence-change: login items, launch agents, cron, shell startup files
+// - remote-secret-access / remote-config-change: over SSH, reading files that
+//   look like secrets, or changing server settings, secret files, SSH keys or
+//   scheduled jobs
 //
 // Matching is static and conservative. It cannot follow arbitrary code (for
 // example a Python script that builds a path at run time), so it is one layer
@@ -36,7 +39,9 @@ export const GUARD_SIGNAL_ACTIONS = Object.freeze({
   'secret-access': 'block',
   'agent-permission-bypass': 'block',
   'unparseable-guarded-command': 'block',
-  'persistence-change': 'ask'
+  'persistence-change': 'ask',
+  'remote-secret-access': 'ask',
+  'remote-config-change': 'ask'
 });
 
 const READ_ONLY_PROGRAMS = new Set([
@@ -222,6 +227,11 @@ function collectCommands(fullText, depth = 0) {
       const script = program === 'eval' ? words.slice(1).join(' ') : index >= 0 ? words[index + 1] : null;
       if (script) nested.push(...collectCommands(script, depth + 1));
     }
+    // ssh to this same computer runs the command here: check it like a local one.
+    if (program === 'ssh') {
+      const remote = sshRemote(words);
+      if (remote && isLoopbackHost(remote.host) && remote.command.trim()) nested.push(...collectCommands(remote.command, depth + 1));
+    }
     for (const word of argv) {
       const sub = /\$\(([^]*)\)/.exec(word) || /`([^`]*)`/.exec(word);
       if (sub) nested.push(...collectCommands(sub[1], depth + 1));
@@ -308,6 +318,151 @@ const NETWORK_SENDERS = new Set(['curl', 'wget', 'nc', 'ncat', 'netcat', 'socat'
 const ENV_DUMPERS = new Set(['env', 'printenv', 'set', 'declare', 'compgen']);
 const DOTENV_RE = /(?:^|[/@'"=])\.env(?:\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)?['"]?$/;
 const AGENT_CONFIG_CLIS = /^(?:claude|codex[\w.-]*|gemini|cursor-agent|amp|q)$/;
+
+// ------------------------------------------------------- SSH (remote)
+//
+// The local guards above know this computer's paths. Commands run on another
+// computer over SSH (ssh host 'cmd', ssh host <<EOF, scp/rsync host:path) are
+// checked by generic names instead: files that usually hold secrets, server
+// settings under /etc, SSH authorized keys, shell startup files and scheduled
+// jobs. The finding is scoped to the host, so approving work on one server
+// does not cover another.
+
+const SSH_VALUE_OPTIONS = new Set('BbcDEeFIiJLlmOoPpQRSWw'.split(''));
+const REMOTE_SECRET_NAME = /(?:^|\/)(?:\.env(?:\.(?!example\b|sample\b|template\b|dist\b)[\w-]+)?|[\w.-]+\.env|id_(?:rsa|ecdsa|ed25519|dsa)|[\w.-]+\.(?:pem|key|p12|pfx|jks|keystore|kdbx)|\.netrc|\.npmrc|\.pypirc|\.pgpass|\.my\.cnf|\.git-credentials|credentials(?:\.[\w-]+)?|shadow|gshadow|[\w.-]*(?:secret|token|password|passwd|api[_-]?key)s?(?:\.[\w-]+)?)$/i;
+const REMOTE_CONFIG_PATH = /^\/etc\/|(?:^|\/)\.ssh\/authorized_keys2?$|(?:^|\/)\.(?:bashrc|bash_profile|profile|zshrc|zshenv|zprofile)$|^\/var\/spool\/cron\//;
+const REMOTE_METADATA_PROGRAMS = new Set([...EXISTENCE_PROGRAMS, 'chmod', 'chown', 'touch', 'du', 'wc', 'file', 'basename', 'dirname', 'realpath', 'readlink']);
+
+// The command an `ssh` invocation runs remotely, and the host it runs on.
+export function sshRemote(words) {
+  let i = 1;
+  while (i < words.length && words[i].startsWith('-') && words[i] !== '--') {
+    const flags = words[i].slice(1);
+    const at = [...flags].findIndex((flag) => SSH_VALUE_OPTIONS.has(flag));
+    i += at >= 0 && at === flags.length - 1 ? 2 : 1;
+  }
+  if (words[i] === '--') i += 1;
+  const host = words[i];
+  if (!host) return null;
+  return { host: normalizeHost(host), hostIndex: i, command: words.slice(i + 1).join(' ') };
+}
+
+function isLoopbackHost(host) {
+  const names = new Set(['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0', '?']);
+  try {
+    const own = os.hostname().toLowerCase();
+    names.add(own);
+    names.add(own.split('.')[0]);
+    names.add(own.replace(/\.local$/, ''));
+  } catch { /* hostname unavailable */ }
+  return names.has(host) || /^127\./.test(host) || /^\$|`/.test(host);
+}
+
+function normalizeHost(host) {
+  return String(host).replace(/^ssh:\/\//i, '').replace(/^[^@]*@/, '').replace(/[:/].*$/, '').toLowerCase() || '?';
+}
+
+function remotePathParts(word) {
+  const out = [];
+  for (const part of String(word).split(/[=,\s]/)) {
+    const cleaned = part.replace(/^\d*[<>]+&?/, '').replace(/^[@"'(]+|["');]+$/g, '');
+    if (cleaned) out.push(cleaned);
+  }
+  return out;
+}
+
+function remoteCommandFindings(text, host, add, depth = 0) {
+  let commands;
+  try {
+    commands = collectCommands(text, 1);
+  } catch {
+    if (REMOTE_SECRET_NAME.test(text) || /\/etc\//.test(text)) add(host, 'remote-config-change', 'Runs a command on a remote server that could not be parsed and mentions secrets or server settings.');
+    return;
+  }
+  for (const argv of commands) {
+    const words = stripWrappers(argv);
+    const program = programName(words[0] || '');
+    if (program === 'ssh' && depth < 2) {
+      const nested = sshRemote(words);
+      if (nested) remoteCommandFindings(nested.command, nested.host, add, depth + 1);
+      continue;
+    }
+    const readOnly = commandIsReadOnly(words);
+    const metadataOnly = REMOTE_METADATA_PROGRAMS.has(program);
+    const args = words.slice(1);
+    // Not stripWrappers: a bare `env` is the dump itself, not a wrapper.
+    const bare = argv.filter((word) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word) && !isRedirection(word));
+    const dumpsEnv = bare.length === 1 && ENV_DUMPERS.has(programName(bare[0])) || program === 'sudo' && bare.length === 2 && ENV_DUMPERS.has(programName(bare[1]));
+    if (dumpsEnv ||
+        program === 'docker' && args[0] === 'exec' && args.some((word, index) => index > 0 && ENV_DUMPERS.has(programName(word)) && index === args.length - 1) ||
+        program === 'kubectl' && /^(?:get|describe|edit)$/.test(args[0] || '') && /^secrets?$/.test(args[1] || '')) {
+      add(host, 'remote-secret-access', 'Prints secrets on a remote server (environment variables or stored secrets).');
+    }
+    if (program === 'crontab' && !args.every((word) => word === '-l')) {
+      add(host, 'remote-config-change', 'Changes scheduled jobs on a remote server.');
+    }
+    for (const target of redirectionTargets(argv)) {
+      if (REMOTE_SECRET_NAME.test(target) || REMOTE_CONFIG_PATH.test(target)) {
+        add(host, 'remote-config-change', 'Writes a secret file or server setting on a remote server.');
+      }
+    }
+    // kubectl names resources, not files.
+    if (program === 'kubectl') continue;
+    for (const word of argv) {
+      if (isRedirection(word)) continue;
+      for (const candidate of remotePathParts(word)) {
+        const secret = REMOTE_SECRET_NAME.test(candidate) && candidate !== words[0];
+        const config = REMOTE_CONFIG_PATH.test(candidate);
+        if (secret && !metadataOnly) {
+          if (readOnly) add(host, 'remote-secret-access', 'Reads a file that usually holds secrets (keys, tokens, passwords, .env) on a remote server.');
+          else add(host, 'remote-config-change', 'Changes or copies a file that usually holds secrets on a remote server.');
+        }
+        if (config && !readOnly && !metadataOnly) {
+          add(host, 'remote-config-change', 'Changes server settings, SSH authorized keys, or shell startup files on a remote server.');
+        }
+      }
+    }
+  }
+}
+
+function remoteFindings(text, commands) {
+  const items = [];
+  const add = (host, signal, reason) => {
+    const name = `remote:${host}`;
+    if (!items.some((item) => item.name === name && item.signals[0] === signal)) {
+      items.push({ ...signalItem(name, signal, reason), scope: host });
+    }
+  };
+  const { bodies } = splitHeredocs(text);
+  for (const body of bodies) {
+    if (body.program !== 'ssh') continue;
+    const remote = sshRemote(['ssh', ...body.args]);
+    remoteCommandFindings(body.text, remote ? remote.host : '?', add);
+  }
+  for (const argv of commands) {
+    const words = stripWrappers(argv);
+    const program = programName(words[0] || '');
+    if (program === 'ssh') {
+      const remote = sshRemote(words);
+      if (remote && remote.command.trim()) remoteCommandFindings(remote.command, remote.host, add);
+    } else if (program === 'scp' || program === 'rsync' || program === 'sftp') {
+      const specs = words.slice(1).filter((word) => !word.startsWith('-') && /^[^/\s:]+:/.test(word));
+      const last = words[words.length - 1];
+      for (const spec of specs) {
+        const remotePath = spec.slice(spec.indexOf(':') + 1);
+        const host = normalizeHost(spec.slice(0, spec.indexOf(':')));
+        if (spec === last && words.length > 2) {
+          if (REMOTE_SECRET_NAME.test(remotePath) || REMOTE_CONFIG_PATH.test(remotePath) || /\/(?:etc|\.ssh)\/?$/.test(remotePath)) {
+            add(host, 'remote-config-change', 'Copies a file over a secret file, server setting, or SSH key on a remote server.');
+          }
+        } else if (REMOTE_SECRET_NAME.test(remotePath)) {
+          add(host, 'remote-secret-access', 'Copies a file that usually holds secrets off a remote server.');
+        }
+      }
+    }
+  }
+  return items;
+}
 
 // ------------------------------------------------- read-only judgement
 
@@ -576,7 +731,11 @@ export function guardBashCommand(command, paths, options = {}) {
       if (kinds.includes('persistence')) add('command:startup-item', 'persistence-change', 'Adds or changes something that runs automatically at login or on a schedule.');
       if (kinds.includes('secret')) add('command:credential-store', 'secret-access', 'Writes into a credential store.');
     }
-    for (const word of argv) {
+    // For ssh, words after the host are a command for the remote computer, where
+    // ~ and paths mean something else; they are checked by remoteFindings.
+    const remote = program === 'ssh' ? sshRemote(words) : null;
+    const localWords = remote ? argv.slice(0, argv.length - words.length + remote.hostIndex + 1) : argv;
+    for (const word of localWords) {
       if (isRedirection(word)) continue;
       const candidates = pathCandidates(word);
       if (movedDirectory && currentCwd && /^[\w@][\w.@+-]*$/.test(word) && word !== words[0]) candidates.push(word);
@@ -595,5 +754,6 @@ export function guardBashCommand(command, paths, options = {}) {
       }
     }
   }
+  items.push(...remoteFindings(text, commands));
   return items;
 }
