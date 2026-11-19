@@ -593,7 +593,7 @@ function remote(command) {
 test('ssh commands that read secrets or change server settings are found, per host', () => {
   for (const [command, expected] of [
     ['ssh deploy@app.example.com "cat /srv/app/.env"', ['remote-secret-access@app.example.com']],
-    ["ssh -i ~/.ssh/deploy_key -p 2222 app.example.com 'sudo grep KEY /srv/app/runtime.env'", ['remote-secret-access@app.example.com']],
+    ["ssh -i ~/.ssh/deploy_key -p 2222 app.example.com 'sudo grep KEY /srv/app/app.env'", ['remote-secret-access@app.example.com']],
     ['ssh app.example.com docker exec web printenv', ['remote-secret-access@app.example.com']],
     ['ssh app.example.com env', ['remote-secret-access@app.example.com']],
     ['ssh app.example.com kubectl get secret db -o yaml', ['remote-secret-access@app.example.com']],
@@ -653,7 +653,7 @@ test('approving remote work covers that host for an hour and nothing else', asyn
   assert.match(reason, /reading secret files on app\.example\.com over SSH for 1 hour/);
   store.approve(/trustdex allow-once (\w{8})/.exec(reason)[1]);
 
-  assert.equal(await run('ssh app.example.com "grep TOKEN /srv/app/runtime.env"'), null, 'other secret reads on the same host');
+  assert.equal(await run('ssh app.example.com "grep TOKEN /srv/app/app.env"'), null, 'other secret reads on the same host');
   assert.equal((await run('ssh other.example.com "cat /srv/app/.env"')).hookSpecificOutput.permissionDecision, 'deny', 'another host');
   assert.equal((await run('ssh app.example.com "echo x >> /srv/app/.env"')).hookSpecificOutput.permissionDecision, 'deny', 'changes need their own approval');
   assert.equal((await run('ssh app.example.com "cat /srv/.env" && cat ~/.ssh/id_rsa')).hookSpecificOutput.permissionDecision, 'deny', 'local findings are not covered');
