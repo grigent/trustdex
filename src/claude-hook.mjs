@@ -15,6 +15,7 @@
 //   permission dialog instead; BLOCK-level findings are still denied.
 
 import { evaluateInstallCommand, overallAction } from './install-check.mjs';
+import crypto from 'node:crypto';
 import nodePath from 'node:path';
 
 import { guardBashCommand, guardFileTool, guardPaths, toPosix } from './agent-guard.mjs';
@@ -165,15 +166,53 @@ export async function evaluateToolCall(input, options = {}) {
   return items;
 }
 
+// A fingerprint per script file the check read: the full-file hash from
+// options.fingerprintScript when available (it also covers files too large to
+// check), otherwise a hash of the text the check saw, or 'unreadable'.
+function scriptFingerprints(scriptsRead, fingerprintScript) {
+  return [...scriptsRead.values()]
+    .map(({ file, cwd, content }) => {
+      let fingerprint = null;
+      if (typeof fingerprintScript === 'function') {
+        try {
+          fingerprint = fingerprintScript(file, cwd);
+        } catch {
+          fingerprint = 'unreadable';
+        }
+      }
+      if (typeof fingerprint !== 'string') {
+        fingerprint = typeof content === 'string' ? crypto.createHash('sha256').update(content).digest('hex') : 'unreadable';
+      }
+      return [cwd ?? '', file, fingerprint];
+    })
+    .sort((a, b) => (a[0] + a[1] < b[0] + b[1] ? -1 : a[0] + a[1] > b[0] + b[1] ? 1 : 0));
+}
+
 export async function claudeHookResponse(input, options = {}) {
   if (!input || typeof input !== 'object' || typeof input.tool_name !== 'string') {
     throw new Error('Invalid hook input.');
   }
-  const items = await evaluateToolCall(input, options);
+  // Remember which local script files the check read, so an approval of
+  // `bash x.sh` is bound to what x.sh contained when the user approved it.
+  const scriptsRead = new Map();
+  const readScript = typeof options.readScript === 'function'
+    ? (file, cwd, limit) => {
+      let content = null;
+      try {
+        content = options.readScript(file, cwd, limit);
+        return content;
+      } finally {
+        scriptsRead.set(`${cwd ?? ''}\0${file}`, { file: String(file), cwd: cwd ?? null, content });
+      }
+    }
+    : options.readScript;
+  const items = await evaluateToolCall(input, { ...options, readScript });
   const action = overallAction(items);
   if (action === 'allow') return null;
 
-  const digest = actionDigest(input.tool_name, approvalSubject(input.tool_name, input.tool_input, input.cwd));
+  const subject = approvalSubject(input.tool_name, input.tool_input, input.cwd);
+  if (scriptsRead.size) subject.scripts = scriptFingerprints(scriptsRead, options.fingerprintScript);
+  const digest = actionDigest(input.tool_name, subject);
   const itemKeys = itemApprovalKeys(items);
   const store = options.approvals ?? null;
   if (store?.consume(digest, itemKeys ?? [])) return null;

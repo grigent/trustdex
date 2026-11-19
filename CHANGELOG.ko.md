@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- 로컬 스크립트를 실행하는 Bash 명령(`bash x.sh`, `python3 x.py`, `source x`, `./x.sh`)의 한 번짜리 승인을 그 스크립트의 SHA-256에도 묶음(크기와 상관없이). 승인 뒤 스크립트를 바꾸거나, 승인 때 없던 스크립트를 새로 만들면 다른 행동이 되어 따로 승인이 필요함
+
 ## 0.15.0 - 2026-11-19
 
 - SSH로 다른 컴퓨터에 보내는 명령(`ssh host 'cmd'`, `ssh host <<EOF`, `scp`/`rsync host:경로`)을 일반적인 이름으로 검사함. 보통 비밀값이 든 파일 읽기, 환경변수·`kubectl` 비밀값 출력은 `remote-secret-access`(ASK), 그런 파일·`/etc`·`authorized_keys`·셸 시작 파일·`crontab` 바꾸기는 `remote-config-change`(ASK). 승인하면 그 서버에서 그 종류의 작업을 1시간 허용함. 평소 서버 작업은 조용히 지나가고, 같은 컴퓨터로 가는 `ssh`는 로컬 명령처럼 검사함
