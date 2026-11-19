@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.14.2 - 2026-11-19
+
 - fewer false positives in the agent guards: each simple command is judged on its own (a read-only command next to unrelated commands stays allowed), redirections to `/dev/null` or another descriptor are not writes, and `bash -n`, `plutil -lint`/`-p`, `launchctl print`/`list`, `defaults read`, read-only `git`, `sed`/`awk` without in-place edits and `find` without `-delete`/`-exec` count as read-only
 - approving a startup-item finding (`persistence-change`) now covers startup-item and scheduled-job changes for 1 hour, in any command, instead of one exact command
 
