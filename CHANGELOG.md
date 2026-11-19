@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.15.1 - 2026-11-19
+
 - a one-time approval of a Bash command that runs a local script (`bash x.sh`, `python3 x.py`, `source x`, `./x.sh`) is now also bound to a SHA-256 of each such script, of any size. Changing the script after approval, or creating a script that did not exist yet, makes it a different action that needs its own approval
 
 ## 0.15.0 - 2026-11-19
