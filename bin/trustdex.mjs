@@ -1006,9 +1006,14 @@ async function main() {
     for (const item of entry.summary || []) console.log(`  - ${item.name}: ${(item.reasons || []).join(' ')}`);
     console.log('');
     console.log('Approve only if you understand the risk and asked for this yourself.');
-    const itemScoped = Array.isArray(entry.itemKeys) && entry.itemKeys.length > 0;
+    const keys = Array.isArray(entry.itemKeys) ? entry.itemKeys : [];
+    const itemScoped = keys.length > 0;
+    const scope = [
+      ...(keys.some((key) => !key.startsWith('signal:')) ? ['these exact package versions for 24 hours'] : []),
+      ...(keys.includes('signal:persistence-change') ? ['startup-item and scheduled-job changes for 1 hour'] : [])
+    ].join(' and ');
     process.stdout.write(itemScoped
-      ? 'Type "yes" to allow these exact package versions for 24 hours: '
+      ? `Type "yes" to allow ${scope}: `
       : 'Type "yes" to allow this exact action once within 30 minutes: ');
     const answer = await new Promise((resolve) => {
       process.stdin.setEncoding('utf8');
@@ -1022,7 +1027,7 @@ async function main() {
     }
     store.approve(code);
     console.log(itemScoped
-      ? 'Approved for 24 hours. Ask the agent to continue.'
+      ? `Approved: ${scope}. Ask the agent to continue.`
       : 'Approved once. Ask the agent to run the same action again.');
     return;
   }

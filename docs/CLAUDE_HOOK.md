@@ -69,6 +69,7 @@ Package findings work differently, to keep everyday work smooth.
 - Safer alternative first: a too-recent release names the newest older version that is outside the waiting window (for example `Use wrangler@4.160.1 instead`). The agent is told to use such an alternative, or `--ignore-scripts`, without asking you.
 - Approval by version: if you approve, the approval covers those exact package versions and findings for 24 hours, in any command. Deploys and migrations that call the same tool do not need a new code each time.
 - Limits: a package approval never covers BLOCK findings or anything outside those packages.
+- Startup items: approving a `persistence-change` finding covers startup-item and scheduled-job changes for 1 hour in any command, so one maintenance session needs one approval. It never covers other findings.
 - Installed tools pass: tools already installed in the project's `node_modules/.bin` are used as installed, also after a `cd` inside the command and from parent folders. They do not trigger a registry check. `trustdex allow-once --list` shows what is waiting.
 
 The agent cannot approve its own action in three ways:

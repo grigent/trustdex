@@ -17,6 +17,7 @@ import path from 'node:path';
 export const PENDING_TTL_MS = 60 * 60 * 1000;
 export const APPROVAL_TTL_MS = 30 * 60 * 1000;
 export const ITEM_APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
+export const SIGNAL_APPROVAL_TTL_MS = 60 * 60 * 1000;
 const MAX_ENTRIES = 100;
 const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const CODE_RE = /^[2-9A-HJ-NP-Z]{8}$/;
@@ -112,14 +113,20 @@ export function createApprovalStore(stateDir = defaultStateDir(), { now = () => 
       const entry = pending.find((candidate) => candidate.code === code);
       if (!entry) return null;
       const approved = live(readEntries(approvedFile)).filter((candidate) => candidate.digest !== entry.digest);
-      const itemScoped = Array.isArray(entry.itemKeys) && entry.itemKeys.length > 0;
-      approved.push({
-        digest: entry.digest,
-        summary: entry.summary,
-        ...(itemScoped ? { itemKeys: entry.itemKeys } : {}),
-        approvedAt: now(),
-        expiresAt: now() + (itemScoped ? ITEM_APPROVAL_TTL_MS : APPROVAL_TTL_MS)
-      });
+      const keys = Array.isArray(entry.itemKeys) ? entry.itemKeys : [];
+      if (!keys.length) {
+        approved.push({ digest: entry.digest, summary: entry.summary, approvedAt: now(), expiresAt: now() + APPROVAL_TTL_MS });
+      }
+      // Package versions are covered for a day; kinds of maintenance work
+      // (signal:...) only for an hour.
+      const packageKeys = keys.filter((key) => !key.startsWith('signal:'));
+      const signalKeys = keys.filter((key) => key.startsWith('signal:'));
+      if (packageKeys.length) {
+        approved.push({ digest: entry.digest, summary: entry.summary, itemKeys: packageKeys, approvedAt: now(), expiresAt: now() + ITEM_APPROVAL_TTL_MS });
+      }
+      if (signalKeys.length) {
+        approved.push({ digest: entry.digest, summary: entry.summary, itemKeys: signalKeys, approvedAt: now(), expiresAt: now() + SIGNAL_APPROVAL_TTL_MS });
+      }
       writeEntries(approvedFile, approved);
       writeEntries(pendingFile, pending.filter((candidate) => candidate !== entry));
       return entry;

@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- fewer false positives in the agent guards: each simple command is judged on its own (a read-only command next to unrelated commands stays allowed), redirections to `/dev/null` or another descriptor are not writes, and `bash -n`, `plutil -lint`/`-p`, `launchctl print`/`list`, `defaults read`, read-only `git`, `sed`/`awk` without in-place edits and `find` without `-delete`/`-exec` count as read-only
+- approving a startup-item finding (`persistence-change`) now covers startup-item and scheduled-job changes for 1 hour, in any command, instead of one exact command
+
 ## 0.14.1 - 2026-11-18
 
 - bind Bash one-time approvals to the effective starting directory plus the command after any leading `cd`, so an approval matches when Claude Code drops a leading `cd` to the current directory, and does not carry over to the same command in another directory
