@@ -84,7 +84,7 @@ function reasonText(items, code, itemKeys) {
       'Do not retry it in another form or work around this check.',
       'Explain the risk to the user in plain words.',
       `If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once ${code}`,
-      'That allows this exact action once within 30 minutes; then run the identical action again.'
+      'That allows this exact action once within an hour; then run the identical action again.'
     );
   } else {
     next.push('Do not retry it in another form or work around this check. Explain the risk to the user in plain words.');
@@ -151,7 +151,7 @@ export async function evaluateToolCall(input, options = {}) {
   if (tool === 'Bash') {
     const command = toolInput.command;
     if (typeof command !== 'string' || !command.trim()) return items;
-    items.push(...guardBashCommand(command, paths, { cwd, readScript: options.readScript }));
+    items.push(...guardBashCommand(command, paths, { cwd, readScript: options.readScript, allowStartupItems: options.policy?.allowStartupItems }));
     items.push(...(await evaluateInstallCommand(command, options)).items);
   } else {
     items.push(...guardFileTool(tool, toolInput, paths, { cwd }));

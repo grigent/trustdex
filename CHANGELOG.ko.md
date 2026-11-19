@@ -6,6 +6,13 @@
 
 ## 미출시
 
+- 하루 실제로 써 본 결과를 반영해 Claude Code 훅을 덜 번거롭게 함
+  - 읽기만 하는 파이썬·노드 한 줄 코드(`python3 -c "print(json.load(open(p)))"`, `node -e "...readFileSync(p)..."`)는 에이전트 설정이나 시작 항목을 바꾸는 것으로 보지 않음. 쓰거나, 다른 프로그램을 실행하거나, 무엇을 부르는지 숨길 수 있는 코드는 그대로 막음
+  - `trustdex allow-once --list` 허용. 승인 자체는 여전히 사람만 할 수 있음
+  - launchd 작업을 멈추는 것(`launchctl unload`, `bootout`, `disable`, `remove`)은 시작 항목 변경으로 보지 않음
+  - 설치 정책에 `allowStartupItems` 추가: 내 예약 작업의 launchd 라벨(`"com.example.*"`)을 넣으면, 에이전트가 `launchctl enable`이나 `~/Library/LaunchAgents`에서 `load`/`bootstrap`으로 승인 없이 켤 수 있음. 그 폴더에 plist를 쓰는 것은 여전히 승인 필요
+  - 정확히 그 행동 하나에 대한 한 번짜리 승인을 30분에서 1시간으로 늘려, 코드·시작 항목 승인과 같은 기준으로 맞춤
+
 ## 0.14.2 - 2026-11-19
 
 - 에이전트 보호의 오탐 줄임

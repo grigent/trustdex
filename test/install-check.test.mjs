@@ -364,6 +364,10 @@ test('install policy files are validated strictly', () => {
   assert.equal(parseInstallPolicy(undefined).minReleaseAgeHours, 48);
   assert.deepEqual(parseInstallPolicy({ version: 1, allowInstallScripts: ['npm:esbuild', 'PyPI:Some_Pkg'] }).allowInstallScripts, ['npm:esbuild', 'pypi:some-pkg']);
   assert.throws(() => parseInstallPolicy({ allowEverything: true }), /Unsupported install policy key/);
+  assert.deepEqual(parseInstallPolicy({ allowStartupItems: ['com.mine.*', 'org.example.backup', 'com.mine.*'] }).allowStartupItems, ['com.mine.*', 'org.example.backup']);
+  for (const bad of ['*', 'com.*', 'com', 'com.mine.*.x', 'com.mine/x', '', 3]) {
+    assert.throws(() => parseInstallPolicy({ allowStartupItems: [bad] }), /allowStartupItems/, String(bad));
+  }
   assert.throws(() => parseInstallPolicy({ minReleaseAgeHours: -1 }), /between 0 and 8760/);
   assert.throws(() => parseInstallPolicy({ manifestInstall: 'yes' }), /manifestInstall/);
   assert.throws(() => parseInstallPolicy({ allowPackages: ['esbuild'] }), /npm:<name>/);

@@ -34,9 +34,11 @@ Some cases deserve a note:
 - `guard-tamper` also covers `claude mcp add`, `codex mcp add`, and similar commands that register MCP servers.
 - Paths written inside one-line code (`python3 -c`, `node -e`) are checked.
 - Relative paths after a `cd` within the same command resolve against the new directory.
+- Stopping a job (`launchctl unload`, `bootout`, `disable`, `remove`) is not a startup-item change.
 
 The following stay allowed:
-- reading settings (`cat`, `jq`, `grep`, `Read`)
+- reading settings (`cat`, `jq`, `grep`, `Read`, and one-line Python or Node code that only reads, such as `python3 -c "print(json.load(open(p)))"`; code that may write, run another program, or hide what it calls is still treated as a change)
+- listing waiting approvals (`trustdex allow-once --list`)
 - checking that a key exists (`ls ~/.ssh`, `test -f`)
 - SSH tools that use a key without revealing it (`ssh -i`, `scp -i`)
 - ordinary project edits
@@ -62,7 +64,7 @@ Running `trustdex allow-once K7M2QX9P` works like this:
 2. It asks the person to type `yes`.
 3. It records a one-time approval.
 
-The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory); for file tools, the same file and content. It expires after 30 minutes and is used up by the first matching call. Codes expire after an hour.
+The approval is bound to the SHA-256 digest of that exact tool call: for Bash, the directory the command effectively starts in plus the command after any leading `cd` (Claude Code may drop a leading `cd` to the current directory); for file tools, the same file and content. It expires after an hour and is used up by the first matching call. Codes also expire after an hour.
 
 Package findings work differently, to keep everyday work smooth.
 - Covered findings: a release that is too recent, install scripts, a new package, a deprecated or yanked version, a first-time publisher, or a look-alike name.
@@ -107,7 +109,17 @@ The agent cannot approve its own action in three ways:
 }
 ```
 
-The running TrustDex copy, the policy file, and the state directory are protected automatically. `--protect` adds more files, such as the wrapper. The install policy accepts `secretPaths`: absolute or `~/` paths of extra credential files to protect.
+The running TrustDex copy, the policy file, and the state directory are protected automatically. `--protect` adds more files, such as the wrapper. The install policy also accepts:
+
+- `secretPaths`: absolute or `~/` paths of extra credential files to protect.
+- `allowStartupItems`: launchd labels of your own jobs that agents may start without approval, such as `"com.example.backup"` or `"com.example.*"`. It covers `launchctl enable gui/<uid>/<label>` and `launchctl load|bootstrap` of plists in `~/Library/LaunchAgents` whose file name is an allowed label. Writing or copying a plist into `~/Library/LaunchAgents` still needs approval, so an agent cannot plant a new job under an allowed name. A wildcard needs at least two segments before it (`com.*` and `*` are rejected).
+
+```json
+{
+  "version": 1,
+  "allowStartupItems": ["com.example.*"]
+}
+```
 
 If the hook cannot read its input or configuration, it denies file tools and Bash commands that could be risky rather than failing open. Unrelated tools keep working.
 

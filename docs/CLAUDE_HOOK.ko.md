@@ -34,9 +34,11 @@
 - `guard-tamper`는 MCP 서버를 등록하는 `claude mcp add`, `codex mcp add` 같은 명령도 포함합니다.
 - 한 줄 코드(`python3 -c`, `node -e`) 안에 적힌 경로도 검사합니다.
 - 같은 명령 안에서 `cd`로 옮긴 뒤의 상대 경로는 새 폴더 기준으로 봅니다.
+- 작업을 멈추는 것(`launchctl unload`, `bootout`, `disable`, `remove`)은 시작 항목 변경으로 보지 않습니다.
 
 다음은 계속 허용됩니다.
-- 설정 읽기(`cat`, `jq`, `grep`, `Read`)
+- 설정 읽기(`cat`, `jq`, `grep`, `Read`, 그리고 `python3 -c "print(json.load(open(p)))"`처럼 읽기만 하는 파이썬·노드 한 줄 코드. 쓰거나, 다른 프로그램을 실행하거나, 무엇을 부르는지 숨길 수 있는 코드는 여전히 변경으로 봅니다)
+- 기다리는 승인 목록 보기(`trustdex allow-once --list`)
 - 키가 있는지 확인하기(`ls ~/.ssh`, `test -f`)
 - 키를 드러내지 않고 쓰는 SSH 도구(`ssh -i`, `scp -i`)
 - 평범한 프로젝트 수정
@@ -62,7 +64,7 @@ If the user understands it and still wants it, they type this in their own termi
 2. `yes`를 입력하라고 합니다.
 3. 한 번짜리 승인을 기록합니다.
 
-승인은 그 도구 호출의 SHA-256 다이제스트에 묶입니다. Bash는 명령이 실제로 시작되는 폴더와 앞쪽 `cd`를 뺀 나머지 명령에 묶이고(Claude Code가 현재 폴더로 가는 앞쪽 `cd`를 지우기도 하므로), 파일 도구는 같은 파일과 내용에 묶입니다. 30분 뒤 만료되고, 처음 일치하는 호출에 한 번 쓰이면 사라집니다. 코드는 1시간 뒤 만료됩니다.
+승인은 그 도구 호출의 SHA-256 다이제스트에 묶입니다. Bash는 명령이 실제로 시작되는 폴더와 앞쪽 `cd`를 뺀 나머지 명령에 묶이고(Claude Code가 현재 폴더로 가는 앞쪽 `cd`를 지우기도 하므로), 파일 도구는 같은 파일과 내용에 묶입니다. 1시간 뒤 만료되고, 처음 일치하는 호출에 한 번 쓰이면 사라집니다. 코드도 1시간 뒤 만료됩니다.
 
 패키지 경고는 평소 작업이 막히지 않도록 다르게 다룹니다.
 - 대상: 너무 최근 릴리스, 설치 스크립트, 새 패키지, 사용 중단·철회 버전, 처음 보는 게시자, 유명 이름 흉내
@@ -107,7 +109,17 @@ If the user understands it and still wants it, they type this in their own termi
 }
 ```
 
-실행 중인 TrustDex 사본, 정책 파일, 상태 폴더는 자동으로 보호됩니다. `--protect`로 실행 파일 같은 다른 파일을 더 보호할 수 있습니다. 설치 정책의 `secretPaths`에는 더 보호할 자격 증명 파일의 절대 경로나 `~/` 경로를 넣습니다.
+실행 중인 TrustDex 사본, 정책 파일, 상태 폴더는 자동으로 보호됩니다. `--protect`로 실행 파일 같은 다른 파일을 더 보호할 수 있습니다. 설치 정책에는 다음도 넣을 수 있습니다.
+
+- `secretPaths`: 더 보호할 자격 증명 파일의 절대 경로나 `~/` 경로.
+- `allowStartupItems`: 에이전트가 승인 없이 켤 수 있는 내 예약 작업의 launchd 라벨(예: `"com.example.backup"`, `"com.example.*"`). `launchctl enable gui/<uid>/<라벨>`과, `~/Library/LaunchAgents` 안에서 파일 이름이 허용된 라벨인 plist의 `launchctl load|bootstrap`이 대상입니다. `~/Library/LaunchAgents`에 plist를 쓰거나 복사하는 것은 여전히 승인이 필요하므로, 에이전트가 허용된 이름으로 새 작업을 심을 수는 없습니다. 와일드카드 앞에는 두 마디 이상이 있어야 합니다(`com.*`, `*`는 거부).
+
+```json
+{
+  "version": 1,
+  "allowStartupItems": ["com.example.*"]
+}
+```
 
 훅이 입력이나 설정을 읽지 못하면, 위험할 수 있는 파일 도구와 Bash 명령을 그냥 통과시키지 않고 거부합니다. 관계없는 도구는 계속 동작합니다.
 

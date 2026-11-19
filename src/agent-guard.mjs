@@ -348,12 +348,99 @@ const READ_ONLY_SUBCOMMANDS = {
   security: /^(?:list-keychains|default-keychain|show-keychain-info)$/
 };
 
+// launchctl subcommands that stop or unload a job; they never add one.
+const LAUNCHCTL_STOP = /^(?:unload|bootout|disable|remove|kill|stop)$/;
+
+// One-line Python or Node code (python3 -c, node -e/-p) that only reads files,
+// such as json.load(open(p)) or fs.readFileSync(p). Anything that may write,
+// start another program, or hide what it calls keeps the code treated as a
+// possible writer. This is deliberately strict: when in doubt, it is a writer.
+const INLINE_CODE_FLAG = { python: /^-[A-Za-z]*c$/, node: /^(?:-e|-p|--eval|--print)$/ };
+const INLINE_WRITE_RE = new RegExp([
+  'write', 'dump\\b', 'append', 'unlink', 'remove', 'rename', 'replace', 'rmtree', '\\brm', '\\bcp\\b', 'cpsync',
+  '\\bmove', 'copy', 'chmod', 'chown', 'utime', 'truncate', 'mkdir', 'makedirs', 'touch', 'symlink', 'hardlink', '\\blink',
+  'system', 'popen', 'subprocess', 'spawn', 'exec', 'eval', 'compile', 'import\\s*\\(', '__', 'importlib', 'getattr',
+  'setattr', 'globals', '\\bvars\\b', 'chr\\s*\\(', 'fromcharcode', '\\\\x', '\\\\u', 'base64', 'codecs', 'decode',
+  'pickle', 'marshal', 'socket', 'urllib', 'requests', 'http', 'fetch', 'shutil', 'child_process', 'binding', 'dlopen',
+  'ctypes', 'ffi', 'mode\\s*=', '\\bfunction\\s*\\(', 'constructor', '\\bvm\\b', 'worker', '\\bmodule\\b', 'reflect',
+  'require\\s*\\(\\s*[^\'"\\s]', '\\b(?:fs|os|process|globalthis|global)\\s*\\[', '\\[[^\\]]*\\+'
+].join('|'), 'i');
+
+function inlineCodeIsReadOnly(program, words) {
+  const kind = program.replace(/\d+(?:\.\d+)*$/, '');
+  const flag = INLINE_CODE_FLAG[kind];
+  if (!flag) return false;
+  const index = words.findIndex((word, i) => i > 0 && flag.test(word));
+  if (index < 0 || typeof words[index + 1] !== 'string') return false;
+  const code = words[index + 1]
+    // open(p, 'r') and open(p, mode='rb') read; any other second argument may write.
+    .replace(/,\s*(?:encoding\s*=\s*|\{\s*encoding\s*:\s*)?['"]utf-?8['"]\s*\}?\s*\)/gi, ')')
+    .replace(/,\s*(?:mode\s*=\s*)?['"]r[bt]?['"]\s*\)/g, ')');
+  if (INLINE_WRITE_RE.test(code)) return false;
+  // open() with a second argument, open passed around or called with *args,
+  // openSync, or any short string that looks like a write mode ('w', "a+").
+  if (/open\s*\([^)]*,|open(?!\s*\()|open\s*\(\s*\*/i.test(code)) return false;
+  if (/(['"`])(?![rbt]{1,2}\1)[rwaxbt+]{1,3}\1/i.test(code)) return false;
+  if (/\bos\.(?!path\.|environ\b|getenv\b|listdir\b|stat\b|getcwd\b|scandir\b)/.test(code)) return false;
+  if (/\bfs\.(?!readFileSync\b|existsSync\b|statSync\b|lstatSync\b|readdirSync\b)/.test(code)) return false;
+  return true;
+}
+
+// launchd labels allowed by the install policy (allowStartupItems).
+function startupLabelAllowed(label, patterns) {
+  return patterns.some((pattern) => (pattern.endsWith('.*')
+    ? label.length > pattern.length - 1 && label.startsWith(pattern.slice(0, -1))
+    : label === pattern));
+}
+
+// Starting one of the user's own launchd jobs that the policy lists:
+// `launchctl enable gui/<uid>/<label>`, or `launchctl load|bootstrap` of
+// plists in ~/Library/LaunchAgents whose file name is an allowed label. Writing
+// into ~/Library/LaunchAgents is still checked, so an agent cannot plant a new
+// job under an allowed name without the user's approval.
+function launchctlStartAllowed(words, options, cwd) {
+  const patterns = Array.isArray(options.allowStartupItems) ? options.allowStartupItems : [];
+  if (!patterns.length) return false;
+  const sub = words[1];
+  const args = words.slice(2);
+  if (sub === 'enable') {
+    const match = /^(?:gui|user)\/\d+\/([^/]+)$/.exec(args[0] || '');
+    return args.length === 1 && !!match && startupLabelAllowed(match[1], patterns);
+  }
+  if (sub !== 'load' && sub !== 'bootstrap') return false;
+  let rest = args;
+  if (sub === 'bootstrap') {
+    if (!/^(?:gui|user)\/\d+$/.test(rest[0] || '')) return false;
+    rest = rest.slice(1);
+  } else {
+    rest = rest.filter((word) => word !== '-w' && word !== '-F');
+  }
+  if (!rest.length) return false;
+  const home = toPosix(options.home || os.homedir());
+  const agentsDir = path.join(home, 'Library', 'LaunchAgents');
+  return rest.every((word) => {
+    if (word.startsWith('-')) return false;
+    let resolved = expandHome(toPosix(word), home);
+    if (!path.isAbsolute(resolved)) {
+      if (!cwd) return false;
+      resolved = path.resolve(cwd, resolved);
+    } else {
+      resolved = path.resolve(resolved);
+    }
+    const base = path.basename(resolved);
+    return path.dirname(resolved) === agentsDir && base.endsWith('.plist') &&
+      startupLabelAllowed(base.slice(0, -'.plist'.length), patterns);
+  });
+}
+
 // Is this simple command read-only for the files it names?
 function commandIsReadOnly(words) {
   // Only variable assignments (S=~/.claude/settings.json): nothing is written.
   if (!words.length) return true;
   const program = programName(words[0] || '');
   if (READ_ONLY_PROGRAMS.has(program)) return true;
+  if (program === 'launchctl' && LAUNCHCTL_STOP.test(words[1] || '')) return true;
+  if (inlineCodeIsReadOnly(program, words)) return true;
   if (READ_ONLY_SUBCOMMANDS[program]) return READ_ONLY_SUBCOMMANDS[program].test(words[1] || '');
   if (program === 'sed' || program === 'awk') {
     return !words.some((word) => /^-[A-Za-z]*i|^--in-place|system\(|print\s*>|>\s*"/.test(word));
@@ -448,7 +535,10 @@ export function guardBashCommand(command, paths, options = {}) {
     }
 
     const trustdexIndex = argv.findIndex((word) => /^trustdex(?:\.mjs)?$/i.test(programName(word)));
-    if (trustdexIndex >= 0 && argv.slice(trustdexIndex + 1).some((word) => /^allow-once$/i.test(word))) {
+    const trustdexArgs = trustdexIndex >= 0 ? argv.slice(trustdexIndex + 1) : [];
+    // Listing what is waiting is harmless; approving is for the person only.
+    const listsOnly = trustdexArgs.length === 2 && /^allow-once$/i.test(trustdexArgs[0]) && trustdexArgs[1] === '--list';
+    if (trustdexIndex >= 0 && !listsOnly && trustdexArgs.some((word) => /^allow-once$/i.test(word))) {
       add('command:trustdex-approve', 'guard-tamper', 'Approvals must be given by a person in their own terminal, not by the agent.');
     }
     if (startsAgentWithoutGuardrails(words)) {
@@ -465,7 +555,8 @@ export function guardBashCommand(command, paths, options = {}) {
     if (program === 'crontab' && !words.slice(1).every((word) => word === '-l')) {
       add('command:startup-item', 'persistence-change', 'Changes scheduled jobs (crontab).');
     }
-    if (program === 'launchctl' && /^(?:load|bootstrap|enable|submit)$/.test(words[1] || '')) {
+    const allowedStart = program === 'launchctl' && launchctlStartAllowed(words, options, currentCwd);
+    if (program === 'launchctl' && /^(?:load|bootstrap|enable|submit)$/.test(words[1] || '') && !allowedStart) {
       add('command:startup-item', 'persistence-change', 'Loads a background job with launchctl.');
     }
     if (program === 'osascript' && words.some((word) => /login item/i.test(word))) {
@@ -476,7 +567,7 @@ export function guardBashCommand(command, paths, options = {}) {
     // protected file stays allowed even when other, unrelated commands in the
     // same line write elsewhere. Writes through redirection are checked by
     // target, and redirections to /dev/null or another descriptor are harmless.
-    const readOnly = commandIsReadOnly(words);
+    const readOnly = commandIsReadOnly(words) || allowedStart;
     const existenceOnly = EXISTENCE_PROGRAMS.has(program);
     const redirectTargets = redirectionTargets(argv);
     for (const target of redirectTargets) {
