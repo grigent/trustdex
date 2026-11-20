@@ -494,6 +494,25 @@ function redirectionTargets(argv) {
   return targets;
 }
 
+// Files read through input redirection (< file, 0<file). The shell opens them and
+// hands their content to the program, whatever the program is (cat, curl, ssh,
+// an interpreter), so a protected file read this way is read. Here-documents,
+// here-strings, process substitution and descriptor duplication are not files.
+function inputRedirectionSources(argv) {
+  const sources = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const match = REDIRECTION_RE.exec(argv[i]);
+    if (!match || match[2] !== '<' || match[3] === '&') continue;
+    let source = match[4];
+    if (!source) {
+      source = argv[i + 1];
+      i += 1;
+    }
+    if (source && !/^[<(]/.test(source) && !HARMLESS_REDIRECT.test(source)) sources.push(source);
+  }
+  return sources;
+}
+
 const READ_ONLY_SUBCOMMANDS = {
   launchctl: /^(?:print|print-cache|print-disabled|list|blame|dumpstate|managerpid|managername|error)$/,
   git: /^(?:status|log|diff|show|rev-parse|ls-files|ls-tree|blame|grep|cat-file|describe|shortlog)$/,
@@ -731,6 +750,12 @@ export function guardBashCommand(command, paths, options = {}) {
       if (kinds.includes('persistence')) add('command:startup-item', 'persistence-change', 'Adds or changes something that runs automatically at login or on a schedule.');
       if (kinds.includes('secret')) add('command:credential-store', 'secret-access', 'Writes into a credential store.');
     }
+    const inputSources = inputRedirectionSources(argv);
+    for (const source of inputSources) {
+      if (classifyPath(source, paths, pathOptions).includes('secret')) {
+        add('command:credential-store', 'secret-access', 'Feeds a credential store such as an SSH key or token file into a program through input redirection (<).');
+      }
+    }
     // For ssh, words after the host are a command for the remote computer, where
     // ~ and paths mean something else; they are checked by remoteFindings.
     const remote = program === 'ssh' ? sshRemote(words) : null;
@@ -740,7 +765,8 @@ export function guardBashCommand(command, paths, options = {}) {
       const candidates = pathCandidates(word);
       if (movedDirectory && currentCwd && /^[\w@][\w.@+-]*$/.test(word) && word !== words[0]) candidates.push(word);
       for (const candidate of candidates) {
-        if (redirectTargets.includes(candidate)) continue;
+        // Redirection files are judged above: output targets as writes, input sources as reads.
+        if (redirectTargets.includes(candidate) || inputSources.includes(candidate)) continue;
         const kinds = classifyPath(candidate, paths, pathOptions);
         if (kinds.includes('secret') && !existenceOnly && !KEY_USERS.has(program)) {
           add('command:credential-store', 'secret-access', 'Reads or copies a credential store such as an SSH key, token file, keychain, or browser login data.');
