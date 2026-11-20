@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.16.1 - 2026-11-20
+
 - feeding a credential file to any program through input redirection (`cmd < ~/.ssh/id_rsa`, `<file` attached, `0<`) is now a `secret-access` finding. Before, it passed when the program was an SSH tool (`ssh host 'cmd' < secret`), or when the file name was attached to `<`. Files read through `<` count as reads, so `while read …; done < ~/.zshrc` is no longer a startup-item change
 
 ## 0.16.0 - 2026-11-19
