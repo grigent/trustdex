@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- feeding a credential file to any program through input redirection (`cmd < ~/.ssh/id_rsa`, `<file` attached, `0<`) is now a `secret-access` finding. Before, it passed when the program was an SSH tool (`ssh host 'cmd' < secret`), or when the file name was attached to `<`. Files read through `<` count as reads, so `while read …; done < ~/.zshrc` is no longer a startup-item change
+
 ## 0.16.0 - 2026-11-19
 
 - add `slack-approver`: sends each action the hook stopped to the configured owner as a Slack direct message, and records the one-time approval when the owner (by Slack user id, never the bot) reacts with ✅. ❌ refuses. Changes to agent settings or TrustDex itself and unparsed commands near protected files stay terminal-only. At most 20 messages an hour by default. Its message state lives in the protected approval state directory, and the hook now protects `slack-approver.json` next to the install policy. See [docs/SLACK_APPROVER.md](docs/SLACK_APPROVER.md)
