@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.17.0 - 2026-11-21
+
 - `trustdex init` 추가: macOS와 Linux에서 Claude Code 훅을 한 번에 설정함. 계획을 보여 주고 `yes`(또는 `--yes`)를 받아야 진행하며, `--dry-run`은 계획만 보여 줌. 실행 중인 TrustDex를 `~/.local/share/trustdex/<버전>`에 복사하고, `~/.local/bin`에 `trustdex` 명령을 만들고, 설치 정책이 없을 때만 새로 만들고, `~/.claude/settings.json`을 백업한 뒤 고장 나면 멈추는 PreToolUse 훅 하나를 추가함. 다른 설정과 훅은 그대로 두고, 다시 실행하면 TrustDex 훅만 바꿈. `--strict`는 묻지 않고 거부, `--uninstall`은 TrustDex 훅만 뺌
 - README: Claude Code 1분 시작 안내
 
