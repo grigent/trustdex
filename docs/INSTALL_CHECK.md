@@ -47,6 +47,7 @@ The version that would be installed is resolved the way the installer does for t
 | `pipe-to-shell` | BLOCK | downloaded content runs in a shell or interpreter without review |
 | `package-not-found` | BLOCK | the registry has no package with this name (typo, made-up name, or removed package) |
 | `invalid-registry-metadata` | BLOCK | name mismatch, unpublished package, missing npm SRI integrity, or a PyPI file without SHA-256 |
+| `known-malicious-release` | BLOCK | the requested or resolved PyPI version matches a bundled malware advisory |
 | `recent-release` | ASK | the resolved version is newer than `minReleaseAgeHours` (default 48). Hijacked releases are usually found and removed within this window |
 | `new-package` | ASK | the package itself is newer than `minPackageAgeDays` (default 30) |
 | `install-scripts` | ASK | the npm version has `preinstall`/`install`/`postinstall` scripts or a native build (`gypfile`) |
@@ -61,7 +62,11 @@ The version that would be installed is resolved the way the installer does for t
 | `lookup-failed` | ASK | the registry could not be reached or answered with an error |
 | `local-source`, `local-bin`, `install-scripts-disabled` | ALLOW | local path, an executable already in `node_modules/.bin` (bare `npx name` only), or scripts disabled with `--ignore-scripts` |
 
-What these checks mean: they compare registry metadata with your policy. They do not download or scan package contents, they cannot see a compromised account publishing a normal-looking release that is older than your thresholds, and an ALLOW only means that no configured signal fired. Combine them with `ignore-scripts`, lockfiles, and a sandbox.
+TrustDex checks named PyPI requirements against bundled advisories when the version is pinned exactly or resolved from PyPI metadata. It checks exact pins offline, including those using a custom index, and excludes affected releases from older-version suggestions. Package contents, local artifacts, and transitive dependencies are outside advisory matching.
+
+The bundled advisory covers `agent-framework` versions `1.26.1` and `1.26.2`. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
+
+An ALLOW only means that no configured signal fired. Combine these checks with `ignore-scripts`, lockfiles, and a sandbox.
 
 ## Install policy
 
@@ -85,4 +90,4 @@ Pass it with `--install-policy policy.json`. Unknown keys are rejected.
 
 ## Claude Code hook
 
-`trustdex claude-hook` runs these checks, together with guards for settings tampering, credential access, AI agents launched without guardrails, and startup items, as a Claude Code `PreToolUse` hook. By default a risky install is denied and can be allowed once only by a person in their own terminal with `trustdex allow-once <code>`. See [Claude Code hook](CLAUDE_HOOK.md) for setup, approvals, and limits.
+`trustdex claude-hook` runs these checks, together with guards for settings tampering, credential access, AI agents launched without guardrails, and startup items, as a Claude Code `PreToolUse` hook. By default, approvable risky installs are denied pending human approval. A `known-malicious-release` finding requires choosing a different version, even if the command was approved earlier. See [Claude Code hook](CLAUDE_HOOK.md) for setup, approvals, and limits.

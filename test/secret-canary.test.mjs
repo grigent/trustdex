@@ -296,3 +296,12 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     }
   }
 });
+
+test('blocking a known malicious release does not disclose a custom index URL', () => {
+  const args = ['check-install', `pip install --index-url https://user:${canary()}@mirror.example.invalid/simple agent-framework==1.26.2`, '--json'];
+  const result = run(args);
+  assert.equal(result.status, 2);
+  assert.equal(JSON.parse(result.stdout).decision, 'block');
+  assert.match(result.stdout, /known-malicious-release/);
+  assertNoLeak(args, result);
+});

@@ -308,6 +308,25 @@ test('runners use binaries the project already installed, after cd and in parent
   assert.deepEqual(seen, [['wrangler', 'apps/web']]);
 });
 
+test('a known malicious release stays denied even when the exact call had prior approval', async (t) => {
+  const store = createApprovalStore(tempDir(t));
+  const command = 'pip install agent-framework==1.26.1';
+  const input = { tool_name: 'Bash', tool_input: { command } };
+  const digest = actionDigest('Bash', { command, cwd: null });
+  store.approve(store.recordPending(digest, []));
+
+  for (const onRisk of ['deny', 'ask']) {
+    const { hookSpecificOutput } = await claudeHookResponse(input, {
+      paths: PATHS, fetchImpl: offline, approvals: store, onRisk
+    });
+    assert.equal(hookSpecificOutput.permissionDecision, 'deny');
+    assert.match(hookSpecificOutput.permissionDecisionReason, /known-malicious-release/);
+    assert.doesNotMatch(hookSpecificOutput.permissionDecisionReason, /allow-once|Slack/);
+  }
+  assert.deepEqual(store.listPending(), []);
+  assert.equal(store.consume(digest), true, 'the unrelated approval machinery did not consume the vetoed call');
+});
+
 test('ask mode turns ASK findings into a dialog but keeps BLOCK findings denied', async () => {
   const options = { paths: PATHS, fetchImpl: offline, onRisk: 'ask' };
   const ask = await claudeHookResponse({ tool_name: 'Bash', tool_input: { command: 'launchctl bootstrap gui/501 x.plist' } }, options);

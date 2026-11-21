@@ -7,9 +7,8 @@
 // two fixed public registry hosts. Only the parsed package name is sent.
 //
 // What the checks mean: they compare registry metadata (publish times, install
-// scripts, wheels, publishers, deprecation) with a local policy. They do not scan
-// package contents and cannot prove a package is safe; an ALLOW only means no
-// configured signal fired.
+// scripts, wheels, publishers, deprecation) with a local policy and check known
+// malicious releases against bundled advisories. An ALLOW means no signal fired.
 
 import {
   analyzeInstallCommand,
@@ -30,6 +29,7 @@ export const SIGNAL_ACTIONS = Object.freeze({
   'obfuscated-execution': 'block',
   'package-not-found': 'block',
   'invalid-registry-metadata': 'block',
+  'known-malicious-release': 'block',
   'version-not-found': 'ask',
   'recent-release': 'ask',
   'new-package': 'ask',
@@ -411,6 +411,33 @@ function pypiReleaseTime(files) {
   return times.length ? Math.min(...times) : null;
 }
 
+// Public PyPI malware advisories keyed by normalized project and final release.
+const PYPI_MALWARE_ADVISORIES = new Map([
+  ['agent-framework', new Map([
+    ['1.26.1', 'GHSA-764m-3ppc-5m73'],
+    ['1.26.2', 'GHSA-764m-3ppc-5m73']
+  ])]
+]);
+
+function pypiMalwareAdvisory(name, version) {
+  const advisories = PYPI_MALWARE_ADVISORIES.get(name);
+  if (!advisories || typeof version !== 'string') return undefined;
+  // PEP 440 final releases can have a leading v, epoch zero, and zero padding.
+  const match = /^v?(?:0+!)?(\d+(?:\.\d+)*)$/i.exec(version);
+  if (!match) return undefined;
+  const release = match[1].split('.').map((part) => part.replace(/^0+(?=\d)/, ''));
+  while (release.length > 1 && release.at(-1) === '0') release.pop();
+  return advisories.get(release.join('.'));
+}
+
+function blockKnownPypiRelease(item, name, version) {
+  const advisory = pypiMalwareAdvisory(name, version);
+  if (!advisory) return false;
+  item.version = version;
+  item.signal('known-malicious-release', `This release was identified as malicious in https://github.com/advisories/${advisory}.`);
+  return true;
+}
+
 async function checkPypi(item, parsed, context) {
   const { policy, fetchImpl, now } = context;
   const result = await fetchRegistryJson(`https://pypi.org/pypi/${encodeURIComponent(parsed.name)}/json`, fetchImpl);
@@ -424,6 +451,7 @@ async function checkPypi(item, parsed, context) {
     return;
   }
   const version = parsed.selector.kind === 'exact' ? parsed.selector.value : doc.info.version;
+  if (parsed.selector.kind === 'latest' && blockKnownPypiRelease(item, parsed.name, version)) return;
   const files = doc.releases[version];
   if (!Array.isArray(files)) return item.signal('version-not-found', 'No release matches the requested version.');
   item.version = version;
@@ -439,7 +467,8 @@ async function checkPypi(item, parsed, context) {
     const cutoff = now - policy.minReleaseAgeHours * HOUR;
     const older = Object.entries(doc.releases)
       .filter(([candidate, candidateFiles]) => /^\d+(?:\.\d+)*$/.test(candidate) && Array.isArray(candidateFiles) &&
-        candidateFiles.length && !candidateFiles.every((file) => file.yanked === true) && pypiReleaseTime(candidateFiles) < cutoff)
+        candidateFiles.length && !candidateFiles.every((file) => file.yanked === true) &&
+        !pypiMalwareAdvisory(parsed.name, candidate) && pypiReleaseTime(candidateFiles) < cutoff)
       .sort((a, b) => pypiReleaseTime(b[1]) - pypiReleaseTime(a[1]))[0]?.[0];
     const alternative = older ? ` Use ${parsed.name}==${older} instead, or wait.` : '';
     item.signal('recent-release', `Release uploaded ${hours(now - releasedAt)}h ago (policy minimum ${policy.minReleaseAgeHours}h); hijacked releases are usually caught within this window.${alternative}`);
@@ -562,8 +591,17 @@ export async function evaluateInstallCommand(command, options = {}) {
       continue;
     }
 
+    const item = makeItem(`${finding.ecosystem}:${parsed.name}`, { ignoreScripts: Boolean(finding.ignoreScripts) });
+    if (finding.ecosystem === 'pypi') {
+      const { kind, value } = parsed.selector;
+      // The generic parser leaves pins with an epoch in the unresolved range category.
+      const pinned = kind === 'exact' ? value : /^===?(v?0+!\d+(?:\.\d+)*)$/i.exec(value ?? '')?.[1];
+      if (blockKnownPypiRelease(item, parsed.name, pinned)) {
+        items.push(item);
+        continue;
+      }
+    }
     if (finding.customRegistry) {
-      const item = makeItem(`${finding.ecosystem}:${parsed.name}`);
       item.signal('custom-registry', 'The command installs this package from a non-default registry or index, so public registry metadata does not apply.');
       items.push(item);
       continue;
@@ -572,7 +610,6 @@ export async function evaluateInstallCommand(command, options = {}) {
     const key = `${finding.ecosystem}:${parsed.name}:${JSON.stringify(parsed.selector)}:${Boolean(finding.ignoreScripts)}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const item = makeItem(`${finding.ecosystem}:${parsed.name}`, { ignoreScripts: Boolean(finding.ignoreScripts) });
     try {
       if (finding.ecosystem === 'npm') await checkNpm(item, parsed, context);
       else await checkPypi(item, parsed, context);

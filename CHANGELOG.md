@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- Block PyPI `agent-framework` releases `1.26.1` and `1.26.2`. Exact pins are checked offline and the Claude Code hook denies the installation even if it was previously approved. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
+
 ## 0.17.0 - 2026-11-21
 
 - add `trustdex init`: set up the Claude Code hook in one step on macOS and Linux. It shows the plan and asks for `yes` (or `--yes`); `--dry-run` only shows it. It copies the running TrustDex to `~/.local/share/trustdex/<version>`, writes a `trustdex` command to `~/.local/bin`, creates an install policy only if none exists, and adds one fail-closed PreToolUse hook to `~/.claude/settings.json` after backing it up. Other settings and hooks are kept, and running it again replaces only the TrustDex hook. `--strict` denies risky actions instead of asking; `--uninstall` removes only the TrustDex hook
