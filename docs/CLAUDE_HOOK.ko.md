@@ -94,6 +94,8 @@ If the user understands it and still wants it, they type this in their own termi
 
 ## 설정
 
+macOS와 Linux에서는 `npx trustdex@<버전> init`이 아래 단계를 대신 해 줍니다. 그 버전을 `~/.local/share/trustdex/<버전>`에 복사하고, 실행 파일을 만들고, 정책이 없으면 만들고, 설정을 백업한 뒤 고장 나면 멈추는 훅을 등록합니다. 먼저 계획을 보여 주고 `yes`를 받습니다. 직접 설정하려면 다음과 같이 합니다.
+
 1. 검토한 TrustDex 사본을 고정된 곳에 둡니다. `npx trustdex`는 검사 도구 자체를 실행할 때마다 내려받으므로 쓰지 마세요.
 2. `trustdex allow-once`를 쉽게 칠 수 있도록, 원하면 `PATH`에 작은 `trustdex` 실행 파일을 둡니다.
 3. 검사할 모든 도구에 훅을 등록합니다.
