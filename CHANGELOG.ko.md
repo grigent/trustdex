@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.17.1 - 2026-11-21
+
 - PyPI `agent-framework`의 `1.26.1`, `1.26.2`를 차단합니다. 버전을 정확히 지정한 명령은 오프라인으로 검사하고, 이전에 승인된 명령도 Claude Code 훅이 거부합니다. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
 
 ## 0.17.0 - 2026-11-21
