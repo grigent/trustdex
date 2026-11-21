@@ -94,6 +94,8 @@ The trade-off: a dialog is one tap, and dialogs that appear often get tapped out
 
 ## Setup
 
+On macOS and Linux, `npx trustdex@<version> init` does the steps below for you: it copies that version to `~/.local/share/trustdex/<version>`, adds the wrapper, creates a policy if none exists, and registers the fail-closed hook after backing up your settings. It shows the plan and asks for `yes` first. To set it up by hand:
+
 1. Put a reviewed copy of TrustDex somewhere stable. Do not use `npx trustdex`, which would download the gate itself at run time.
 2. Optionally add a small `trustdex` wrapper on your `PATH` so that `trustdex allow-once` is easy to type.
 3. Register the hook for every tool it guards:

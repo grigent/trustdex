@@ -57,6 +57,7 @@ import { claudeHookFailure, claudeHookResponse } from '../src/claude-hook.mjs';
 import { guardPaths } from '../src/agent-guard.mjs';
 import { createApprovalStore, defaultStateDir } from '../src/approvals.mjs';
 import { createSlackApprover, parseApproverConfig, readToken, slackClient } from '../src/slack-approver.mjs';
+import { applyInit, applyUninstall, describePlan, planInit } from '../src/init.mjs';
 import { createDecisionError, createDecisionReport } from '../src/decisions.mjs';
 import { assessReview } from '../src/review.mjs';
 import { parseEd25519PublicKeyPem, parseKeysetText, spkiKeyId } from '../src/keyset.mjs';
@@ -159,6 +160,11 @@ Usage:
       Parse npm/pnpm/yarn/bun/npx and pip/uv/uvx/pipx/poetry/pdm install commands and
       curl|sh pipelines, then look up each registry package on registry.npmjs.org or
       pypi.org (explicit network lookup; only package names are sent).
+  trustdex init [--dry-run] [--strict] [--yes] [--uninstall]
+      Set up the Claude Code hook in one step (macOS and Linux): copy this TrustDex to
+      ~/.local/share/trustdex/<version>, add a trustdex command, create an install policy
+      if missing, and add the hook to ~/.claude/settings.json (backed up first). Shows the
+      plan and asks for "yes". --strict denies risky actions instead of asking.
   trustdex claude-hook [--install-policy policy.json] [--on-risk deny|ask]
       [--state-dir dir] [--protect path ...]
       Claude Code PreToolUse hook for Bash, Read, Grep, Glob, Write, Edit, MultiEdit and
@@ -1013,6 +1019,46 @@ async function main() {
       response = claudeHookFailure(input);
     }
     if (response) console.log(JSON.stringify(response));
+    return;
+  }
+
+  if (command === 'init') {
+    const home = process.env.HOME || os.homedir();
+    if (hasFlag(args, '--uninstall')) {
+      const result = applyUninstall({ settingsPath: path.join(home, '.claude', 'settings.json') });
+      console.log(result.removed
+        ? `Removed the TrustDex hook from Claude Code settings (backup: ${result.backupPath}). The copied files under ~/.local/share/trustdex are left in place.`
+        : 'No TrustDex hook was found in Claude Code settings.');
+      return;
+    }
+    const plan = planInit({ home, sourceRoot: TRUSTDEX_ROOT, version: VERSION, nodePath: process.execPath, onRisk: hasFlag(args, '--strict') ? 'deny' : 'ask' });
+    console.log(describePlan(plan));
+    if (hasFlag(args, '--dry-run')) return;
+    if (!hasFlag(args, '--yes')) {
+      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        throw new Error('init changes Claude Code settings; run it yourself in a terminal, or pass --yes.');
+      }
+      process.stdout.write('\nType "yes" to continue: ');
+      const answer = await new Promise((resolve) => {
+        process.stdin.setEncoding('utf8');
+        process.stdin.once('data', (data) => resolve(String(data).trim()));
+      });
+      process.stdin.pause();
+      if (answer.toLowerCase() !== 'yes') {
+        console.log('Nothing was changed.');
+        process.exitCode = 1;
+        return;
+      }
+    }
+    const result = applyInit(plan);
+    console.log([
+      '',
+      'Done. Start a new Claude Code session for the hook to take effect.',
+      result.backupPath ? `Previous settings: ${result.backupPath}` : 'Created ~/.claude/settings.json.',
+      result.policyCreated ? `Created ${plan.policyPath}.` : `Kept your existing ${plan.policyPath}.`,
+      `Make sure ${path.dirname(plan.wrapper)} is on your PATH to use "trustdex allow-once".`,
+      'Undo with: trustdex init --uninstall'
+    ].join('\n'));
     return;
   }
 

@@ -23,6 +23,24 @@ TrustDex는 AI 에이전트가 어떤 MCP 서버, 스킬, 플러그인을 사용
 
 > **프로젝트 상태:** TrustDex는 초기 단계이며 파일럿 사용자를 찾고 있습니다. 보안 경계가 문서화되어 있고, 지원되는 Node.js 버전에서 변경 사항을 테스트하지만, 1.0 이전에는 호환성이 계속 변경될 수 있습니다. [로드맵](docs/ROADMAP.ko.md), [거버넌스](GOVERNANCE.ko.md), [지원 가이드](SUPPORT.ko.md)를 참고하세요.
 
+## 1분 만에 Claude Code 지키기
+
+Claude Code를 자동 모드나 확인 없는 모드로 쓰시나요? 위험한 행동을 실행 전에 멈추는 검문소를 붙이세요. 몇 시간 전에 올라온 패키지 설치, SSH 키나 토큰 읽기, 에이전트 설정 바꾸기, 자동 실행 항목 심기, SSH로 서버의 비밀값 빼내기 같은 행동이에요.
+
+```bash
+npx trustdex@0.17.0 init
+```
+
+무엇을 바꿀지 보여 주고 `yes`를 입력해야 진행합니다. TrustDex를 `~/.local/share/trustdex/<버전>`에 복사해 두므로, 훅이 실행 중에 코드를 내려받지 않습니다. `~/.claude/settings.json`은 먼저 백업하고, 다른 설정과 훅은 그대로 둡니다. 끝나면 Claude Code 세션을 새로 여세요. `--dry-run`은 계획만 보여 주고, `--strict`는 위험한 행동을 묻지 않고 거부합니다. `trustdex init --uninstall`로 훅을 뺄 수 있습니다. macOS와 Linux를 설정하며, 윈도우는 [훅 안내](docs/CLAUDE_HOOK.ko.md)를 보세요.
+
+에이전트가 받는 멈춤 안내는 이렇게 생겼습니다.
+
+```text
+TrustDex stopped this action because it could harm this computer or leak credentials.
+- command:credential-store [secret-access]: Reads or copies a credential store such as an SSH key, token file, keychain, or browser login data.
+If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once K7M2QX9P
+```
+
 ## TrustDex가 필요한 이유
 
 AI 에이전트는 자격 증명을 받거나, 파일에 접근하거나, 원격 서비스에 연결하거나, 로컬 프로그램을 실행할 수 있는 서드파티 MCP 서버, 스킬, 플러그인에 점점 더 의존하고 있습니다. 패키지를 설치할 수 있다는 사실만으로 해당 패키지를 에이전트가 자동으로 사용할 수 있어서는 안 됩니다.

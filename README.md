@@ -23,6 +23,24 @@ TrustDex helps decide which MCP servers, skills, and plugins an AI agent should 
 
 > **Project status:** TrustDex is early-stage and seeking pilot users. The security boundary is documented, changes are tested on supported Node.js versions, and compatibility may still evolve before 1.0. See the [roadmap](docs/ROADMAP.md), [governance](GOVERNANCE.md), and [support guide](SUPPORT.md).
 
+## Protect Claude Code in one minute
+
+Running Claude Code in auto or bypass mode? Add a checkpoint that stops risky actions before they run: packages released hours ago, reading SSH keys or tokens, changing agent settings, installing startup items, or sending secrets over SSH.
+
+```bash
+npx trustdex@0.17.0 init
+```
+
+It shows what it will change and asks for `yes`. It copies TrustDex to `~/.local/share/trustdex/<version>`, so the hook never downloads code at run time. It also backs up `~/.claude/settings.json` and keeps your other settings and hooks. Start a new Claude Code session afterwards. `--dry-run` only shows the plan, `--strict` denies risky actions instead of asking, and `trustdex init --uninstall` removes the hook. It sets up macOS and Linux; on Windows, see [the hook guide](docs/CLAUDE_HOOK.md).
+
+What a stopped action looks like to the agent:
+
+```text
+TrustDex stopped this action because it could harm this computer or leak credentials.
+- command:credential-store [secret-access]: Reads or copies a credential store such as an SSH key, token file, keychain, or browser login data.
+If the user understands it and still wants it, they type this in their own terminal app (not in this chat): trustdex allow-once K7M2QX9P
+```
+
 ## Why TrustDex?
 
 AI agents increasingly rely on third-party MCP servers, skills, and plugins that may receive credentials, access files, connect to remote services, or execute local programs. A package being installable does not mean it should automatically become available to an agent.

@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- add `trustdex init`: set up the Claude Code hook in one step on macOS and Linux. It shows the plan and asks for `yes` (or `--yes`); `--dry-run` only shows it. It copies the running TrustDex to `~/.local/share/trustdex/<version>`, writes a `trustdex` command to `~/.local/bin`, creates an install policy only if none exists, and adds one fail-closed PreToolUse hook to `~/.claude/settings.json` after backing it up. Other settings and hooks are kept, and running it again replaces only the TrustDex hook. `--strict` denies risky actions instead of asking; `--uninstall` removes only the TrustDex hook
+- README: a one-minute start for Claude Code
+
 ## 0.16.1 - 2026-11-20
 
 - feeding a credential file to any program through input redirection (`cmd < ~/.ssh/id_rsa`, `<file` attached, `0<`) is now a `secret-access` finding. Before, it passed when the program was an SSH tool (`ssh host 'cmd' < secret`), or when the file name was attached to `<`. Files read through `<` count as reads, so `while read …; done < ~/.zshrc` is no longer a startup-item change
