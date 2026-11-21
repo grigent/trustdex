@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.17.1 - 2026-11-21
+
 - Block PyPI `agent-framework` releases `1.26.1` and `1.26.2`. Exact pins are checked offline and the Claude Code hook denies the installation even if it was previously approved. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
 
 ## 0.17.0 - 2026-11-21
