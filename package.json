@@ -1,7 +1,7 @@
 {
   "name": "trustdex",
   "version": "0.17.0",
-  "description": "A local-first trust, provenance, and review gate for AI agent tools, MCP servers, skills, and plugins.",
+  "description": "Guardrails for Claude Code and other AI coding agents: stops risky package installs, secret reads, agent-settings tampering and startup items before they run. Also gates MCP servers, skills and plugins.",
   "type": "module",
   "bin": {
     "trustdex": "bin/trustdex.mjs"
@@ -23,7 +23,17 @@
     "codex",
     "agent-skills",
     "trust-policy",
-    "provenance"
+    "provenance",
+    "claude-code",
+    "claude-code-hooks",
+    "claude",
+    "anthropic",
+    "coding-agent",
+    "ai-security",
+    "llm-security",
+    "npm-security",
+    "guardrails",
+    "pretooluse"
   ],
   "license": "MIT",
   "repository": {
