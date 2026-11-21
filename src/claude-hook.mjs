@@ -5,8 +5,8 @@
 //
 // - nothing risky: no output, so Claude Code's normal permission flow continues.
 //   TrustDex never approves anything by itself.
-// - risky (default "deny" mode): the call is denied with plain-language reasons
-//   and a one-time approval code that only a person can redeem, with
+// - risky (default "deny" mode): the call is denied with plain-language reasons.
+//   Approvable calls get a one-time approval code that a person can redeem with
 //   `trustdex allow-once <code>` in an interactive terminal. A permission dialog
 //   is one click away from "allow"; people approve them without reading,
 //   especially after turning prompts off because they are tiring. Risky
@@ -214,7 +214,8 @@ export async function claudeHookResponse(input, options = {}) {
   if (scriptsRead.size) subject.scripts = scriptFingerprints(scriptsRead, options.fingerprintScript);
   const digest = actionDigest(input.tool_name, subject);
   const itemKeys = itemApprovalKeys(items);
-  const store = options.approvals ?? null;
+  // A malware advisory takes precedence over new and previously issued approvals.
+  const store = items.some((item) => item.signals.includes('known-malicious-release')) ? null : options.approvals;
   if (store?.consume(digest, itemKeys ?? [])) return null;
 
   if (action === 'ask' && options.onRisk === 'ask') {

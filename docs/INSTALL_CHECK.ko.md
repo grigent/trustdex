@@ -51,6 +51,7 @@ BLOCK command:download-to-interpreter
 | `pipe-to-shell` | BLOCK | 내려받은 내용을 검토 없이 셸이나 해석기로 실행 |
 | `package-not-found` | BLOCK | 저장소에 그 이름의 패키지가 없음(오타, 지어낸 이름, 삭제된 패키지) |
 | `invalid-registry-metadata` | BLOCK | 이름 불일치, 게시 취소, npm SRI 무결성 없음, SHA-256 없는 PyPI 파일 |
+| `known-malicious-release` | BLOCK | 요청했거나 확인된 PyPI 버전이 내장 권고에서 악성으로 확인됨 |
 | `recent-release` | ASK | 설치될 버전이 `minReleaseAgeHours`(기본 48시간)보다 새로움. 탈취된 릴리스는 보통 이 기간 안에 발견되어 내려감 |
 | `new-package` | ASK | 패키지 자체가 `minPackageAgeDays`(기본 30일)보다 새로움 |
 | `install-scripts` | ASK | npm 버전에 `preinstall`/`install`/`postinstall` 스크립트나 네이티브 빌드(`gypfile`)가 있음 |
@@ -65,12 +66,11 @@ BLOCK command:download-to-interpreter
 | `lookup-failed` | ASK | 저장소에 연결하지 못했거나 오류 응답 |
 | `local-source`, `local-bin`, `install-scripts-disabled` | ALLOW | 로컬 경로, 이미 `node_modules/.bin`에 있는 실행 파일(이름만 쓴 `npx 이름`일 때), `--ignore-scripts`로 스크립트를 끈 경우 |
 
-이 검사의 의미: 저장소 메타데이터를 정책과 비교할 뿐입니다.
-- 패키지 내용을 내려받거나 검사하지 않습니다.
-- 탈취된 계정이 기준 기간보다 오래된 평범한 릴리스를 올린 경우는 알아채지 못합니다.
-- ALLOW는 설정한 신호가 하나도 걸리지 않았다는 뜻일 뿐입니다.
+TrustDex는 이름이 명시된 PyPI 패키지의 버전이 정확히 지정되었거나 PyPI 메타데이터에서 확인되면 내장 권고와 대조합니다. 버전이 정확히 지정된 명령은 사용자 지정 인덱스를 쓰더라도 오프라인으로 검사하고, 해당 버전은 이전 버전 추천에서 제외합니다. 패키지 내용, 로컬 파일, 전이 의존성은 권고 검사 범위 밖입니다.
 
-`ignore-scripts`, 잠금 파일, 샌드박스와 함께 쓰세요.
+내장 권고는 `agent-framework`의 `1.26.1`, `1.26.2`에 적용됩니다. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
+
+ALLOW는 설정한 신호가 하나도 걸리지 않았다는 뜻입니다. `ignore-scripts`, 잠금 파일, 샌드박스와 함께 쓰세요.
 
 ## 설치 정책
 
@@ -94,4 +94,4 @@ BLOCK command:download-to-interpreter
 
 ## Claude Code 훅
 
-`trustdex claude-hook`은 이 검사를 설정 변조, 자격 증명 접근, 안전장치를 끈 AI 에이전트 실행, 자동 실행 항목에 대한 보호와 함께 Claude Code `PreToolUse` 훅으로 실행합니다. 기본값에서는 위험한 설치를 거부하고, 사람이 자기 터미널에서 `trustdex allow-once <코드>`를 입력해야만 한 번 허용됩니다. 설정, 승인, 한계는 [Claude Code 훅](CLAUDE_HOOK.ko.md)을 참고하세요.
+`trustdex claude-hook`은 이 검사를 설정 변조, 자격 증명 접근, 안전장치를 끈 AI 에이전트 실행, 자동 실행 항목에 대한 보호와 함께 Claude Code `PreToolUse` 훅으로 실행합니다. 기본값에서는 승인 가능한 위험한 설치를 거부하고 사람의 승인을 기다립니다. `known-malicious-release`가 발견되면 해당 명령을 이전에 승인했더라도 다른 버전을 선택해야 합니다. 설정, 승인, 한계는 [Claude Code 훅](CLAUDE_HOOK.ko.md)을 참고하세요.

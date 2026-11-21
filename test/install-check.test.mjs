@@ -325,6 +325,45 @@ test('deprecated, yanked, unresolved, and missing versions need review', async (
   assert.deepEqual(item.signals, ['version-not-found']);
 });
 
+test('known malicious PyPI pins block offline, including mirrored and equivalent pins', async () => {
+  const calls = [];
+  const policy = {
+    minReleaseAgeHours: 0,
+    allowPackages: ['pypi:agent-framework'],
+    allowInstallScripts: ['pypi:agent-framework']
+  };
+  const commands = [
+    ['pip install agent-framework==1.26.1', '1.26.1'],
+    ['uv pip install Agent_Framework===1.26.2', '1.26.2'],
+    ['pip install --index-url https://mirror.example.invalid/simple "agent-framework[extra]==v0!01.26.2.0"', 'v0!01.26.2.0']
+  ];
+  for (const [command, version] of commands) {
+    const [item] = await evaluate(command, {}, { calls, policy });
+    assert.deepEqual([item.name, item.action, item.signals], [
+      `pypi:agent-framework@${version}`, 'block', ['known-malicious-release']
+    ]);
+    assert.match(item.reasons[0], /GHSA-764m-3ppc-5m73/);
+  }
+  assert.deepEqual(calls, []);
+});
+
+test('PyPI advice blocks an affected registry selection and skips it in fallback recommendations', async () => {
+  const name = 'agent-framework';
+  const affected = pypiDoc(name, { version: '1.26.2' });
+  const [blocked] = await evaluate(`pip install ${name}`, { [PYPI(name)]: affected });
+  assert.deepEqual([blocked.action, blocked.signals], ['block', ['known-malicious-release']]);
+
+  const clean = pypiDoc(name, { version: '1.26.0', uploaded: daysAgo(410) });
+  const fresh = pypiDoc(name, { version: '1.26.3', uploaded: daysAgo(1) });
+  fresh.releases = { ...clean.releases, ...affected.releases, ...fresh.releases };
+  const routes = { [PYPI(name)]: fresh };
+  const [allowed] = await evaluate(`pip install ${name}==1.26.0`, routes);
+  assert.equal(allowed.action, 'allow');
+  const [review] = await evaluate(`pip install ${name}`, routes);
+  assert.equal(review.action, 'ask');
+  assert.match(review.reasons[0], /Use agent-framework==1\.26\.0 instead/);
+});
+
 test('look-alike, unregistered, local, manifest, and local-bin installs are classified', async () => {
   let [item] = await evaluate('pip install reqeusts', { [PYPI('reqeusts')]: pypiDoc('reqeusts') });
   assert.deepEqual(item.signals, ['similar-to-popular']);
