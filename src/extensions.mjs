@@ -98,10 +98,14 @@ function toolScopeSignals(entries) {
   // this parser does not read (a quoted or nested key, a flow map, inside another value).
   const mentioned = (entries.header || '').match(/allowed[-_]?tools/gi)?.length || 0;
   const read = scopes.filter((entry) => /^allowed[-_]?tools$/i.test(entry.key)).length;
+  const uninspected = scopes.some((entry) => entry.unsupported || hasStraySyntax(entry.value)) || mentioned > read;
+  // When a scope could not be read in full, a wildcard anywhere in the header counts, so
+  // breaking the syntax cannot lower a wildcard finding to the weaker signal.
+  const wildcard = scopes.some((entry) => isWildcard(entry.value)) ||
+    (uninspected && isWildcard((entries.header || '').replace(/[[\]{}"',]/g, ' ')));
   return [
-    ...(scopes.some((entry) => isWildcard(entry.value)) ? ['wildcard-tool-scope'] : []),
-    ...(scopes.some((entry) => entry.unsupported || hasStraySyntax(entry.value)) || mentioned > read
-      ? ['uninspected-tool-scope'] : [])
+    ...(wildcard ? ['wildcard-tool-scope'] : []),
+    ...(uninspected ? ['uninspected-tool-scope'] : [])
   ];
 }
 

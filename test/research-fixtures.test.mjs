@@ -210,6 +210,12 @@ test('a tool scope that hides behind formatting is still reported', async () => 
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
   }
   assert.deepEqual(inspectSkillText('---\nname: x\nallowed-tools: Read\n---\nallowed-tools in the body\n').signals, []);
+  // Breaking the list syntax cannot lower a wildcard to the weaker uninspected signal.
+  for (const header of ['allowed-tools: [Read,\n  tools:search,\n  Bash(*)]', 'allowed-tools: [Read,\n  "*"',
+    'meta:\n  allowed-tools: ["*"]', '{allowed-tools: "*"}']) {
+    const { signals } = inspectSkillText(`---\n${header}\n---\nbody\n`);
+    assert.ok(signals.includes('wildcard-tool-scope') && signals.includes('uninspected-tool-scope'), header);
+  }
   for (const header of ['allowed-tools: |\n  *', 'allowed-tools:\n  nested:\n    - "*"', 'allowed-tools: [Read,']) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
   }
