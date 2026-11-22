@@ -106,6 +106,13 @@ function assertMetadataKeys(metadata, expected) {
   }
 }
 
+const CLAUDE_ADDITIONAL_CONTROLS = ['outsideWritesBlocked', 'denyInsteadOfPrompting', 'managedPermissionRulesOnly'];
+
+function claudeAdditionalControls(metadata) {
+  return Object.fromEntries(CLAUDE_ADDITIONAL_CONTROLS.filter((field) => Object.hasOwn(metadata, field))
+    .map((field) => [field, requireBoolean(metadata[field], field)]));
+}
+
 function normalizeClaudeMetadata(metadata) {
   const expected = new Set([
     'defaultMode',
@@ -117,13 +124,10 @@ function normalizeClaudeMetadata(metadata) {
     'bypassDisabled',
     'autoModeDisabled',
     'outsideReadsBlocked',
-    'uninspectedRootKeys'
+    'uninspectedRootKeyCount',
+    ...CLAUDE_ADDITIONAL_CONTROLS
   ]);
   assertMetadataKeys(metadata, expected);
-  if (!Array.isArray(metadata.uninspectedRootKeys) ||
-      metadata.uninspectedRootKeys.some((item) => typeof item !== 'string')) {
-    throw new Error('Invalid Claude uninspected root key metadata.');
-  }
   return {
     defaultMode: requireEnum(metadata.defaultMode, CLAUDE_MODES, 'defaultMode'),
     allowRuleCount: requireCount(metadata.allowRuleCount, 'allowRuleCount'),
@@ -134,7 +138,8 @@ function normalizeClaudeMetadata(metadata) {
     bypassDisabled: requireBoolean(metadata.bypassDisabled, 'bypassDisabled'),
     autoModeDisabled: requireBoolean(metadata.autoModeDisabled, 'autoModeDisabled'),
     outsideReadsBlocked: requireBoolean(metadata.outsideReadsBlocked, 'outsideReadsBlocked'),
-    uninspectedRootKeyCount: metadata.uninspectedRootKeys.length
+    uninspectedRootKeyCount: requireCount(metadata.uninspectedRootKeyCount, 'uninspectedRootKeyCount'),
+    ...claudeAdditionalControls(metadata)
   };
 }
 
@@ -319,7 +324,7 @@ function normalizeClaudeSnapshotMetadata(metadata) {
   const expected = new Set([
     'defaultMode', 'allowRuleCount', 'askRuleCount', 'denyRuleCount', 'allowCategories',
     'additionalDirectoryCount', 'bypassDisabled', 'autoModeDisabled', 'outsideReadsBlocked',
-    'uninspectedRootKeyCount'
+    'uninspectedRootKeyCount', ...CLAUDE_ADDITIONAL_CONTROLS
   ]);
   assertMetadataKeys(metadata, expected);
   return {
@@ -332,7 +337,8 @@ function normalizeClaudeSnapshotMetadata(metadata) {
     bypassDisabled: requireBoolean(metadata.bypassDisabled, 'bypassDisabled'),
     autoModeDisabled: requireBoolean(metadata.autoModeDisabled, 'autoModeDisabled'),
     outsideReadsBlocked: requireBoolean(metadata.outsideReadsBlocked, 'outsideReadsBlocked'),
-    uninspectedRootKeyCount: requireCount(metadata.uninspectedRootKeyCount, 'uninspectedRootKeyCount')
+    uninspectedRootKeyCount: requireCount(metadata.uninspectedRootKeyCount, 'uninspectedRootKeyCount'),
+    ...claudeAdditionalControls(metadata)
   };
 }
 
@@ -453,6 +459,14 @@ function compareClaudeMetadata(changes, before, after) {
   compareBoolean(changes, 'bypassDisabled', before.bypassDisabled, after.bypassDisabled, false);
   compareBoolean(changes, 'autoModeDisabled', before.autoModeDisabled, after.autoModeDisabled, false);
   compareBoolean(changes, 'outsideReadsBlocked', before.outsideReadsBlocked, after.outsideReadsBlocked, false);
+  for (const field of CLAUDE_ADDITIONAL_CONTROLS) {
+    if (before[field] === after[field]) continue;
+    if (before[field] === undefined || after[field] === undefined || field === 'managedPermissionRulesOnly') {
+      addChange(changes, 'review', 'value-changed', field, before[field] ?? null, after[field] ?? null);
+    } else {
+      compareBoolean(changes, field, before[field], after[field], false);
+    }
+  }
   compareCount(
     changes,
     'uninspectedRootKeyCount',

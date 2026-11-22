@@ -90,6 +90,22 @@ test('Claude bindings fail closed on ambiguous server-name matches', () => {
   assert.equal(report.status, 'needs-review');
 });
 
+test('Claude bindings require review for partial tool globs and respect managed-only rules', () => {
+  const projection = inspectClaudeMcpPermissionBindings([
+    { scope: 'user', settings: { permissions: { allow: ['mcp__user__read'] } } },
+    { scope: 'managed', settings: {
+      allowManagedPermissionRulesOnly: true,
+      permissions: { allow: ['mcp__managed__read_*'] }
+    } }
+  ], ['user', 'managed']);
+  const report = snapshot('claude', [result('user', 'allow'), result('managed', 'allow')], projection.grants);
+  assert.equal(report.bindings.find((item) => item.name === 'user').status, 'not-granted');
+  const managed = report.bindings.find((item) => item.name === 'managed');
+  assert.equal(managed.automaticGrant, 'scoped');
+  assert.equal(managed.toolScopeWildcard, true);
+  assert.equal(managed.status, 'needs-review');
+});
+
 test('Codex binding projection retains approval shape without tool lists', () => {
   const results = [
     result('approved', 'allow', { status: 'verified' }, ['auto-approve-tools']),
@@ -249,4 +265,3 @@ test('published binding fixtures enforce provenance-grant outcomes without retai
     }
   }
 });
-
