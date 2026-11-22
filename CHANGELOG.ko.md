@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.20.0 - 2026-11-22
+
 - `inspect-devin-settings`: Devin CLI `config.json`의 권한 설정을 기능별로 분류합니다. `Exec` 자동 승인 규칙, `permission_mode: "dangerous"`, 훅은 `BLOCK`이고, 그 밖의 `allow` 규칙, `accept-edits`·`smart` 모드, `local_tools_bypass_permissions`, 예전 `mcpServers` 키, 검사하지 않는 설정은 `ASK`입니다. 설정 파일은 어떤 정책에서도 ALLOW가 되지 않고, 문서화된 형식이 아닌 규칙은 거부하며, 보고서에는 권한 모드, 불리언, 개수만 들어갑니다. [docs/DEVIN.ko.md](docs/DEVIN.ko.md)를 참고하세요.
 - `inspect-gemini-settings`: Gemini CLI `settings.json`의 권한 설정을 기능별로 분류합니다. 셸 도구 자동 승인, 도구·MCP 명령 설정, 훅은 `BLOCK`이고, 그 밖의 자동 승인, 완화된 샌드박스, 폴더 신뢰 해제, 추가 정책 경로, 검사하지 않는 설정은 최소 `ASK`입니다. 설정 파일은 어떤 정책에서도 ALLOW가 되지 않으며, 보고서에는 승인 모드, 불리언, 개수만 들어갑니다. [docs/GEMINI.ko.md](docs/GEMINI.ko.md) 참고.
 - 동작 변경: Claude Code·Codex·Gemini CLI 권한 설정 파일(또는 설정 스택)은 ALLOW가 되지 않습니다. 이전에는 `localAction: "allow"`를 둔 사용자 정책이 신호가 없는 설정 파일을 승인했지만, 이제는 `permission settings always require review` 사유와 함께 ASK입니다. 기본 제공 팩은 이미 ASK였습니다.

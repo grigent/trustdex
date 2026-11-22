@@ -33,13 +33,13 @@ jobs:
       # below deliberately removes rejected servers without failing on BLOCK.
       - name: Fail on ASK or BLOCK
         run: |
-          npx --yes trustdex@0.19.0 inspect ./.mcp.json --pack strict --decisions
+          npx --yes trustdex@0.20.0 inspect ./.mcp.json --pack strict --decisions
           # For a human-reviewed policy, add:
           # --policy ./trustdex.policy.json
           # and pass the same path as 'policy' to the action below.
 
       - name: Generate filtered MCP configuration
-        uses: grigent/trustdex@7e0a920af706c382f024a174d4bdd720fa83dd1e # reviewed code from PR #91
+        uses: grigent/trustdex@3cc32f4285682f38118c71b14e5a0030b8beb68d # reviewed code from PR #91
         with:
           config: ./.mcp.json
           pack: strict
