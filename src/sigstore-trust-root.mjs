@@ -2,8 +2,10 @@
 // targets/trusted_root.json (sha256 6494e21ea73fa7ee769f85f57d5a3e6a08725eae1e38c755fc3517c9e6bc0b66)
 // and cross-checked against the copy shipped in @sigstore/tuf 5.0.1.
 // Only what the verifier uses is kept: the Fulcio certificate chains (leaf issuer first,
-// root last) and the Rekor v1 log key. Nothing is fetched at run time; a bundle signed
-// under a key that is not listed here is reported as unverified.
+// root last), the Rekor v1 log key, and the certificate-transparency log keys. Nothing
+// is fetched at run time; a bundle signed under a key that is not listed here is
+// reported as unverified. test/sigstore-trust-root.test.mjs checks this file against
+// test/fixtures/sigstore-trusted-root.json; docs/TRUST_ROOT.md describes how to refresh it.
 export const FULCIO_CHAINS = [
   {
     "validFor": {
@@ -31,6 +33,24 @@ export const REKOR_LOGS = [
     "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE2G2Y+2tabdTV5BcGiBIx0a9fAFwrkBbmLSGtks4L3qX6yYY0zufBnhC8Ur/iy55GhWP/9A/bY2LhC30M9+RYtw==",
     "validFor": {
       "start": "2021-01-12T11:53:27Z"
+    }
+  }
+];
+
+export const CT_LOGS = [
+  {
+    "logId": "CGCS8ChS/2hF0dFrJ4ScRWcYrBY9wzjSbea8IgY2b3I=",
+    "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEbfwR+RJudXscgRBRpKX1XFDy3PyudDxz/SfnRi1fT8ekpfBd2O1uoz7jr3Z8nKzxA69EUQ+eFCFI3zeubPWU7w==",
+    "validFor": {
+      "start": "2021-03-14T00:00:00Z",
+      "end": "2022-10-31T23:59:59.999Z"
+    }
+  },
+  {
+    "logId": "3T0wasbHETJjGR4cmWc3AqJKXrjePK3/h4pygC8p7o4=",
+    "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEiPSlFi0CmFTfEjCUqF9HuCEcYXNKAaYalIJmBZ8yyezPjTqhxrKBpMnaocVtLJBI1eM3uXnQzQGAJdJ4gs9Fyw==",
+    "validFor": {
+      "start": "2022-10-20T00:00:00Z"
     }
   }
 ];

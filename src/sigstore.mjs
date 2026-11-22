@@ -1,5 +1,5 @@
 import crypto from 'node:crypto';
-import { FULCIO_CHAINS, REKOR_LOGS } from './sigstore-trust-root.mjs';
+import { CT_LOGS, FULCIO_CHAINS, REKOR_LOGS } from './sigstore-trust-root.mjs';
 
 // Offline verification of the Sigstore bundle npm serves with build provenance.
 // Checked: the DSSE signature against the signing certificate; that certificate's chain
@@ -7,13 +7,16 @@ import { FULCIO_CHAINS, REKOR_LOGS } from './sigstore-trust-root.mjs';
 // Rekor entry's signed timestamp against the pinned log key; the Merkle inclusion proof
 // of the entry up to a checkpoint signed by that log key; that the entry is for this
 // envelope and certificate; and that the logged time is inside the certificate's
-// validity. Not checked: the certificate-transparency SCT, RFC 3161 timestamps,
+// validity; and an embedded signed certificate timestamp (SCT) from a pinned
+// certificate-transparency log. Not checked: RFC 3161 timestamps,
 // consistency between checkpoints (a split view of the log is not detected), and
 // trust-root freshness (the root is pinned, not fetched).
 
 const GITHUB_ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
 const OID_ISSUER_V2 = '1.3.6.1.4.1.57264.1.8';
 const OID_SOURCE_REPOSITORY = '1.3.6.1.4.1.57264.1.12';
+const OID_SCT_LIST = '1.3.6.1.4.1.11129.2.4.2';
+const OID_CT_POISON = '1.3.6.1.4.1.11129.2.4.3';
 const MAX_DER_DEPTH = 16;
 // npm provenance from 2023 uses bundle format 0.1, which may carry only the log's
 // promise. The cutoff is checked against the log-signed time, so relabelling a newer
@@ -104,21 +107,113 @@ function certificateValidAt(certificate, time) {
   return time >= Date.parse(certificate.validFrom) && time <= Date.parse(certificate.validTo);
 }
 
-function chainsToPinnedRoot(leaf, time, chains) {
-  return chains.some(({ validFor, certificates }) => {
-    if (!within(validFor, time) || certificates.length === 0) return false;
+// Returns the certificate that issued the leaf when the leaf chains to a pinned root.
+function pinnedIssuer(leaf, time, chains) {
+  for (const { validFor, certificates } of chains) {
+    if (!within(validFor, time) || certificates.length === 0) continue;
     try {
       const chain = [leaf, ...certificates.map((raw) => new crypto.X509Certificate(Buffer.from(raw, 'base64')))];
       const root = chain.at(-1);
-      return chain.every((certificate, index) => {
+      if (chain.every((certificate, index) => {
         const issuer = chain[index + 1] || root;
         return certificateValidAt(certificate, time) && (index === 0 || certificate.ca) &&
           certificate.checkIssued(issuer) && certificate.verify(issuer.publicKey);
-      });
+      })) return chain[1];
     } catch {
-      return false;
+      // Try the next pinned chain.
     }
-  });
+  }
+  return null;
+}
+
+function derLength(length) {
+  if (length < 0x80) return Buffer.from([length]);
+  const bytes = [];
+  for (let rest = length; rest > 0; rest = Math.floor(rest / 256)) bytes.unshift(rest % 256);
+  return Buffer.from([0x80 | bytes.length, ...bytes]);
+}
+
+const derWrap = (tag, content) => Buffer.concat([Buffer.from([tag]), derLength(content.length), content]);
+
+// Children of a constructed node together with their full encoding.
+function rawChildren(buffer, node) {
+  const out = [];
+  for (let offset = node.start; offset < node.end;) {
+    const child = readTlv(buffer, offset);
+    if (child.end > node.end) throw new Error('der');
+    out.push({ ...child, raw: buffer.subarray(offset, child.end) });
+    offset = child.end;
+  }
+  return out;
+}
+
+// The CT log signed the certificate as it was before the SCT list was added (RFC 6962
+// section 3.2), so the to-be-signed part is rebuilt without that one extension.
+function precertificateTbs(der) {
+  const certificate = readTlv(der, 0);
+  if (certificate.tag !== 0x30 || certificate.end !== der.length) throw new Error('der');
+  const [tbs] = rawChildren(der, certificate);
+  if (!tbs || tbs.tag !== 0x30) throw new Error('der');
+  const fields = rawChildren(der, tbs);
+  const wrapper = fields.at(-1);
+  if (!wrapper || wrapper.tag !== 0xa3) throw new Error('der');
+  const [list, ...rest] = rawChildren(der, wrapper);
+  if (!list || list.tag !== 0x30 || rest.length) throw new Error('der');
+  let sctList = null;
+  const kept = [];
+  for (const extension of rawChildren(der, list)) {
+    const parts = rawChildren(der, extension);
+    if (extension.tag !== 0x30 || parts.length < 2 || parts[0].tag !== 0x06 || parts.at(-1).tag !== 0x04) throw new Error('der');
+    const oid = oidText(der.subarray(parts[0].start, parts[0].end));
+    if (oid === OID_CT_POISON) throw new Error('poison');
+    if (oid !== OID_SCT_LIST) {
+      kept.push(extension.raw);
+      continue;
+    }
+    if (sctList) throw new Error('duplicate extension');
+    const value = parts.at(-1);
+    const inner = readTlv(der, value.start);
+    if (inner.tag !== 0x04 || inner.end !== value.end) throw new Error('der');
+    sctList = der.subarray(inner.start, inner.end);
+  }
+  if (!sctList) return null;
+  const extensions = derWrap(0xa3, derWrap(0x30, Buffer.concat(kept)));
+  return { sctList, tbs: derWrap(0x30, Buffer.concat([...fields.slice(0, -1).map((field) => field.raw), extensions])) };
+}
+
+// At least one embedded SCT must be signed by a pinned CT log over this certificate as
+// issued by the pinned issuer. SCTs from logs that are not pinned are ignored.
+function sctFromPinnedLog(leafDer, issuer, ctLogs) {
+  const precertificate = precertificateTbs(leafDer);
+  if (!precertificate || precertificate.tbs.length >= 2 ** 24) return false;
+  const { sctList, tbs } = precertificate;
+  if (sctList.length < 2 || sctList.readUInt16BE(0) !== sctList.length - 2) return false;
+  const issuerKeyHash = crypto.createHash('sha256').update(issuer.publicKey.export({ type: 'spki', format: 'der' })).digest();
+  const tbsLength = Buffer.alloc(3);
+  tbsLength.writeUIntBE(tbs.length, 0, 3);
+  let verified = false;
+  for (let offset = 2; offset < sctList.length;) {
+    if (offset + 2 > sctList.length) return false;
+    const end = offset + 2 + sctList.readUInt16BE(offset);
+    if (end > sctList.length) return false;
+    const sct = sctList.subarray(offset + 2, end);
+    offset = end;
+    // version(1) log id(32) timestamp(8) extensions(2+n) hash(1) signature(1) length(2) signature
+    if (sct.length < 47 || sct[0] !== 0) continue;
+    const extensionsEnd = 43 + sct.readUInt16BE(41);
+    if (extensionsEnd + 4 > sct.length || sct[extensionsEnd] !== 4 || sct[extensionsEnd + 1] !== 3 ||
+        extensionsEnd + 4 + sct.readUInt16BE(extensionsEnd + 2) !== sct.length) continue;
+    const log = ctLogs.find((item) => item.logId === sct.subarray(1, 33).toString('base64'));
+    const timestamp = Number(sct.readBigUInt64BE(33));
+    if (!log || !within(log.validFor, timestamp)) continue;
+    const signed = Buffer.concat([
+      Buffer.from([0, 0]), sct.subarray(33, 41), Buffer.from([0, 1]), issuerKeyHash,
+      tbsLength, tbs, sct.subarray(41, extensionsEnd)
+    ]);
+    const key = crypto.createPublicKey({ key: Buffer.from(log.publicKey, 'base64'), format: 'der', type: 'spki' });
+    if (crypto.verify('sha256', signed, key, sct.subarray(extensionsEnd + 4))) verified = true;
+  }
+  return verified;
 }
 
 function decodeBase64(value) {
@@ -196,6 +291,7 @@ function inclusionProven(proof, body, logKey, logId) {
 export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
   const chains = trust.fulcioChains || FULCIO_CHAINS;
   const logs = trust.rekorLogs || REKOR_LOGS;
+  const ctLogs = trust.ctLogs || CT_LOGS;
   try {
     const envelope = bundle?.dsseEnvelope;
     const material = bundle?.verificationMaterial;
@@ -268,7 +364,12 @@ export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
     const loggedCertificate = new crypto.X509Certificate(decodeBase64(loggedVerifier));
     if (!loggedCertificate.raw.equals(leaf.raw)) return fail('log-entry-mismatch');
 
-    if (!chainsToPinnedRoot(leaf, time, chains)) return fail('certificate-chain');
+    const issuer = pinnedIssuer(leaf, time, chains);
+    if (!issuer) return fail('certificate-chain');
+    // The certificate must have been submitted to a pinned certificate-transparency log.
+    let transparent = false;
+    try { transparent = sctFromPinnedLog(leafDer, issuer, ctLogs); } catch { transparent = false; }
+    if (!transparent) return fail('certificate-transparency');
 
     const extensions = certificateExtensions(leafDer);
     if (utf8Extension(extensions, OID_ISSUER_V2) !== GITHUB_ACTIONS_ISSUER) return fail('certificate-issuer');

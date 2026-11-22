@@ -8,7 +8,7 @@ These are proposals for discussion. Nothing on this page is implemented, and eac
 
 ## 1. Verifying the Sigstore signature on npm provenance
 
-> Status: option A below is implemented in `src/sigstore.mjs`. [TRUST_STORE.md](TRUST_STORE.md) lists what is and is not checked. A `matched` result now requires a verified signature. The Merkle inclusion proof is verified as well. The SCT and a reviewed trust-root refresh process remain open. The rest of this section is kept as the design record.
+> Status: option A below is implemented in `src/sigstore.mjs`. [TRUST_STORE.md](TRUST_STORE.md) lists what is and is not checked. A `matched` result now requires a verified signature. The Merkle inclusion proof and the embedded SCT are verified as well, and [TRUST_ROOT.md](TRUST_ROOT.md) is the reviewed trust-root refresh procedure. The rest of this section is kept as the design record.
 
 ### Today
 
