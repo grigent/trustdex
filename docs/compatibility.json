@@ -1,0 +1,196 @@
+{
+  "note": "Checked by test/compatibility.test.mjs. Edit this file together with docs/COMPATIBILITY.md and docs/COMPATIBILITY.ko.md.",
+  "platforms": [
+    {
+      "os": "ubuntu-latest",
+      "node": 20
+    },
+    {
+      "os": "ubuntu-latest",
+      "node": 22
+    },
+    {
+      "os": "ubuntu-latest",
+      "node": 24
+    },
+    {
+      "os": "windows-latest",
+      "node": 22
+    },
+    {
+      "os": "macos-latest",
+      "node": 22
+    }
+  ],
+  "inputs": [
+    {
+      "id": "mcp-json",
+      "commands": [
+        "inspect",
+        "gate",
+        "snapshot",
+        "diff",
+        "approve",
+        "recheck"
+      ],
+      "tests": [
+        "policy.test.mjs",
+        "hardening.test.mjs",
+        "research-fixtures.test.mjs"
+      ],
+      "example": "examples/mcp.json"
+    },
+    {
+      "id": "claude-mcp",
+      "commands": [
+        "inspect-claude",
+        "gate-claude",
+        "snapshot-claude",
+        "approve-claude",
+        "recheck-claude"
+      ],
+      "tests": [
+        "claude.test.mjs"
+      ],
+      "example": "examples/claude.mcp.json"
+    },
+    {
+      "id": "claude-settings",
+      "commands": [
+        "inspect-claude-settings",
+        "inspect-claude-settings-stack",
+        "snapshot-claude-settings",
+        "snapshot-claude-settings-stack",
+        "diff-permissions"
+      ],
+      "tests": [
+        "claude-settings.test.mjs",
+        "settings-stack.test.mjs",
+        "posture.test.mjs"
+      ],
+      "example": "examples/claude.settings.json"
+    },
+    {
+      "id": "claude-hook",
+      "commands": [
+        "claude-hook",
+        "init",
+        "allow-once"
+      ],
+      "tests": [
+        "claude-hook.test.mjs",
+        "init.test.mjs"
+      ]
+    },
+    {
+      "id": "codex-toml",
+      "commands": [
+        "inspect-codex",
+        "gate-codex",
+        "snapshot-codex",
+        "approve-codex",
+        "recheck-codex"
+      ],
+      "tests": [
+        "codex-toml.test.mjs",
+        "codex-review.test.mjs"
+      ],
+      "example": "examples/codex.config.toml"
+    },
+    {
+      "id": "codex-settings",
+      "commands": [
+        "inspect-codex-settings",
+        "inspect-codex-settings-stack",
+        "snapshot-codex-settings",
+        "snapshot-codex-settings-stack"
+      ],
+      "tests": [
+        "codex-settings.test.mjs",
+        "settings-stack.test.mjs"
+      ],
+      "example": "examples/codex.permissions.toml"
+    },
+    {
+      "id": "bindings",
+      "commands": [
+        "snapshot-claude-bindings",
+        "snapshot-codex-bindings",
+        "diff-bindings"
+      ],
+      "tests": [
+        "bindings.test.mjs"
+      ],
+      "example": "examples/adversarial/bindings/claude.mcp.json"
+    },
+    {
+      "id": "runtime-evidence",
+      "commands": [
+        "snapshot-runtime-tools",
+        "diff-runtime-tools",
+        "sign-runtime-inventory",
+        "verify-runtime-inventory"
+      ],
+      "tests": [
+        "runtime-evidence.test.mjs",
+        "runtime-attestation.test.mjs",
+        "keyset.test.mjs"
+      ],
+      "example": "examples/adversarial/bindings/runtime-before.json"
+    },
+    {
+      "id": "skill",
+      "commands": [
+        "inspect-skill"
+      ],
+      "tests": [
+        "v02.test.mjs",
+        "research-fixtures.test.mjs"
+      ]
+    },
+    {
+      "id": "plugin",
+      "commands": [
+        "inspect-plugin"
+      ],
+      "tests": [
+        "v02.test.mjs",
+        "research-fixtures.test.mjs"
+      ]
+    },
+    {
+      "id": "ide-extensions",
+      "commands": [
+        "inspect-ide-extensions",
+        "snapshot-ide-extensions",
+        "approve-ide-extensions",
+        "recheck-ide-extensions"
+      ],
+      "tests": [
+        "ide-extensions.test.mjs"
+      ],
+      "example": "examples/ide-extensions"
+    },
+    {
+      "id": "install-npm-pypi",
+      "commands": [
+        "check-install"
+      ],
+      "tests": [
+        "install-check.test.mjs"
+      ]
+    },
+    {
+      "id": "provenance",
+      "commands": [
+        "provenance",
+        "trust-source"
+      ],
+      "tests": [
+        "integrity.test.mjs",
+        "v03.test.mjs"
+      ],
+      "example": "examples/trust-store.example.json"
+    }
+  ]
+}

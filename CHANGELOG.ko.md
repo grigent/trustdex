@@ -7,6 +7,7 @@
 ## 미출시
 
 - `slack-approver`: 토큰 파일에는 봇 토큰 형태의 값 하나만 있어야 합니다. `tokenFile`이 다른 파일을 가리켜도 그 내용이 Slack으로 전송되지 않으며, `slack.com` 요청은 더 이상 리디렉션을 따르지 않습니다
+- 문서: `test/compatibility.test.mjs`로 확인하는 [호환성 매트릭스](docs/COMPATIBILITY.ko.md)와 [스키마 안정성 규칙](docs/SCHEMAS.ko.md), Sigstore 검증과 런타임 어댑터 [설계 노트](docs/DESIGN_NOTES.ko.md)(제안이며 구현되지 않음), 0.17.3 로드맵 진행 현황
 
 ## 0.17.3 - 2026-11-22
 
