@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- `provenance-dropped`(ASK) 추가: 이전 버전은 provenance와 함께 게시됐는데 최근 npm 릴리스에는 없을 때. 프로젝트 CI가 아닌 탈취한 토큰으로 올린 릴리스에서 흔한 모습입니다. 레지스트리가 provenance를 알려주는지만 비교하며 증명 자체는 검증하지 않습니다. 설치 정책 허용 목록으로 끌 수 없습니다
+
 ## 0.17.1 - 2026-11-21
 
 - PyPI `agent-framework`의 `1.26.1`, `1.26.2`를 차단합니다. 버전을 정확히 지정한 명령은 오프라인으로 검사하고, 이전에 승인된 명령도 Claude Code 훅이 거부합니다. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)

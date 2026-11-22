@@ -57,6 +57,7 @@ BLOCK command:download-to-interpreter
 | `install-scripts` | ASK | npm 버전에 `preinstall`/`install`/`postinstall` 스크립트나 네이티브 빌드(`gypfile`)가 있음 |
 | `source-build` | ASK | PyPI 릴리스에 휠이 없어 설치할 때 빌드 코드가 실행됨 |
 | `publisher-changed` | ASK | 최근 `minPackageAgeDays`일 안의 릴리스를, 이전 버전을 한 번도 게시한 적 없는 npm 계정이 게시함 |
+| `provenance-dropped` | ASK | 최근 `minPackageAgeDays`일 안의 릴리스에 npm provenance가 없는데, 이전 버전에는 있었음. 레지스트리가 알려주는 provenance 메타데이터의 유무만 비교하며 증명 자체는 검증하지 않음 |
 | `deprecated` / `yanked` | ASK | npm에서 사용 중단 표시 또는 PyPI에서 철회됨 |
 | `similar-to-popular` | ASK | 널리 쓰이는 패키지 이름과 한두 글자만 다르거나, `-_.`를 빼면 같거나, 다른 스코프 아래의 유명 이름 |
 | `unregistered-source` | ASK | 저장소 메타데이터가 없는 git, URL, 압축 파일 출처 |
@@ -89,7 +90,7 @@ ALLOW는 설정한 신호가 하나도 걸리지 않았다는 뜻입니다. `ign
 
 - `allowPackages`는 그 패키지의 `new-package`와 `similar-to-popular`만 끕니다.
 - `allowInstallScripts`는 `install-scripts`와 `source-build`만 끕니다.
-- 어느 목록도 BLOCK 신호, `recent-release`, `publisher-changed`는 끌 수 없습니다.
+- 어느 목록도 BLOCK 신호, `recent-release`, `publisher-changed`, `provenance-dropped`는 끌 수 없습니다.
 - `manifestInstall: "allow"`는 잠금 파일·매니페스트 설치를 ALLOW(`local-source`)로 봅니다. 작업하는 프로젝트를 믿을 때 쓰세요. 그 의존성은 TrustDex가 풀지 않습니다.
 
 ## Claude Code 훅
