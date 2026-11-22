@@ -356,6 +356,37 @@ test('deprecated, yanked, unresolved, and missing versions need review', async (
   assert.deepEqual(item.signals, ['version-not-found']);
 });
 
+test('registry drift fixtures: ownership transfer, deleted releases, and yanked releases', async () => {
+  // An account handover modeled on 2026-11 hijacks: CI-published history with
+  // provenance, then a recent latest from a new account without it.
+  const attested = { integrity: INTEGRITY, attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } };
+  const handover = npmDoc('handed-over', { version: '2.4.6', published: daysAgo(4), history: [['2.3.6', daysAgo(30), 'ci'], ['2.4.0', daysAgo(9), 'ci']] });
+  for (const v of ['2.3.6', '2.4.0']) handover.versions[v].dist = { ...attested };
+  handover.versions['2.4.6']._npmUser.name = 'newcomer';
+  let [item] = await evaluate('npm i handed-over', { [NPM('handed-over')]: handover }, { policy: { minReleaseAgeHours: 0, allowPackages: ['npm:handed-over'] } });
+  assert.deepEqual([item.action, item.signals], ['ask', ['publisher-changed', 'provenance-dropped']]);
+
+  // npm keeps publish times of removed versions; a removed pin or tag never resolves to ALLOW.
+  const removed = npmDoc('removed', { version: '2.4.0', history: [['2.4.1', daysAgo(2), 'owner']] });
+  delete removed.versions['2.4.1'];
+  [item] = await evaluate('npm i removed@2.4.1', { [NPM('removed')]: removed });
+  assert.deepEqual([item.action, item.signals], ['ask', ['version-not-found']]);
+  removed['dist-tags'].latest = '2.4.1';
+  [item] = await evaluate('npm i removed', { [NPM('removed')]: removed });
+  assert.deepEqual([item.action, item.signals], ['ask', ['version-not-found']]);
+
+  // A yanked release is never suggested as the older alternative to a too-recent one.
+  const file = (when, extra = {}) => [{ packagetype: 'bdist_wheel', upload_time_iso_8601: when, digests: { sha256: SHA256 }, ...extra }];
+  const doc = { info: { name: 'drifted', version: '1.2.0' }, releases: {
+    '1.0.0': file(daysAgo(300)), '1.1.0': file(daysAgo(30), { yanked: true }), '1.2.0': file(daysAgo(0.5))
+  } };
+  [item] = await evaluate('pip install drifted', { [PYPI('drifted')]: doc });
+  assert.deepEqual(item.signals, ['recent-release']);
+  assert.match(item.reasons[0], /drifted==1\.0\.0 instead/);
+  [item] = await evaluate('pip install drifted==1.1.0', { [PYPI('drifted')]: doc });
+  assert.deepEqual([item.action, item.signals], ['ask', ['yanked']]);
+});
+
 test('known malicious PyPI pins block offline, including mirrored and equivalent pins', async () => {
   const calls = [];
   const policy = {
