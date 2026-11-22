@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.20.1 - 2026-11-22
+
 - `provenance npm`, `trust-source npm`: Rekor 포함 증명이 없다는 것만이 실패 원인인 Sigstore 번들은 이제 `signature-not-verified` 대신 `inclusion-proof-missing` 이유와 함께 `unverifiable`입니다. 검증 정책과 형식 0.1 번들의 2024년 기준은 그대로입니다. 호환성: 0.19.0에서 `matched`였고 0.20.0이 거부하는 번들(예: 2024-02-08에 기록된 `sigstore@2.2.1`, `@sigstore/sign@2.2.2`의 provenance)은 계속 거부됩니다. [docs/TRUST_STORE.ko.md](docs/TRUST_STORE.ko.md) 참고.
 - `inspect-gemini-settings`: `tools.sandbox: false`를 명시하면 `gemini-sandbox-disabled`(최소 `ASK`)를 추가하고, `metadata.sandboxSetting`으로 생략(`omitted`), 꺼짐(`disabled`), 켜짐(`enabled`)을 구분합니다.
 - `inspect-devin-settings`: `read_config_from`에 `true`인 제공자가 있으면 Devin CLI가 그 도구의 파일에서 규칙, 스킬, 훅, MCP 서버를 가져올 수 있으므로 `devin-external-config`(`ASK`)를 추가합니다. 켜진 제공자 개수만 보고하고 가져오는 파일은 읽지 않습니다. 불리언 객체가 아닌 `read_config_from`은 이제 거부합니다.
