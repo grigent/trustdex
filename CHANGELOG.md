@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `provenance npm` and `trust-source npm` also require the signing certificate to carry an embedded signed certificate timestamp (SCT) from a pinned certificate-transparency log. A certificate without one is `unverifiable`. No network request is added.
+- The pinned Sigstore trust root is now checked by a test against the upstream `trusted_root.json` it was derived from, and [docs/TRUST_ROOT.md](docs/TRUST_ROOT.md) describes how to refresh it.
 - `provenance npm` and `trust-source npm` also verify the Merkle inclusion proof of the Sigstore log entry, up to a tree head signed by the pinned log key. A bundle whose proof is missing or does not verify is `unverifiable` and is not recorded. Only a 2023 bundle in format 0.1 may carry the log's signed promise alone. No network request is added.
 
 ## 0.19.0 - 2026-11-22

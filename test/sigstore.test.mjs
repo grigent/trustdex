@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import test from 'node:test';
 import { verifyNpmProvenanceBundle } from '../src/sigstore.mjs';
-import { FULCIO_CHAINS, REKOR_LOGS } from '../src/sigstore-trust-root.mjs';
+import { CT_LOGS, FULCIO_CHAINS, REKOR_LOGS } from '../src/sigstore-trust-root.mjs';
 
 // The public Sigstore bundle npm serves for trustdex@0.17.3 (no secrets; public log entry).
 const bundle = () => JSON.parse(fs.readFileSync(new URL('./fixtures/npm-provenance-bundle-trustdex-0.17.3.json', import.meta.url), 'utf8'));
@@ -188,4 +188,41 @@ test('only a 2023 bundle in format 0.1 may carry the log promise without an incl
   const altered = promiseOnly();
   altered.verificationMaterial.tlogEntries[0].integratedTime = '1900000000';
   assert.equal(verifyNpmProvenanceBundle(altered, repository).reason, 'log-signature');
+});
+
+test('the certificate must carry an SCT signed by a pinned certificate-transparency log', () => {
+  const sets = [['trustdex-0.17.3', expected], ['gauge-intoto', { repository: 'npm/gauge' }], ['sigstore-1.3.0-promise-only', { repository: 'sigstore/sigstore-js' }]];
+  const verify = (name, repository, ctLogs) => verifyNpmProvenanceBundle(fixture(name), repository, { ctLogs });
+  const current = CT_LOGS.find((log) => !log.validFor.end);
+  const retired = CT_LOGS.find((log) => log.validFor.end);
+  assert.ok(current && retired);
+  for (const [name, repository] of sets) {
+    assert.deepEqual(verify(name, repository, CT_LOGS), { verified: true });
+    assert.deepEqual(verify(name, repository, [current]), { verified: true });
+    for (const ctLogs of [
+      [],
+      [retired],
+      // The right log id with another log's key.
+      [{ ...current, publicKey: retired.publicKey }],
+      [{ ...current, publicKey: REKOR_LOGS[0].publicKey }],
+      // The log key is pinned, but not for the time the SCT was issued.
+      [{ ...current, validFor: { start: current.validFor.start, end: '2022-12-31T00:00:00Z' } }],
+      [{ ...current, validFor: { start: '2999-01-01T00:00:00Z' } }],
+      [{ ...current, validFor: {} }],
+      [{ ...current, logId: Buffer.alloc(32, 9).toString('base64') }]
+    ]) {
+      assert.deepEqual(verify(name, repository, ctLogs), { verified: false, reason: 'certificate-transparency' }, JSON.stringify(ctLogs));
+    }
+  }
+  // Changing any byte of the embedded SCT list breaks the certificate itself.
+  const der = Buffer.from(bundle().verificationMaterial.certificate.rawBytes, 'base64');
+  const marker = der.indexOf(Buffer.from('060a2b06010401d679020402', 'hex'));
+  assert.ok(marker > 0);
+  for (const offset of [marker + 20, marker + 40, marker + 60, marker + 100]) {
+    const altered = bundle();
+    const bytes = Buffer.from(der);
+    bytes[offset] ^= 1;
+    altered.verificationMaterial.certificate.rawBytes = bytes.toString('base64');
+    assert.equal(verifyNpmProvenanceBundle(altered, expected).verified, false, String(offset));
+  }
 });

@@ -1,0 +1,2 @@
+# Hashed byte-for-byte by test/sigstore-trust-root.test.mjs; keep the upstream line endings on every platform.
+test/fixtures/sigstore-trusted-root.json -text
