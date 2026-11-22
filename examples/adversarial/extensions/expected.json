@@ -1,0 +1,88 @@
+{
+  "block-list-wildcard.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "wildcard-tool-scope"
+    ]
+  },
+  "bom-hidden-header.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "wildcard-tool-scope"
+    ]
+  },
+  "duplicate-scope-key.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "wildcard-tool-scope"
+    ]
+  },
+  "multiline-flow-list.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "wildcard-tool-scope"
+    ]
+  },
+  "block-scalar-scope.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "uninspected-tool-scope"
+    ]
+  },
+  "pipe-to-interpreter.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "install-instructions",
+      "network-instructions",
+      "shell-instructions"
+    ]
+  },
+  "credential-paths.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "sensitive-path-instructions"
+    ]
+  },
+  "runner-install.SKILL.md": {
+    "kind": "skill",
+    "action": "ask",
+    "signals": [
+      "install-instructions"
+    ]
+  },
+  "hook-command.plugin.json": {
+    "kind": "plugin",
+    "action": "ask",
+    "signals": [
+      "plugin-executable-components"
+    ]
+  },
+  "bundled-mcp-server.plugin.json": {
+    "kind": "plugin",
+    "action": "ask",
+    "signals": [
+      "plugin-executable-components"
+    ]
+  },
+  "nested-wildcard-permission.plugin.json": {
+    "kind": "plugin",
+    "action": "ask",
+    "signals": [
+      "wildcard-tool-scope"
+    ]
+  },
+  "numeric-version.plugin.json": {
+    "kind": "plugin",
+    "action": "ask",
+    "signals": [
+      "missing-version"
+    ]
+  }
+}

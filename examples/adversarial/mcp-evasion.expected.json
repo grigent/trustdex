@@ -1,0 +1,38 @@
+{
+  "wrapped-shell": {
+    "action": "block",
+    "signals": [
+      "shell-execution"
+    ]
+  },
+  "command-as-array": {
+    "action": "block",
+    "signals": [
+      "malformed-server-fields"
+    ]
+  },
+  "args-as-string": {
+    "action": "block",
+    "signals": [
+      "malformed-server-fields"
+    ]
+  },
+  "numeric-endpoint": {
+    "action": "block",
+    "signals": [
+      "malformed-server-fields"
+    ]
+  },
+  "env-as-array": {
+    "action": "block",
+    "signals": [
+      "malformed-server-fields"
+    ]
+  },
+  "posix-shell-variant": {
+    "action": "block",
+    "signals": [
+      "shell-execution"
+    ]
+  }
+}

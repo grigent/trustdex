@@ -10,6 +10,8 @@
 - `policy.json`은 소스 허용 목록과 독립적으로 차단 신호를 테스트할 수 있도록 픽스처 패키지 1개와 픽스처 호스트 2개를 명시적으로 신뢰합니다.
 - `expected.json`은 필수 결정과 최소 신호를 기록합니다.
 - `drift-before.json`과 `drift-after.json`은 검토된 패키지에 비밀 정보를 포함하는 환경 키가 추가되는 상황을 모델링합니다.
+- `mcp-evasion.json`과 `mcp-evasion.expected.json`은 래퍼 뒤에 셸을 숨기거나 잘못된 타입의 필드를 쓰는 MCP 항목을 다룹니다.
+- `extensions/`에는 와일드카드 도구 범위를 숨기거나, 코드를 내려받아 실행하라고 지시하거나, 실행 구성 요소를 포함한 스킬 파일과 플러그인 매니페스트가 있습니다. `extensions/expected.json`에 파일별 신호와 strict 판정이 기록돼 있습니다.
 - [`permissions/`](permissions/README.ko.md)는 값이 제거된 Claude/Codex 권한 상태 드리프트를 다룹니다.
 - [`bindings/`](bindings/README.ko.md)는 MCP 출처와 자동 권한 연결 및 명시적 런타임 인벤토리 대조를 다룹니다.
 
