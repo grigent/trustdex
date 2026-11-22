@@ -12,6 +12,7 @@ import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
 import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
 import { parseDevinMcpConfig } from '../src/devin-config.mjs';
+import { parseGeminiMcpConfig } from '../src/gemini-config.mjs';
 import {
   inspectClaudeMcpPermissionBindings,
   inspectClaudeSettings,
@@ -126,6 +127,11 @@ Usage:
   trustdex snapshot-devin <mcp_config.json> --out snapshot.json [--pack ...]
   trustdex approve-devin <mcp_config.json> --private key.pem --dir review [--pack ...]
   trustdex recheck-devin <mcp_config.json> --review-dir review
+  trustdex inspect-gemini <mcpServers.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex gate-gemini <mcpServers.json> --out gated.json [--pack ...] [--policy policy.json]
+  trustdex snapshot-gemini <mcpServers.json> --out snapshot.json [--pack ...]
+  trustdex approve-gemini <mcpServers.json> --private key.pem --dir review [--pack ...]
+  trustdex recheck-gemini <mcpServers.json> --review-dir review
       (--public key.pem | --keyset keyset.json) [--json]
   Claude MCP commands accept the same policy/trust-store flags as their generic counterparts.
 
@@ -390,7 +396,7 @@ async function emitInspection(results, args, policy) {
 }
 
 const DECISION_COMMANDS = new Set([
-  'inspect', 'inspect-claude', 'inspect-devin', 'inspect-skill', 'inspect-plugin', 'inspect-codex',
+  'inspect', 'inspect-claude', 'inspect-devin', 'inspect-gemini', 'inspect-skill', 'inspect-plugin', 'inspect-codex',
   'inspect-claude-settings', 'inspect-claude-settings-stack',
   'inspect-codex-settings', 'inspect-codex-settings-stack', 'inspect-ide-extensions'
 ]);
@@ -403,13 +409,16 @@ function setInspectExitCode(results) {
 async function evaluateMcp(configPath, args, options = {}) {
   const isClaude = options.claude === true || args[0].endsWith('-claude');
   const isDevin = args[0].endsWith('-devin');
+  const isGemini = args[0].endsWith('-gemini');
   let config;
   try { config = await readJson(configPath); } catch (error) {
     if (isClaude && error instanceof SyntaxError) throw new Error('Invalid Claude MCP JSON.');
     if (isDevin && error instanceof SyntaxError) throw new Error('Invalid Devin MCP JSON.');
+    if (isGemini && error instanceof SyntaxError) throw new Error('Invalid Gemini MCP JSON.');
     throw error;
   }
-  const inspectionConfig = isClaude ? parseClaudeMcpConfig(config) : isDevin ? parseDevinMcpConfig(config) : config;
+  const inspectionConfig = isClaude ? parseClaudeMcpConfig(config) : isDevin ? parseDevinMcpConfig(config)
+    : isGemini ? parseGeminiMcpConfig(config) : config;
   const inspected = inspectMcpConfig(inspectionConfig);
   const store = await loadTrustStore(args);
   const withProvenance = store ? attachProvenanceAll(inspected, store) : inspected;
@@ -720,7 +729,7 @@ async function main() {
     return;
   }
 
-  if (command === 'inspect' || command === 'inspect-claude' || command === 'inspect-devin') {
+  if (command === 'inspect' || command === 'inspect-claude' || command === 'inspect-devin' || command === 'inspect-gemini') {
     const configPath = args[1];
     if (!configPath) throw new Error('inspect requires a path to an MCP JSON file.');
 
@@ -1231,7 +1240,7 @@ async function main() {
     return;
   }
 
-  if (command === 'gate' || command === 'gate-claude' || command === 'gate-devin') {
+  if (command === 'gate' || command === 'gate-claude' || command === 'gate-devin' || command === 'gate-gemini') {
     const configPath = args[1];
     const out = getFlag(args, '--out');
     if (!configPath || !out) throw new Error('gate requires <mcp.json> and --out <gated.json>.');
@@ -1252,7 +1261,7 @@ async function main() {
     return;
   }
 
-  if (['approve', 'approve-claude', 'approve-devin', 'approve-codex', 'approve-ide-extensions'].includes(command)) {
+  if (['approve', 'approve-claude', 'approve-devin', 'approve-gemini', 'approve-codex', 'approve-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const privatePath = getFlag(args, '--private');
     const reviewDir = getFlag(args, '--dir');
@@ -1284,7 +1293,7 @@ async function main() {
     return;
   }
 
-  if (['recheck', 'recheck-claude', 'recheck-devin', 'recheck-codex', 'recheck-ide-extensions'].includes(command)) {
+  if (['recheck', 'recheck-claude', 'recheck-devin', 'recheck-gemini', 'recheck-codex', 'recheck-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const reviewDir = getFlag(args, '--review-dir');
     const verifier = await loadVerifier(args);
@@ -1330,7 +1339,7 @@ async function main() {
     return;
   }
 
-  if (['snapshot', 'snapshot-claude', 'snapshot-devin', 'snapshot-codex', 'snapshot-ide-extensions'].includes(command)) {
+  if (['snapshot', 'snapshot-claude', 'snapshot-devin', 'snapshot-gemini', 'snapshot-codex', 'snapshot-ide-extensions'].includes(command)) {
     const configPath = args[1];
     const out = getFlag(args, '--out');
     if (!configPath || !out) throw new Error('snapshot requires <mcp.json> and --out <snapshot.json>.');

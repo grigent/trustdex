@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "reviewed": {
+      "httpUrl": "https://reviewed.invalid/mcp",
+      "includeTools": ["search"]
+    },
+    "unknown": {
+      "url": "https://unknown.invalid/sse"
+    },
+    "needsReview": {
+      "httpUrl": "https://reviewed.invalid/mcp",
+      "headers": {
+        "Authorization": "Bearer INERT_PLACEHOLDER"
+      }
+    },
+    "trusted": {
+      "httpUrl": "https://reviewed.invalid/mcp",
+      "trust": true
+    }
+  }
+}

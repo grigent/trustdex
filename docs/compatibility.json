@@ -69,6 +69,20 @@
       "example": "examples/devin.mcp_config.json"
     },
     {
+      "id": "gemini-mcp",
+      "commands": [
+        "inspect-gemini",
+        "gate-gemini",
+        "snapshot-gemini",
+        "approve-gemini",
+        "recheck-gemini"
+      ],
+      "tests": [
+        "gemini.test.mjs"
+      ],
+      "example": "examples/gemini.mcpServers.json"
+    },
+    {
       "id": "claude-settings",
       "commands": [
         "inspect-claude-settings",
