@@ -108,7 +108,8 @@
             "user": { "$ref": "#/$defs/count" },
             "profile": { "$ref": "#/$defs/count" },
             "project": { "$ref": "#/$defs/count" },
-            "cli": { "$ref": "#/$defs/count" }
+            "cli": { "$ref": "#/$defs/count" },
+            "legacy-managed": { "$ref": "#/$defs/count" }
           }
         }
       }

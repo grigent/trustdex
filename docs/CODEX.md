@@ -113,7 +113,29 @@ node ./bin/trustdex.mjs inspect-codex-settings-stack \
   --pack strict --json
 ```
 
-The stack is merged from system through CLI precedence, one supported security field
+`approval_policy` accepts `untrusted`, `on-request` (including the `on-failure` alias),
+`never`, or a granular table. `untrusted` is the most restrictive approval setting;
+the alias is normalized to `on-request`. Effective granular tables must provide
+boolean `sandbox_approval`, `rules`, and `mcp_elicitations`; `skill_approval` and
+`request_permissions` default to false. Granular tables merge key by key across layers.
+
+`--managed` means cloud-managed defaults, below user settings. Optional
+`--legacy-managed <file>` means `/etc/codex/managed_config.toml`, above CLI overrides
+(highest supported precedence). Codex also turns legacy managed configuration into
+requirements constraints, which TrustDex does not model. Codex skips project layers
+in untrusted projects: pass only trusted project files.
+
+For stacks, the highest layer setting `sandbox_mode` or `default_permissions` selects
+legacy or named permissions respectively; if both occur in one layer, named wins.
+TrustDex conservatively reports the union of both mechanisms' risk signals and exposes
+only `permissionSelection: legacy|named|null`, not profile names. Single-file inspection
+still rejects combining the mechanisms. Custom profile `extends` values are inspected
+only for built-in capability signals; profile names and other values are not retained.
+Codex currently permits only `:read-only` and `:workspace` as built-in parents;
+TrustDex also blocks `:danger-full-access` inheritance conservatively even though
+this Codex version rejects that parent.
+
+The stack is merged from system through legacy-managed precedence, one supported security field
 at a time. In particular, `sandbox_workspace_write.writable_roots` is an array:
 a higher-precedence array replaces the lower-precedence array rather than concatenating
 it, matching the Codex TOML merge implementation for non-table values. Unsupported syntax in any source fails closed even when a higher source

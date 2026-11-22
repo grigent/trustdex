@@ -105,7 +105,13 @@ node ./bin/trustdex.mjs inspect-codex-settings-stack \
   --pack strict --json
 ```
 
-스택은 시스템부터 CLI 우선순위까지 지원되는 보안 필드별로 병합됩니다. 높은 소스가 재정의하더라도 어떤 소스에 지원하지 않는 구문이 있으면 안전하게 실패합니다. 보고서에는 고정된 소스 범위 개수만 남고 설정 경로나 관련 없는 값은 남지 않습니다. 소스는 명시적 입력이며 신뢰된 프로젝트, 활성 프로필, 클라우드 관리 기본값, 요구사항 또는 CLI 플래그를 자동으로 찾지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. 공식 OpenAI 문서는 샌드박스 경계와 승인 처리를 구분합니다. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [설정 우선순위](https://developers.openai.com/codex/config-basic)를 참고하세요.
+`approval_policy`는 `untrusted`, `on-request` (`on-failure` 별칭 포함), `never` 또는 granular 테이블을 받습니다. `untrusted`가 가장 제한적이며 별칭은 `on-request`로 정규화됩니다. 최종 granular 테이블에는 불리언 `sandbox_approval`, `rules`, `mcp_elicitations`가 필수입니다. `skill_approval`, `request_permissions` 기본값은 false이며 레이어 간 테이블은 키별로 병합됩니다.
+
+`--managed`는 사용자 설정보다 낮은 클라우드 관리 기본값입니다. `--legacy-managed <file>`은 CLI보다 높은 `/etc/codex/managed_config.toml`로, 지원 범위 내 최상위 우선순위입니다. Codex는 이를 requirements 제약으로도 변환하지만 TrustDex는 그 제약을 모델링하지 않습니다. Codex는 신뢰하지 않는 프로젝트의 프로젝트 레이어를 건너뛰므로 신뢰된 프로젝트 파일만 전달하세요.
+
+스택에서는 `sandbox_mode` 또는 `default_permissions`를 지정하는 가장 높은 레이어가 각각 legacy 또는 named 권한을 선택합니다. 같은 레이어에 둘 다 있으면 named가 우선합니다. TrustDex는 두 방식의 위험 신호 합집합을 보고하며 프로필 이름 대신 `permissionSelection: legacy|named|null`만 남깁니다. 단일 파일에서는 두 방식의 혼합을 계속 거부합니다. 커스텀 프로필은 `extends`의 내장 권한 신호만 검사하고 프로필 이름이나 다른 값을 보관하지 않습니다. 현재 Codex가 허용하는 내장 부모는 `:read-only`, `:workspace`뿐입니다. TrustDex는 Codex가 거부하는 `:danger-full-access` 상속도 보수적으로 BLOCK 처리합니다.
+
+스택은 시스템부터 legacy-managed 우선순위까지 지원되는 보안 필드별로 병합됩니다. 높은 소스가 재정의하더라도 어떤 소스에 지원하지 않는 구문이 있으면 안전하게 실패합니다. 보고서에는 고정된 소스 범위 개수만 남고 설정 경로나 관련 없는 값은 남지 않습니다. 소스는 명시적 입력이며 프로젝트, 활성 프로필, 클라우드 관리 기본값, 요구사항 또는 CLI 플래그를 자동으로 찾지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [설정 우선순위](https://developers.openai.com/codex/config-basic)를 참고하세요.
 
 설정 파일이나 스택은 정책과 관계없이 ALLOW가 되지 않습니다. `localAction: "allow"`인
 정책에서도 ASK입니다.

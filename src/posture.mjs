@@ -16,7 +16,7 @@ const CLAUDE_MODES = new Set([
   'auto'
 ]);
 const CLAUDE_CATEGORIES = new Set(['filesystem', 'mcp', 'network', 'other', 'shell', 'subagent']);
-const CODEX_APPROVALS = new Set([null, 'on-request', 'never', 'granular']);
+const CODEX_APPROVALS = new Set([null, 'untrusted', 'on-request', 'never', 'granular']);
 const CODEX_REVIEWERS = new Set([null, 'user', 'auto_review', 'guardian_subagent']);
 const CODEX_SANDBOXES = new Set([null, 'read-only', 'workspace-write', 'danger-full-access']);
 const CODEX_PERMISSIONS = new Set([null, ':read-only', ':workspace', ':danger-full-access', 'custom']);
@@ -70,7 +70,7 @@ const RUNTIME_SIGNALS = Object.freeze({
 });
 const SOURCE_SCOPES = Object.freeze({
   claude: Object.freeze(['user', 'project', 'local', 'session', 'managed']),
-  codex: Object.freeze(['system', 'managed', 'user', 'profile', 'project', 'cli'])
+  codex: Object.freeze(['system', 'managed', 'user', 'profile', 'project', 'cli', 'legacy-managed'])
 });
 
 function requireObject(value, message) {
@@ -145,6 +145,7 @@ function normalizeClaudeMetadata(metadata) {
 
 function normalizeCodexMetadata(metadata) {
   const expected = new Set([
+    'permissionSelection',
     'approvalPolicy',
     'granularPromptCategories',
     'approvalsReviewer',
@@ -166,6 +167,9 @@ function normalizeCodexMetadata(metadata) {
     }
   }
   return {
+    ...(Object.hasOwn(metadata, 'permissionSelection') ? {
+      permissionSelection: requireEnum(metadata.permissionSelection, new Set([null, 'legacy', 'named']), 'permissionSelection')
+    } : {}),
     approvalPolicy: requireEnum(metadata.approvalPolicy, CODEX_APPROVALS, 'approvalPolicy'),
     granularPromptCategories: requireStringArray(
       metadata.granularPromptCategories,
@@ -225,7 +229,8 @@ function normalizeSettingsContext(context, runtime) {
   const scopes = SOURCE_SCOPES[runtime];
   assertMetadataKeys(inputCounts, new Set(scopes));
   const sourceCounts = Object.fromEntries(
-    scopes.map((scope) => [scope, requireCount(inputCounts[scope], `sourceCounts.${scope}`)])
+    scopes.filter((scope) => scope !== 'legacy-managed' || Object.hasOwn(inputCounts, scope))
+      .map((scope) => [scope, requireCount(inputCounts[scope], `sourceCounts.${scope}`)])
   );
   if (Object.values(sourceCounts).reduce((total, count) => total + count, 0) !== sourceCount) {
     throw new Error('Permission posture source counts do not match the total source count.');
@@ -344,6 +349,7 @@ function normalizeClaudeSnapshotMetadata(metadata) {
 
 function normalizeCodexSnapshotMetadata(metadata) {
   const expected = new Set([
+    'permissionSelection',
     'approvalPolicy', 'granularPromptCategories', 'approvalsReviewer', 'sandboxMode',
     'defaultPermissionsKind', 'webSearch', 'networkAccess', 'additionalWritableRootCount',
     'tempRootsExcluded', 'subagentsEnabled', 'uninspectedAgentKeyCount',
@@ -351,6 +357,9 @@ function normalizeCodexSnapshotMetadata(metadata) {
   ]);
   assertMetadataKeys(metadata, expected);
   return {
+    ...(Object.hasOwn(metadata, 'permissionSelection') ? {
+      permissionSelection: requireEnum(metadata.permissionSelection, new Set([null, 'legacy', 'named']), 'permissionSelection')
+    } : {}),
     approvalPolicy: requireEnum(metadata.approvalPolicy, CODEX_APPROVALS, 'approvalPolicy'),
     granularPromptCategories: requireStringArray(
       metadata.granularPromptCategories,
@@ -477,7 +486,11 @@ function compareClaudeMetadata(changes, before, after) {
 }
 
 function compareCodexMetadata(changes, before, after) {
+  if ((before.permissionSelection ?? null) !== (after.permissionSelection ?? null)) {
+    addChange(changes, 'review', 'value-changed', 'permissionSelection', before.permissionSelection ?? null, after.permissionSelection ?? null);
+  }
   compareRanked(changes, 'approvalPolicy', before.approvalPolicy, after.approvalPolicy, {
+    untrusted: -1,
     'on-request': 0,
     granular: 0,
     never: 2
@@ -566,8 +579,8 @@ export function diffPermissionPostureSnapshots(beforeInput, afterInput) {
       }
     }
     for (const scope of SOURCE_SCOPES[before.runtime]) {
-      const previous = before.sources.sourceCounts[scope];
-      const current = after.sources.sourceCounts[scope];
+      const previous = before.sources.sourceCounts[scope] ?? 0;
+      const current = after.sources.sourceCounts[scope] ?? 0;
       if (previous !== current) {
         addChange(changes, 'review', 'count-changed', `sources.${scope}`, previous, current);
       }

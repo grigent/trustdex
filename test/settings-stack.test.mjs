@@ -164,7 +164,8 @@ test('Codex stack applies system-to-CLI precedence and closest project wins', ()
     user: 1,
     profile: 0,
     project: 2,
-    cli: 1
+    cli: 1,
+    'legacy-managed': 0
   });
   assert.equal(evaluate(result).action, 'ask');
 });
