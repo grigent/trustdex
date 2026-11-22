@@ -187,6 +187,10 @@ test('a tool scope that hides behind formatting is still reported', async () => 
   ]) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('wildcard-tool-scope'), header);
   }
+  // An unterminated list in an unrelated key cannot swallow the scope that follows.
+  for (const header of ['tags: [a,\nallowed-tools: "*"', 'tags: [a,\n  b\n allowed_tools: Bash(*)']) {
+    assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('wildcard-tool-scope'), header);
+  }
   for (const header of ['allowed-tools: |\n  *', 'allowed-tools:\n  nested:\n    - "*"', 'allowed-tools: [Read,']) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
   }
