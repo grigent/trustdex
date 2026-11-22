@@ -353,6 +353,7 @@ test('hijacked npm releases block offline and when resolved, and are never sugge
   for (const [command, name, advisory] of [
     ['npm i vant@4.9.11', 'npm:vant@4.9.11', /youzan\/vant\/discussions\/13273/],
     ['pnpm add vant@=2.13.5', 'npm:vant@2.13.5', /youzan\/vant\/discussions\/13273/],
+    ['npm i vant@4.9.12+build.7', 'npm:vant@4.9.12+build.7', /youzan\/vant\/discussions\/13273/],
     ['npm i --registry https://mirror.example.invalid/ qrcode-reader-vue3@3.1.4', 'npm:qrcode-reader-vue3@3.1.4', /GHSA-9q69-8j7m-ppmh/],
     ['npx -y @wppconnect-team/wppconnect@2.4.1', 'npm:@wppconnect-team/wppconnect@2.4.1', /GHSA-cxc9-87g6-qrj9/]
   ]) {

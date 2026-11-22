@@ -435,7 +435,8 @@ const NPM_MALWARE_ADVISORIES = new Map([
 
 function npmMalwareAdvisory(name, version) {
   if (typeof version !== 'string') return undefined;
-  return NPM_MALWARE_ADVISORIES.get(name)?.get(version.replace(/^[=v]+/i, ''));
+  // npm ignores build metadata when matching versions, so `1.2.3+x` installs 1.2.3.
+  return NPM_MALWARE_ADVISORIES.get(name)?.get(version.trim().replace(/^[=v]+/i, '').replace(/\+.*$/, ''));
 }
 
 function blockKnownRelease(item, advisory, version) {
