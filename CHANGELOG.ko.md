@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- `inspect-gemini-settings`: Gemini CLI가 끔으로 처리하는 문자열 `"false"`, `"0"`인 `tools.sandbox`를 이제 `disabled`로 분류하고 `gemini-sandbox-disabled`(최소 `ASK`)와 `sandboxConfigured: false`를 보고합니다. 이전에는 `enabled`로 보고했습니다. 파일의 `false`가 다른 계층보다 우선한다는 설명을 바로잡았습니다. `sandboxSetting`은 검사한 파일의 설정이며, 실제 값은 상위 설정 계층, `GEMINI_SANDBOX`, `--sandbox`에 따라 달라질 수 있습니다.
+
 ## 0.20.1 - 2026-11-22
 
 - `provenance npm`, `trust-source npm`: Rekor 포함 증명이 없다는 것만이 실패 원인인 Sigstore 번들은 이제 `signature-not-verified` 대신 `inclusion-proof-missing` 이유와 함께 `unverifiable`입니다. 검증 정책과 형식 0.1 번들의 2024년 기준은 그대로입니다. 호환성: 0.19.0에서 `matched`였고 0.20.0이 거부하는 번들(예: 2024-02-08에 기록된 `sigstore@2.2.1`, `@sigstore/sign@2.2.2`의 provenance)은 계속 거부됩니다. [docs/TRUST_STORE.ko.md](docs/TRUST_STORE.ko.md) 참고.

@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `inspect-gemini-settings`: `tools.sandbox` set to the string `"false"` or `"0"` is now `disabled` with `gemini-sandbox-disabled` (at least `ASK`) and `sandboxConfigured: false`, as Gemini CLI treats both as off; before, they were reported as `enabled`. The docs no longer say that a file's `false` overrides other layers: `sandboxSetting` describes the inspected file, and other settings layers, `GEMINI_SANDBOX`, or `--sandbox` can change the runtime value.
+
 ## 0.20.1 - 2026-11-22
 
 - `provenance npm` and `trust-source npm`: a Sigstore bundle whose only failure is a missing Rekor inclusion proof is now `unverifiable` with the reason `inclusion-proof-missing` instead of `signature-not-verified`. The verification policy and the 2024 cutoff for format 0.1 bundles are unchanged. Compatibility: bundles that 0.19.0 reported as `matched` and 0.20.0 refuses, such as the 2024-02-08 provenance of `sigstore@2.2.1` and `@sigstore/sign@2.2.2`, stay refused; see [docs/TRUST_STORE.md](docs/TRUST_STORE.md).

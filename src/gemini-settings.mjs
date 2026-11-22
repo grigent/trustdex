@@ -2,6 +2,7 @@
 // enums, booleans, and counts. Tool names, commands, paths, hook bodies, variable names,
 // and the names of settings TrustDex does not know are never retained.
 
+const SANDBOX_OFF = new Set([false, 'false', '0']);
 const APPROVAL_MODES = new Set(['default', 'auto_edit', 'plan']);
 const SECTION_KEYS = Object.freeze({
   general: new Set(['defaultApprovalMode']),
@@ -96,8 +97,11 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
   if (sandbox !== undefined && typeof sandbox !== 'boolean' && (typeof sandbox !== 'string' || !sandbox.trim())) {
     throw new Error('Gemini tools.sandbox must be a boolean or a non-empty string.');
   }
-  const sandboxSetting = sandbox === undefined ? 'omitted' : sandbox === false ? 'disabled' : 'enabled';
-  // An explicit false turns the sandbox off even when another settings layer enables it.
+  // Gemini CLI treats false, "false", and "0" as off. This is the value in this file only;
+  // another settings layer, GEMINI_SANDBOX, or --sandbox can change what applies at runtime.
+  const sandboxSetting = sandbox === undefined
+    ? 'omitted'
+    : SANDBOX_OFF.has(sandbox) ? 'disabled' : 'enabled';
   if (sandboxSetting === 'disabled') signals.add('gemini-sandbox-disabled');
   const sandboxPaths = strings(tools, 'sandboxAllowedPaths', 'tools.sandboxAllowedPaths');
   const sandboxNetwork = boolean(tools, 'sandboxNetworkAccess', 'tools.sandboxNetworkAccess') === true;
@@ -171,7 +175,7 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
       defaultApprovalMode: approvalMode ?? null,
       autoApprovedToolCount: allowed.length,
       autoApprovedShellCount: shellGrants.length,
-      sandboxConfigured: sandbox !== undefined && sandbox !== false,
+      sandboxConfigured: sandboxSetting === 'enabled',
       sandboxSetting,
       sandboxAllowedPathCount: sandboxPaths.length,
       sandboxNetworkAccess: sandboxNetwork,
