@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.20.3 - 2026-11-22
+
 - `inspect-gemini-settings`: `tools.sandbox` is `enabled` only for `true`, `"true"`, `"1"`, or a sandbox command Gemini CLI supports (`docker`, `podman`, `sandbox-exec`, `runsc`, `lxc`, `windows-native`). Any other string, which Gemini CLI rejects as a configuration error, now fails closed (exit 2) instead of being reported as `enabled`; the value is not printed.
 
 ## 0.20.2 - 2026-11-22

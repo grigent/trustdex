@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.20.3 - 2026-11-22
+
 - `inspect-gemini-settings`: `tools.sandbox`는 `true`, `"true"`, `"1"`, 또는 Gemini CLI가 지원하는 샌드박스 명령(`docker`, `podman`, `sandbox-exec`, `runsc`, `lxc`, `windows-native`)일 때만 `enabled`입니다. Gemini CLI가 설정 오류로 처리하는 그 밖의 문자열은 이제 `enabled`로 보고하지 않고 거부합니다(종료 코드 2). 입력 값은 출력하지 않습니다.
 
 ## 0.20.2 - 2026-11-22
