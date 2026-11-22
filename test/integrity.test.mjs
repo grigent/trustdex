@@ -177,3 +177,65 @@ test('rejects internally inconsistent artifact evidence', () => {
   wrongVersion.claims[0].evidence.artifactVerification.version = '2.0.0';
   assert.throws(() => parseTrustStore(wrongVersion), /version does not match/);
 });
+
+test('npm build provenance must come from the repository the package declares', async () => {
+  const bytes = Buffer.from('attested package bytes');
+  const integrity = `sha512-${crypto.createHash('sha512').update(bytes).digest('base64')}`;
+  const hex = crypto.createHash('sha512').update(bytes).digest('hex');
+  const statement = (repository, overrides = {}) => ({
+    attestations: [{
+      predicateType: 'https://slsa.dev/provenance/v1',
+      bundle: { dsseEnvelope: {
+        payloadType: 'application/vnd.in-toto+json',
+        payload: Buffer.from(JSON.stringify({
+          subject: [{ name: 'pkg:npm/%40example/agent@2.0.0', digest: { sha512: hex } }],
+          predicate: { buildDefinition: { externalParameters: { workflow: { repository, path: '.github/workflows/publish.yml' } } } },
+          ...overrides
+        })).toString('base64')
+      } }
+    }]
+  });
+  const packument = (declared, previous = declared, attested = true, previousAttested = false) => ({
+    name: '@example/agent',
+    'dist-tags': { latest: '2.0.0' },
+    time: { '1.0.0': '2026-01-01T00:00:00Z', '2.0.0': '2026-11-01T00:00:00Z' },
+    versions: {
+      '1.0.0': { repository: { url: `git+https://github.com/${previous}.git` }, dist: { integrity, ...(previousAttested ? { attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } } : {}) } },
+      '2.0.0': { repository: { url: `git+https://github.com/${declared}.git` }, dist: { integrity, ...(attested ? { attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } } : {}) } }
+    },
+    maintainers: [{ name: 'alice' }]
+  });
+  const ATTEST = 'https://registry.npmjs.org/-/npm/v1/attestations/%40example%2Fagent@2.0.0';
+  const lookup = (doc, attestation) => inspectNpmPackage('@example/agent', {
+    fetchImpl: async (url) => url === ATTEST
+      ? (attestation === undefined ? response({}, 404) : response(attestation))
+      : response(doc)
+  });
+
+  let observation = await lookup(packument('Example/Agent'), statement('https://github.com/example/agent'));
+  assert.equal(observation.evidence.buildProvenance.status, 'matched');
+  const claim = provenanceObservationToClaim(observation, 'Example Publisher');
+  assert.deepEqual(claim.evidence.buildProvenance, {
+    source: 'npm-registry-attestation', version: '2.0.0', sourceRepository: 'example/agent',
+    workflowPath: '.github/workflows/publish.yml', signatureVerified: false
+  });
+  parseTrustStore({ version: 1, claims: [claim] });
+
+  const refused = [
+    [packument('attacker/agent', 'example/agent'), statement('https://github.com/attacker/agent'), 'mismatch'],
+    [packument('example/agent'), statement('https://github.com/attacker/agent'), 'mismatch'],
+    [packument('example/agent', 'example/agent', false, true), undefined, 'dropped'],
+    [packument('example/agent'), undefined, 'unverifiable'],
+    [packument('example/agent'), statement('https://github.com/example/agent', { subject: [{ name: 'pkg:npm/%40example/agent@2.0.0', digest: { sha512: '00' } }] }), 'unverifiable'],
+    [packument('example/agent'), { attestations: [{ predicateType: 'https://slsa.dev/provenance/v1', bundle: { dsseEnvelope: { payloadType: 'text/plain', payload: '' } } }] }, 'unverifiable']
+  ];
+  for (const [doc, attestation, status] of refused) {
+    observation = await lookup(doc, attestation);
+    assert.equal(observation.evidence.buildProvenance.status, status);
+    assert.throws(() => provenanceObservationToClaim(observation, 'Example Publisher'), /Refusing to trust an npm package/);
+  }
+
+  observation = await lookup(packument('example/agent', 'example/agent', false), undefined);
+  assert.equal(observation.evidence.buildProvenance.status, 'absent');
+  assert.equal(provenanceObservationToClaim(observation, 'Example Publisher').evidence.buildProvenance, undefined);
+});

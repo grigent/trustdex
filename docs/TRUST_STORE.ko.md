@@ -55,6 +55,20 @@ node ./bin/trustdex.mjs inspect ./examples/mcp.json \
 - 소유권이나 기능이 변경되면 주장을 재검토
 - 증거 필드에 자격 증명, 토큰, 비공개 URL 또는 비밀을 기록하지 않음
 
+## npm 빌드 출처
+
+`provenance npm`과 `trust-source npm`은 최신 버전에 대해 npm이 알려주는 SLSA provenance도 읽습니다. 그 안의 소스 저장소를, 패키지가 지금 선언한 저장소와 직전 버전이 선언했던 저장소와 비교합니다.
+
+| 결과 | 의미 | `trust-source` |
+|---|---|---|
+| `matched` | 선언한 GitHub 저장소에서 빌드됨 | 주장에 `buildProvenance`(소스 저장소, 워크플로 경로)를 기록 |
+| `absent` | 이 패키지는 provenance를 게시한 적이 없음 | 이 항목 없이 주장을 기록 |
+| `dropped` | 이전 버전에는 provenance가 있었는데 최신 버전에는 없음 | 거부 |
+| `mismatch` | 패키지가 선언한(또는 이전에 선언했던) 저장소와 다른 저장소에서 빌드됨. 공격자 포크에서 빌드한 릴리스가 이런 모습 | 거부 |
+| `unverifiable` | 증명을 받아오거나 해석하지 못했거나, 증명 대상이 해당 버전의 sha512와 맞지 않음 | 거부 |
+
+증명은 이 명시적 명령을 실행할 때만 `registry.npmjs.org`에서 정확한 이름과 버전으로 받아옵니다. `check-install`과 `claude-hook`은 이 요청을 하지 않습니다. 증명이 정확한 버전과 sha512 다이제스트를 가리키는지는 확인하지만 Sigstore 서명은 검증하지 않습니다. 결과는 레지스트리가 알려준 내용을 기록할 뿐이며(`signatureVerified: false`), 소스 저장소나 워크플로가 안전하다는 것을 증명하지 않습니다.
+
 ## 무결성 기반 패키지 증거
 
 `trust-source npm` 및 `trust-source mcp`의 선택적 `--artifact` 플래그는 아티팩트 증거를 기록하기 전에 사용자가 제공한 파일을 검증합니다.

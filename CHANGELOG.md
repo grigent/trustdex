@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `provenance npm` and `trust-source npm` compare the latest version's npm build provenance with the repository the package declares now and declared before. `trust-source` refuses a release built from a different repository (`mismatch`), one that dropped provenance earlier versions had (`dropped`), or provenance it cannot match to the version's sha512 (`unverifiable`), and records the source repository and workflow in the claim when they match. The Sigstore signature is not verified, and `check-install` makes no new request
+
 ## 0.17.2 - 2026-11-22
 
 - add `provenance-dropped` (ASK): a recent npm release without provenance, when an earlier version of the package was published with it. Releases pushed with a stolen token instead of the project's CI often look like this. TrustDex compares only whether the registry reports provenance; it does not verify the attestation. Install-policy allowlists cannot silence it
