@@ -15,6 +15,7 @@ import { CT_LOGS, FULCIO_CHAINS, REKOR_LOGS } from './sigstore-trust-root.mjs';
 const GITHUB_ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
 const OID_ISSUER_V2 = '1.3.6.1.4.1.57264.1.8';
 const OID_SOURCE_REPOSITORY = '1.3.6.1.4.1.57264.1.12';
+const OID_BUILD_CONFIG_URI = '1.3.6.1.4.1.57264.1.18';
 const OID_SCT_LIST = '1.3.6.1.4.1.11129.2.4.2';
 const OID_CT_POISON = '1.3.6.1.4.1.11129.2.4.3';
 const MAX_DER_DEPTH = 16;
@@ -380,6 +381,19 @@ export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
     if (!expected?.repository ||
         String(repository).toLowerCase() !== `https://github.com/${String(expected.repository).toLowerCase()}`) {
       return fail('certificate-repository');
+    }
+    // Fulcio's Build Config URI names the top-level workflow file the OIDC token came from.
+    const buildConfig = utf8Extension(extensions, OID_BUILD_CONFIG_URI);
+    let workflowPath = null;
+    if (buildConfig !== null && buildConfig !== undefined) {
+      const prefix = `${String(repository).toLowerCase()}/`;
+      const rest = String(buildConfig).toLowerCase().startsWith(prefix) ? String(buildConfig).slice(prefix.length) : '';
+      const match = /^(\.github\/workflows\/[^@/]+)@./.exec(rest);
+      if (!match) return fail('certificate-workflow');
+      workflowPath = match[1];
+    }
+    if (expected.workflowPath !== undefined && expected.workflowPath !== workflowPath) {
+      return fail('certificate-workflow');
     }
     if (proofMissing) return fail('log-inclusion-proof-missing');
     return { verified: true };

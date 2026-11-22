@@ -129,6 +129,17 @@ test('the certificate must name the expected source repository', () => {
   assert.equal(verifyNpmProvenanceBundle(bundle()).verified, false);
 });
 
+test('the certificate Build Config URI must name the workflow the statement claims', () => {
+  assert.deepEqual(verifyNpmProvenanceBundle(bundle(), { ...expected, workflowPath: '.github/workflows/publish.yml' }), { verified: true });
+  for (const workflowPath of ['.github/workflows/other.yml', '.github/workflows/Publish.yml', null]) {
+    assert.deepEqual(verifyNpmProvenanceBundle(bundle(), { ...expected, workflowPath }), { verified: false, reason: 'certificate-workflow' });
+  }
+  // gauge calls a reusable workflow: the SAN names it, the Build Config URI names the caller.
+  const gauge = fixture('gauge-intoto');
+  assert.deepEqual(verifyNpmProvenanceBundle(gauge, { repository: 'npm/gauge', workflowPath: '.github/workflows/release.yml' }), { verified: true });
+  assert.equal(verifyNpmProvenanceBundle(gauge, { repository: 'npm/gauge', workflowPath: '.github/workflows/release-integration.yml' }).reason, 'certificate-workflow');
+});
+
 test('a bundle is not verified without a pinned root and log key valid at signing time', () => {
   const ended = (list) => list.map((item) => ({ ...item, validFor: { ...item.validFor, end: '2022-01-01T00:00:00Z' } }));
   assert.equal(verifyNpmProvenanceBundle(bundle(), expected, { fulcioChains: [] }).reason, 'certificate-chain');

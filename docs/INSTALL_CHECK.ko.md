@@ -39,7 +39,7 @@ BLOCK command:download-to-interpreter
 명령이 설치 도구를 다른 레지스트리나 인덱스로 보내면(`--registry`, `--index-url`, `--extra-index-url`, `--find-links` 등) 그 패키지는 공개 저장소에서 조회하지 않고 ASK `custom-registry`로 보고합니다.
 
 설치될 버전은 지원하는 문법 범위에서 설치 도구와 같은 방식으로 정합니다.
-- npm: 정확한 버전, dist-tag, `^`, `~`, x 범위, 비교식, `||`, 하이픈 범위를 지원합니다. `latest` 태그가 범위를 만족하면 그 버전을 고릅니다.
+- npm: 정확한 버전, dist-tag, `^`, `~`, x 범위, 비교식, `||`, 하이픈 범위를 지원하며 npm-pick-manifest를 따릅니다. 패키지 이름만 쓰거나 범위를 쓰면 기본 태그(`latest`, npm `--tag`로 바꾼 태그)가 범위를 만족하고, deprecated가 아니고, TrustDex를 실행하는 Node.js에서 `engines`를 만족할 때 그 버전을 고릅니다. 아니면 deprecated가 아니고 `engines`를 만족하는 버전을 우선해 가장 높은 버전을 고릅니다. 이 선택이 TrustDex가 알 수 없는 조건(`engines.npm`, 해석하지 못하는 `engines` 범위)에 달려 있거나, 정확한 버전 없이 npm `--before`를 쓰거나, 범위에 프리릴리스 비교식이 있으면 ASK `unresolved-version`입니다. `.npmrc`나 환경 변수로 설정한 `--tag`/`--before`는 읽지 않습니다.
 - PyPI: `==`, `===`, 조건 없음, 하한 하나(`>=`/`>`, 최신 릴리스로 봄)를 지원합니다.
 
 그 밖의 범위는 ASK `unresolved-version`이니 정확한 버전으로 고정하세요.

@@ -239,7 +239,7 @@ async function inspectNpmBuildProvenance(data, version, fetchImpl, verifyBundle 
   if (!matched) return { status: 'mismatch', sourceRepository, workflowPath, ...base };
   let verification;
   try {
-    verification = verifyBundle(attestation.bundle, { repository: sourceRepository });
+    verification = verifyBundle(attestation.bundle, { repository: sourceRepository, workflowPath });
   } catch {
     verification = null;
   }

@@ -230,6 +230,11 @@ test('npm build provenance must come from the repository the package declares', 
   });
   assert.deepEqual(parseTrustStore({ version: 1, claims: [claim] }).claims[0].evidence.buildProvenance, claim.evidence.buildProvenance);
 
+  // The verifier is asked to bind the statement's workflow to the certificate.
+  const seen = [];
+  await lookup(packument('example/agent'), statement('https://github.com/example/agent'), (b, want) => { seen.push(want); return { verified: true }; });
+  assert.deepEqual(seen, [{ repository: 'example/agent', workflowPath: '.github/workflows/publish.yml' }]);
+
   // A matching statement whose signature does not verify is not a match.
   for (const verifier of [verifyNpmProvenanceBundle, () => ({ verified: false, reason: 'x' }), () => { throw new Error('x'); }, () => ({ verified: 'yes' })]) {
     observation = await lookup(packument('example/agent'), statement('https://github.com/example/agent'), verifier);
