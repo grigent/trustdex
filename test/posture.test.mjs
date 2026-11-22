@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 
 import { inspectClaudeSettings } from '../src/claude-settings.mjs';
 import { inspectCodexSettingsText, inspectCodexSettingsStack } from '../src/codex-settings.mjs';
-import { sha256Json } from '../src/canonical.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
 import { sha256Json } from '../src/canonical.mjs';
