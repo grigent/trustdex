@@ -26,6 +26,22 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
   for agents, strict policy validation, signed Codex config reviews, a TOML lexer for
   Codex configs, per-runner package identity checks, `--keyset` verification-key
   allowlists with rotation and revocation, and an output canary sweep.
+- TrustDex 0.13.0 adds atomic, symlink-safe CLI output, bounded provenance lookups,
+  fail-closed npm unpublish/integrity checks, and cross-platform path recognition;
+  0.13.1 adds resource budgets for IDE extension trees.
+- TrustDex 0.14.0 adds `check-install` (offline parsing of npm, pnpm, yarn, bun, npx,
+  pip, uv, uvx, pipx, poetry, and pdm installs plus registry metadata checks) and the
+  `claude-hook` `PreToolUse` guard for risky installs, settings tampering, credential
+  reads, permission bypasses, and startup items.
+- TrustDex 0.15.0 checks commands sent over SSH; 0.15.1 binds one-time approvals of
+  local scripts to their SHA-256.
+- TrustDex 0.16.0 adds `slack-approver` for owner-only Slack approval of stopped
+  actions; 0.16.1 treats credential files fed through input redirection as secret access.
+- TrustDex 0.17.0 adds one-step `trustdex init` for the Claude Code hook; 0.17.1 blocks
+  known malicious PyPI releases from a bundled advisory.
+- TrustDex 0.17.2 starts the integrity work: `provenance-dropped` flags recent npm
+  releases that lack the provenance earlier versions had, and bundled advisories block
+  hijacked npm releases. Releases ship with checksums, an SBOM, and GitHub attestations.
 
 ## Now: harden the boundary
 
