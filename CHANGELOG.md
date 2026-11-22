@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.20.0 - 2026-11-22
+
 - `inspect-devin-settings`: classify the permission settings of a Devin CLI `config.json` by capability. An auto-approved `Exec` rule, `permission_mode: "dangerous"`, and hooks are `BLOCK`; other `allow` rules, the `accept-edits` and `smart` modes, `local_tools_bypass_permissions`, a legacy `mcpServers` key, and uninspected settings are `ASK`. A config file never reaches ALLOW under any policy, a rule outside the documented forms fails closed, and the report holds only the permission mode, booleans, and counts. See [docs/DEVIN.md](docs/DEVIN.md).
 - `inspect-gemini-settings`: classify the permission settings of a Gemini CLI `settings.json` by capability. An auto-approved shell tool, a tool or MCP command setting, and hooks are `BLOCK`; other automatic grants, a relaxed sandbox, disabled folder trust, extra policy paths, and uninspected settings are at least `ASK`. A settings file never reaches ALLOW under any policy, and the report holds only the approval mode, booleans, and counts. See [docs/GEMINI.md](docs/GEMINI.md).
 - Behavior change: a Claude Code, Codex, or Gemini CLI permission settings file (or settings stack) is never ALLOW. A custom policy with `localAction: "allow"` used to approve a settings file that raised no signal; it is now ASK, with the reason `permission settings always require review`. The built-in packs already returned ASK.
