@@ -34,6 +34,13 @@ test('automatic grants and command-running settings are classified by capability
     [{ tools: { allowed: [' run_shell_command'] } }, 'gemini-auto-approved-shell', 'block'],
     [{ tools: { allowed: ['ShellTool(npm test)'] } }, 'gemini-auto-approved-shell', 'block'],
     [{ tools: { allowed: ['*'] } }, 'gemini-auto-approved-shell', 'block'],
+    [{ tools: { core: ['ShellTool(node --version)'] } }, 'gemini-auto-approved-shell', 'block'],
+    [{ tools: { core: ['read_file'] } }, 'gemini-auto-approved-tools', 'ask'],
+    [{ mcp: { allowed: ['reviewed'] } }, 'gemini-auto-approved-mcp', 'ask'],
+    [{ mcp: { autoAllowInHeadless: true } }, 'gemini-auto-approved-mcp', 'ask'],
+    [{ mcpServers: { reviewed: { trust: true } } }, 'gemini-auto-approved-mcp', 'ask'],
+    [{ admin: { mcp: { config: { reviewed: { trust: true } } } } }, 'gemini-auto-approved-mcp', 'ask'],
+    [{ admin: { mcp: { requiredConfig: { reviewed: { url: 'https://reviewed.invalid/mcp' } } } } }, 'gemini-auto-approved-mcp', 'ask'],
     [{ tools: { discoveryCommand: 'inert-discover' } }, 'gemini-tool-commands', 'block'],
     [{ tools: { callCommand: 'inert-call' } }, 'gemini-tool-commands', 'block'],
     [{ mcp: { serverCommand: 'inert-server' } }, 'gemini-tool-commands', 'block'],
@@ -60,6 +67,37 @@ test('automatic grants and command-running settings are classified by capability
     assert.equal(result.action, action, JSON.stringify(settings));
     assert.notEqual(evaluate(settings, 'development').action, 'allow', JSON.stringify(settings));
   }
+});
+
+test('Gemini core grants and unresolved tool selectors fail closed under built-in packs', () => {
+  for (const pack of ['strict', 'official-first', 'development']) {
+    for (const setting of ['allowed', 'core']) {
+      const literal = evaluate({ tools: { [setting]: ['run_shell_command'] } }, pack);
+      assert.ok(literal.signals.includes('gemini-auto-approved-shell'));
+      assert.equal(literal.action, 'block');
+      const unresolved = evaluate({ tools: { [setting]: ['${INERT_SELECTOR:-INERT_FALLBACK}'] } }, pack);
+      assert.ok(unresolved.signals.includes('gemini-unresolved-tool-grants'));
+      assert.equal(unresolved.action, 'block');
+      assert.equal(unresolved.metadata.autoApprovedShellCount, 0);
+      assert.doesNotMatch(JSON.stringify(unresolved), /INERT_SELECTOR|INERT_FALLBACK/);
+    }
+  }
+});
+
+test('Gemini admin secure mode disables both YOLO and always-allow in the inspected file', () => {
+  const settings = { admin: { secureModeEnabled: true }, security: { disableYoloMode: false, disableAlwaysAllow: false } };
+  const { metadata } = inspectGeminiSettings(settings);
+  assert.equal(metadata.yoloModeDisabled, true);
+  assert.equal(metadata.alwaysAllowDisabled, true);
+});
+
+test('Gemini MCP settings do not flag explicitly untrusted servers as auto-approved', () => {
+  const report = inspectGeminiSettings({
+    mcp: { autoAllowInHeadless: false, allowed: [] },
+    mcpServers: { reviewed: { trust: false } },
+    admin: { mcp: { config: { reviewed: {} }, requiredConfig: { required: { trust: false } } } }
+  });
+  assert.deepEqual(report.signals, ['gemini-mcp-servers']);
 });
 
 test('an explicit tools.sandbox false is ASK under every policy and differs from an omitted sandbox', () => {
@@ -212,6 +250,7 @@ test('malformed Gemini settings fail closed', () => {
     { tools: { callCommand: '' } },
     { mcp: { serverCommand: 5 } },
     { mcp: { allowed: 'a' } },
+    { mcp: { autoAllowInHeadless: 'false' } },
     { security: { folderTrust: false } },
     { security: { folderTrust: { enabled: 'false' } } },
     { security: { enablePermanentToolApproval: 1 } },
@@ -222,8 +261,12 @@ test('malformed Gemini settings fail closed', () => {
     { hooksConfig: { enabled: 'no' } },
     { policyPaths: './policies' },
     { mcpServers: [] },
+    { mcpServers: { a: null } },
+    { mcpServers: { a: { trust: 'false' } } },
     { admin: { mcp: { config: [] } } },
-    { admin: { secureModeEnabled: 'yes' } }
+    { admin: { mcp: { requiredConfig: { a: { trust: 'false' } } } } },
+    { admin: { secureModeEnabled: 'yes' } },
+    { admin: { secureModeEnabled: true }, security: { disableAlwaysAllow: 'false' } }
   ]) assert.throws(() => inspectGeminiSettings(settings), /Gemini/, JSON.stringify(settings));
 });
 
@@ -248,7 +291,7 @@ test('the report holds counts and enums, never tool names, commands, paths, or s
     mcpServers: { [marker]: { command: marker } }
   }, 'settings.json');
   assert.equal(JSON.stringify(result).includes(marker), false);
-  assert.equal(result.metadata.autoApprovedToolCount, 2);
+  assert.equal(result.metadata.autoApprovedToolCount, 3);
   assert.equal(result.metadata.autoApprovedShellCount, 1);
   assert.equal(result.metadata.commandSettingCount, 3);
   assert.equal(result.metadata.hookCount, 1);

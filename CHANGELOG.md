@@ -12,8 +12,9 @@
 - Generic MCP (`inspect`): a server field TrustDex does not read (for example `headers`, `envFile`, `cwd`, or a `type` other than `stdio`, `http`, `sse`, `streamable-http`) adds `uninspected-server-fields` (at least `ASK`) instead of being ignored.
 - Codex MCP (`inspect-codex`): following Codex's own validation, `default_tools_approval_mode` must be `auto`, `prompt`, `writes`, or `approve`; an `env_vars` `source` must be `local` or `remote`; HTTP-only keys on a `command` server, `args`/`env`/`env_vars`/`cwd` on a `url` server, a server with neither `command` nor `url`, and an empty `http_headers_helper` now fail closed.
 - Claude Code settings inspection now blocks executable helpers and hook suppression, redacts unknown setting names, and follows documented merge rules for environment keys, managed-only permission lists, and outside-directory restrictions. Claude posture v1/v2 includes optional structural evidence for the write block, deny-instead-of-prompting, and managed-only rules. Comparing a snapshot without this evidence with one that has it requires review.
-
 - Correct Codex approval enums, alias normalization, granular validation and recursive stack merging. Audit custom permission inheritance, report conservative permission-selection risks, and support highest-precedence `--legacy-managed` sources while preserving older posture snapshot digests. Settings remain at least ASK.
+- Gemini MCP inspection now rejects unresolved references in launch targets or tool filters and tracks simple credential references in headers and `env` without retaining values. Signed reviews for affected configurations may require a new review.
+- Gemini permission inspection now reports `tools.core` automatic grants, blocks unresolved tool grants in built-in packs, reports MCP auto-approval settings, and reflects admin secure mode in the YOLO and always-allow indicators.
 
 ## 0.20.4 - 2026-11-22
 

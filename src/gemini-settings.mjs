@@ -15,7 +15,7 @@ const SECTION_KEYS = Object.freeze({
     'sandbox', 'sandboxAllowedPaths', 'sandboxNetworkAccess', 'core', 'allowed',
     'confirmationRequired', 'exclude', 'discoveryCommand', 'callCommand'
   ]),
-  mcp: new Set(['serverCommand', 'allowed', 'excluded']),
+  mcp: new Set(['serverCommand', 'allowed', 'excluded', 'autoAllowInHeadless']),
   security: new Set([
     'toolSandboxing', 'disableYoloMode', 'disableAlwaysAllow', 'enablePermanentToolApproval',
     'autoAddToPolicyByDefault', 'blockGitExtensions', 'allowedExtensions', 'folderTrust',
@@ -33,9 +33,9 @@ function isObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-function section(root, key) {
+function section(root, key, label = key) {
   if (!Object.hasOwn(root, key)) return {};
-  if (!isObject(root[key])) throw new Error(`Gemini ${key} must be an object.`);
+  if (!isObject(root[key])) throw new Error(`Gemini ${label} must be an object.`);
   return root[key];
 }
 
@@ -65,11 +65,11 @@ function command(object, key, label) {
   return true;
 }
 
-function entryCount(object, key, label) {
-  const value = own(object, key);
-  if (value === undefined) return 0;
-  if (!isObject(value)) throw new Error(`Gemini ${label} must be an object.`);
-  return Object.keys(value).length;
+function mcpServerTrust(object, key, label) {
+  return Object.values(section(object, key, label)).map((server) => {
+    if (!isObject(server)) throw new Error(`Gemini ${label} entries must be objects.`);
+    return boolean(server, 'trust', `${label} entry trust`);
+  });
 }
 
 export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
@@ -90,11 +90,14 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
   }
   if (approvalMode === 'auto_edit') signals.add('gemini-auto-edit');
 
-  const allowed = strings(tools, 'allowed', 'tools.allowed');
-  const shellGrants = allowed.filter((entry) => SHELL_GRANT.test(entry.trim()) || entry.includes('*'));
-  if (allowed.length) signals.add('gemini-auto-approved-tools');
+  const grants = [
+    ...strings(tools, 'allowed', 'tools.allowed'),
+    ...strings(tools, 'core', 'tools.core')
+  ];
+  const shellGrants = grants.filter((entry) => SHELL_GRANT.test(entry.trim()) || entry.includes('*'));
+  if (grants.length) signals.add('gemini-auto-approved-tools');
   if (shellGrants.length) signals.add('gemini-auto-approved-shell');
-  strings(tools, 'core', 'tools.core');
+  if (grants.some((entry) => ENV_REFERENCE.test(entry))) signals.add('gemini-unresolved-tool-grants');
   strings(tools, 'confirmationRequired', 'tools.confirmationRequired');
   strings(tools, 'exclude', 'tools.exclude');
 
@@ -123,7 +126,8 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
     command(mcp, 'serverCommand', 'mcp.serverCommand')
   ].filter(Boolean).length;
   if (commandSettings) signals.add('gemini-tool-commands');
-  strings(mcp, 'allowed', 'mcp.allowed');
+  const allowedMcp = strings(mcp, 'allowed', 'mcp.allowed');
+  const autoAllowInHeadless = boolean(mcp, 'autoAllowInHeadless', 'mcp.autoAllowInHeadless') === true;
   strings(mcp, 'excluded', 'mcp.excluded');
 
   boolean(security, 'toolSandboxing', 'security.toolSandboxing');
@@ -161,7 +165,7 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
     strings(settings, 'adminPolicyPaths', 'adminPolicyPaths').length;
   if (policyPathCount) signals.add('gemini-policy-paths');
 
-  boolean(admin, 'secureModeEnabled', 'admin.secureModeEnabled');
+  const secureModeEnabled = boolean(admin, 'secureModeEnabled', 'admin.secureModeEnabled') === true;
   for (const key of ['extensions', 'skills']) {
     const part = section(admin, key);
     uninspectedSettingCount += Object.keys(part).filter((name) => name !== 'enabled').length;
@@ -170,10 +174,16 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
   const adminMcp = section(admin, 'mcp');
   uninspectedSettingCount += Object.keys(adminMcp).filter((key) => !['enabled', 'config', 'requiredConfig'].includes(key)).length;
   boolean(adminMcp, 'enabled', 'admin.mcp.enabled');
-  const mcpServerCount = entryCount(settings, 'mcpServers', 'mcpServers') +
-    entryCount(adminMcp, 'config', 'admin.mcp.config') +
-    entryCount(adminMcp, 'requiredConfig', 'admin.mcp.requiredConfig');
+  const mcpTrust = mcpServerTrust(settings, 'mcpServers', 'mcpServers');
+  const adminMcpTrust = mcpServerTrust(adminMcp, 'config', 'admin.mcp.config');
+  const requiredMcpTrust = mcpServerTrust(adminMcp, 'requiredConfig', 'admin.mcp.requiredConfig');
+  const mcpServerCount = mcpTrust.length + adminMcpTrust.length + requiredMcpTrust.length;
   if (mcpServerCount) signals.add('gemini-mcp-servers');
+  // Gemini defaults injected admin-required servers to trusted.
+  if (allowedMcp.length || autoAllowInHeadless ||
+      [...mcpTrust, ...adminMcpTrust].includes(true) || requiredMcpTrust.some((trust) => trust !== false)) {
+    signals.add('gemini-auto-approved-mcp');
+  }
 
   if (uninspectedSettingCount) signals.add('uninspected-gemini-settings');
 
@@ -183,7 +193,7 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
     source: { type: 'local', format: 'gemini-settings', path: sourceName },
     metadata: {
       defaultApprovalMode: approvalMode ?? null,
-      autoApprovedToolCount: allowed.length,
+      autoApprovedToolCount: grants.length,
       autoApprovedShellCount: shellGrants.length,
       sandboxConfigured: sandboxSetting === 'enabled',
       sandboxSetting,
@@ -197,8 +207,8 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
       autoAddToPolicyByDefault: autoAddToPolicy,
       folderTrustDisabled,
       unredactedEnvironmentVariableCount: unredacted.length,
-      yoloModeDisabled: boolean(security, 'disableYoloMode', 'security.disableYoloMode') === true,
-      alwaysAllowDisabled: boolean(security, 'disableAlwaysAllow', 'security.disableAlwaysAllow') === true,
+      yoloModeDisabled: boolean(security, 'disableYoloMode', 'security.disableYoloMode') === true || secureModeEnabled,
+      alwaysAllowDisabled: boolean(security, 'disableAlwaysAllow', 'security.disableAlwaysAllow') === true || secureModeEnabled,
       uninspectedSettingCount
     },
     signals: [...signals].sort(),

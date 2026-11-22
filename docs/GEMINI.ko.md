@@ -36,7 +36,7 @@ JSON 파일로 복사하세요. `settings.json` 전체는 거부합니다. 다�
 
 서버에는 `command`, `url`, `httpUrl` 중 정확히 하나만 있어야 합니다. 그 밖의 것은 모두
 거부합니다. 알 수 없는 루트·서버 필드, 형식이 잘못된 항목, `command`·`args`·`cwd`·
-엔드포인트의 `${...}`, 자격 증명·쿼리 매개변수·프래그먼트가 들어 있는 URL이
+엔드포인트·도구 필터의 미확인 환경 변수 참조, 자격 증명·쿼리 매개변수·프래그먼트가 들어 있는 URL이
 해당됩니다. 문서화된 `oauth`, `authProviderType`, `targetAudience`,
 `targetServiceAccount` 필드도 명시적인 검사 구현이 생기기 전까지는 의도적으로
 제외합니다. 자동 OAuth 탐색에는 이 필드가 필요 없으며, 그 부분은 Gemini CLI의 책임으로
@@ -44,15 +44,17 @@ JSON 파일로 복사하세요. `settings.json` 전체는 거부합니다. 다�
 
 신호:
 
-- `trust: true`는 Gemini CLI가 해당 서버의 모든 도구 호출 확인을 건너뛰게 합니다.
+- `trust: true`는 Gemini CLI가 해당 서버의 도구 호출 확인을 건너뛸 수 있게 합니다.
   `auto-approve-tools` 신호가 붙고 기본 제공 팩은 이를 검토 대상으로 두므로, 이런 서버는
   명시적인 정책 결정 없이는 ALLOW가 되지 않습니다.
-- 헤더가 하나라도 있으면 `static-http-headers`가 붙습니다. Gemini CLI는 변수 확장을
-  `env`에 대해서만 문서화하므로, 헤더 값은 리터럴 자격 증명으로 취급합니다.
+- 헤더가 하나라도 있으면 기존 `static-http-headers` 신호를 유지합니다. 헤더에 환경 변수
+  참조가 있으면 `env-http-headers`도 붙습니다. Gemini CLI는 `env`와 전송 헤더의 참조를
+  치환합니다. TrustDex는 단순한 `$NAME`, `${NAME}`, Windows 전용 `%NAME%` 참조만
+  인식하며 환경 변수 값은 읽지 않습니다. `${NAME:-DEFAULT}` 같은 복합 참조는 거부합니다.
 
-지문에는 전송 방식, 헤더 이름, `env`에서 참조한 환경 변수 이름(`$NAME`, `${NAME}`,
-`%NAME%`), `trust` 플래그, `includeTools`·`excludeTools`·`cwd`의 다이제스트가 들어갑니다.
-따라서 `trust`를 켜거나, 도구 필터를 넓히거나, 작업 디렉터리를 바꾸면 서명된 검토가
+지문에는 전송 방식, 헤더 이름, 각 헤더와 환경 항목의 참조 순서, `trust` 플래그,
+`includeTools`·`excludeTools`·`cwd`의 다이제스트가 들어갑니다.
+따라서 참조를 바꾸거나, `trust`를 켜거나, 도구 필터를 넓히거나, 작업 디렉터리를 바꾸면 서명된 검토가
 무효가 됩니다. 헤더·환경 변수 값, 도구 이름, 디렉터리 경로는 넣지 않으므로, 자격 증명
 값만 교체하면 검토는 유지됩니다. `timeout`은 형식만 검증하고 지문에는 넣지 않습니다.
 명령 인자나 URL 경로에 자격 증명을 넣지 마세요. 게이트 출력 파일은 허용된 원본 항목을
@@ -96,10 +98,12 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 
 | 관찰된 설정 | 신호 | 기본 제공 팩 |
 | --- | --- | --- |
-| `tools.allowed`에 셸 도구 또는 와일드카드가 있음 | `gemini-auto-approved-shell` | `BLOCK` |
+| `tools.allowed` 또는 `tools.core`에 셸 도구나 와일드카드가 있음 | `gemini-auto-approved-shell` | `BLOCK` |
+| `tools.allowed` 또는 `tools.core`에 미확인 환경 변수 참조가 있음 | `gemini-unresolved-tool-grants` | `BLOCK` |
 | `tools.discoveryCommand`, `tools.callCommand`, `mcp.serverCommand` | `gemini-tool-commands` | `BLOCK` |
 | `hooks` 항목이 있음 (이 파일에서 `hooksConfig.enabled`가 `false`여도) | `gemini-hooks` | `BLOCK` |
-| 그 밖의 `tools.allowed` 항목 | `gemini-auto-approved-tools` | 최소 `ASK` |
+| 그 밖의 `tools.allowed` 또는 `tools.core` 항목 | `gemini-auto-approved-tools` | 최소 `ASK` |
+| `mcp.allowed` 항목, `mcp.autoAllowInHeadless: true`, 또는 신뢰 설정된 MCP 서버(관리자 항목 포함) | `gemini-auto-approved-mcp` | 최소 `ASK` |
 | `general.defaultApprovalMode`가 `auto_edit` | `gemini-auto-edit` | 최소 `ASK` |
 | `tools.sandboxAllowedPaths` 또는 `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | 최소 `ASK` |
 | `tools.sandbox`가 `false`, `"false"`, `"0"`(이 파일이 샌드박스를 끔) | `gemini-sandbox-disabled` | 최소 `ASK` |
@@ -111,10 +115,14 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 | `mcpServers`, `admin.mcp.config`, `admin.mcp.requiredConfig` 항목 | `gemini-mcp-servers` | 최소 `ASK` |
 | TrustDex가 검사하지 않는 설정 | `uninspected-gemini-settings` | 최소 `ASK` |
 
-설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. 제한하는 설정(`tools.exclude`,
-`tools.core`, `tools.confirmationRequired`, `security.disableYoloMode`,
+설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. Gemini CLI의 `tools.core`는
+도구 목록을 제한하는 동시에 계획 모드 밖에서 목록의 도구를 허용하는 규칙을 추가합니다.
+제한하는 설정(`tools.exclude`, `tools.confirmationRequired`, `security.disableYoloMode`,
 `security.disableAlwaysAllow`)은 신호를 추가하지 않습니다. 검사 대상 설정의 타입이
 틀리거나, 지원하지 않는 승인 모드이거나, 순수 JSON이 아닌 파일(주석 포함)은 거부합니다.
+검사한 설정에 `admin.secureModeEnabled: true`가 있으면 YOLO 및 항상 허용을 끄는
+두 불리언 값에 반영됩니다.
+관리자 필수 MCP 서버에서 `trust`를 생략하면 Gemini는 기본적으로 신뢰합니다.
 
 `metadata.sandboxSetting`은 `omitted`(생략), `disabled`(Gemini CLI가 끔으로 처리하는 `false`,
 `"false"`, `"0"`), `enabled`(`true`, `"true"`, `"1"`, 또는 Gemini CLI가 지원하는 샌드박스 명령
