@@ -349,6 +349,7 @@ test('npm build provenance evidence does not carry planted attestation values', 
     }
   });
   const inspect = (doc, statement) => inspectNpmPackage('agent', {
+    verifyBundle: () => ({ verified: true, reason: canary() }),
     fetchImpl: async (url) => ({ ok: true, status: 200, json: async () => (url.includes('/attestations/') ? statement : doc) })
   });
 

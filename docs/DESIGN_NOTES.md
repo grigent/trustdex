@@ -8,6 +8,8 @@ These are proposals for discussion. Nothing on this page is implemented, and eac
 
 ## 1. Verifying the Sigstore signature on npm provenance
 
+> Status: option A below is implemented in `src/sigstore.mjs`. [TRUST_STORE.md](TRUST_STORE.md) lists what is and is not checked. A `matched` result now requires a verified signature. The Merkle inclusion proof, SCT, and a reviewed trust-root refresh process remain open. The rest of this section is kept as the design record.
+
 ### Today
 
 `provenance npm` and `trust-source npm` download the attestation that `registry.npmjs.org` serves for a version, check that it names the version's sha512, and compare the source repository in it with the repository the package declares. The signature on the attestation is not checked, and the evidence records `signatureVerified: false`. The registry is therefore trusted to serve an honest attestation.
