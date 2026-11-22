@@ -138,7 +138,9 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
   if (SHELL_INSTRUCTION_RE.test(value)) signals.add('shell-instructions');
   if (INSTALL_RE.test(value)) signals.add('install-instructions');
   // Skill hooks register commands for the rest of the session, however the key is written.
-  if (/(?:^|[\s{,"'])hooks["']?\s*:/im.test(entries.header || '')) signals.add('skill-hooks');
+  // A hooks key starts a line or follows `{` or `,` in a flow map; prose that mentions
+  // hooks inside a value does not count.
+  if (/(?:^\s*|[{,]\s*)["']?hooks["']?\s*:/im.test(entries.header || '')) signals.add('skill-hooks');
   if (SKILL_SHELL_INJECTION_RE.test(value)) signals.add('skill-shell-injection');
 
   return {

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { inspectSkillText, inspectPluginManifest } from '../src/extensions.mjs';
 import { inspectMcpConfig } from '../src/inspect.mjs';
 import { parseCodexMcpToml } from '../src/codex-config.mjs';
@@ -26,6 +27,7 @@ test('skill hooks and injected shell commands block even when local skills are a
     assert.ok(record.signals.includes('skill-shell-injection'), body);
     assert.equal(action(record), 'block', body);
   }
+  assert.deepEqual(skill('---\nname: x\ndescription: Explains React hooks: state and effects\n---\nbody\n').signals, []);
   assert.deepEqual(skill('---\nname: x\n---\nUse hooks: carefully. Say hi!\n```js\nx\n```\n').signals, []);
 });
 
@@ -92,7 +94,7 @@ test('adapter metadata in a generic MCP file does not skip field review', async 
   await fs.writeFile(file, JSON.stringify(config));
   let out = '';
   try {
-    out = execFileSync(process.execPath, [new URL('../bin/trustdex.mjs', import.meta.url).pathname, 'inspect', file, '--json'],
+    out = execFileSync(process.execPath, [fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url)), 'inspect', file, '--json'],
       { encoding: 'utf8' });
   } catch (error) { out = error.stdout; }
   assert.match(out, /uninspected-server-fields/);
