@@ -15,6 +15,12 @@
 - Correct Codex approval enums, alias normalization, granular validation and recursive stack merging. Audit custom permission inheritance, report conservative permission-selection risks, and support highest-precedence `--legacy-managed` sources while preserving older posture snapshot digests. Settings remain at least ASK.
 - Gemini MCP inspection now rejects unresolved references in launch targets or tool filters and tracks simple credential references in headers and `env` without retaining values. Signed reviews for affected configurations may require a new review.
 - Gemini permission inspection now reports `tools.core` automatic grants, blocks unresolved tool grants in built-in packs, reports MCP auto-approval settings, and reflects admin secure mode in the YOLO and always-allow indicators.
+- `inspect-devin-settings` now follows the Devin CLI docs more closely; every change only adds signals or raises an action, and a settings file still never reaches ALLOW.
+  - `sandbox.excluded.allow`, which runs matching commands outside the sandbox without a prompt, adds `devin-sandbox-excluded-exec` (`BLOCK`). `sandbox` was skipped before. `sandbox.excluded` lists accept only `Exec(...)` rules; anything else fails closed. Unknown `sandbox` keys count as uninspected settings.
+  - A broad allow rule (the `edit` tool, an all-paths `Write(...)` scope such as `**`, a `Write(...)` scope naming `.devin`, `.claude`, or `.config`, or an all-hosts `Fetch(...)` scope) adds `devin-broad-auto-approve` (`BLOCK`): it lets the agent edit its own rules and hooks or send what it reads anywhere.
+  - `local_tools_bypass_permissions: true` is now `BLOCK` instead of `ASK`, like `permission_mode: "dangerous"`.
+  - `read_config_from` providers that are unset or `null` count as enabled, as in Devin CLI, so `devin-external-config` is absent only when all ten documented providers are `false`; `null` no longer fails closed. Unknown provider keys count as uninspected settings.
+  - New metadata: `broadAllowRuleCount` and `sandboxExcludedAllowCount`/`AskCount`/`DenyCount`.
 
 ## 0.20.4 - 2026-11-22
 

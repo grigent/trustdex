@@ -12,6 +12,9 @@ import { getPolicyPack } from '../src/policy-packs.mjs';
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
 
+const PROVIDERS = ['agents_standard', 'cursor', 'windsurf', 'claude', 'copilot', 'codex', 'kiro', 'opencode', 'zed', 'cloud'];
+const NO_IMPORTS = Object.fromEntries(PROVIDERS.map((provider) => [provider, false]));
+
 function evaluate(settings, pack = 'strict') {
   return evaluateAll([inspectDevinSettings(settings)], getPolicyPack(pack))[0];
 }
@@ -23,10 +26,12 @@ test('empty and restriction-only Devin configs are ASK under every pack and a pe
     {},
     { permission_mode: null },
     { permission_mode: 'normal', permissions: { deny: ['Exec(sudo)', 'exec', 'mcp__*'], ask: ['Write(**)', 'edit'] } },
-    { agent: { model: 'x' }, sandbox: { denied_domains: ['a.invalid'] }, respect_gitignore: true, local_tools_bypass_permissions: false }
+    { agent: { model: 'x' }, sandbox: { denied_domains: ['a.invalid'] }, respect_gitignore: true, local_tools_bypass_permissions: false },
+    { sandbox: { network_mode: 'full', excluded: { ask: ['Exec(git push *)'], deny: ['Exec(git tag *)'] } } }
   ];
   for (const config of configs) {
-    assert.deepEqual(inspectDevinSettings(config).signals, [], JSON.stringify(config));
+    assert.deepEqual(inspectDevinSettings(config).signals, ['devin-external-config'], JSON.stringify(config));
+    assert.deepEqual(inspectDevinSettings({ ...config, read_config_from: NO_IMPORTS }).signals, [], JSON.stringify(config));
     for (const pack of ['strict', 'official-first', 'development']) assert.equal(evaluate(config, pack).action, 'ask', pack);
     assert.equal(evaluateAll([inspectDevinSettings(config)], permissive)[0].action, 'ask');
   }
@@ -42,11 +47,29 @@ test('Devin settings inspection classifies autonomy by capability', () => {
     [{ permissions: { allow: ['Fetch(domain:registry.invalid)'] } }, 'devin-auto-approved-tools', 'ask'],
     [{ permissions: { allow: ['mcp__reviewed__list'] } }, 'devin-auto-approved-tools', 'ask'],
     [{ permissions: { allow: ['mcp__*'] } }, 'devin-auto-approved-tools', 'ask'],
-    [{ permissions: { allow: ['edit'] } }, 'devin-auto-approved-tools', 'ask'],
+    [{ permissions: { allow: ['Write(src/.devinrc)'] } }, 'devin-auto-approved-tools', 'ask'],
+    [{ permissions: { allow: ['Fetch(https://registry.invalid/*)'] } }, 'devin-auto-approved-tools', 'ask'],
+    [{ permissions: { allow: ['edit'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(**)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(/**)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(~/**)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(./*)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(.devin/**)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(.devin)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(~/.config/devin/config.json)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Write(src/.Claude/settings.json)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Fetch(*)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Fetch(domain:*)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Fetch(https://*/*)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ permissions: { allow: ['Fetch(*://**)'] } }, 'devin-broad-auto-approve', 'block'],
+    [{ sandbox: { excluded: { allow: ['Exec(git status *)'] } } }, 'devin-sandbox-excluded-exec', 'block'],
+    [{ sandbox: { future: true } }, 'uninspected-devin-settings', 'ask'],
+    [{ sandbox: { excluded: { future: [] } } }, 'uninspected-devin-settings', 'ask'],
+    [{ read_config_from: { future_tool: false } }, 'uninspected-devin-settings', 'ask'],
     [{ permissions: { allow: ['Exec(git status)'] } }, 'devin-auto-approved-exec', 'block'],
     [{ permissions: { allow: ['exec'] } }, 'devin-auto-approved-exec', 'block'],
     [{ hooks: { PreToolUse: [{ matcher: 'exec', hooks: [{ type: 'command', command: 'inert' }] }] } }, 'devin-hooks', 'block'],
-    [{ local_tools_bypass_permissions: true }, 'devin-local-tools-bypass', 'ask'],
+    [{ local_tools_bypass_permissions: true }, 'devin-local-tools-bypass', 'block'],
     [{ mcpServers: { inert: { command: 'inert' } } }, 'devin-mcp-servers', 'ask'],
     [{ proxy: { mode: 'manual', url: 'http://proxy.invalid' } }, 'uninspected-devin-settings', 'ask'],
     [{ permissions: { future: [] } }, 'uninspected-devin-settings', 'ask']
@@ -60,7 +83,10 @@ test('Devin settings inspection classifies autonomy by capability', () => {
       if (action === 'block') assert.equal(evaluate(config, pack).action, 'block', JSON.stringify(config));
     }
   }
-  assert.deepEqual(inspectDevinSettings({ hooks: { PreToolUse: [] } }).signals, []);
+  assert.deepEqual(inspectDevinSettings({ hooks: { PreToolUse: [] }, read_config_from: NO_IMPORTS }).signals, []);
+  for (const rule of ['Write(src/**)', 'Read(**)', 'Fetch(domain:registry.invalid)', 'mcp__*']) {
+    assert.equal(inspectDevinSettings({ permissions: { allow: [rule] } }).signals.includes('devin-broad-auto-approve'), false, rule);
+  }
 });
 
 test('malformed or unsupported Devin configs fail closed', () => {
@@ -85,7 +111,16 @@ test('malformed or unsupported Devin configs fail closed', () => {
     { hooks: [] },
     { hooks: { PreToolUse: { command: 'inert' } } },
     { mcpServers: [] },
-    { local_tools_bypass_permissions: 'true' }
+    { local_tools_bypass_permissions: 'true' },
+    { sandbox: [] },
+    { sandbox: null },
+    { sandbox: { excluded: [] } },
+    { sandbox: { excluded: { allow: 'Exec(git *)' } } },
+    { sandbox: { excluded: { allow: [5] } } },
+    { sandbox: { excluded: { allow: ['git status'] } } },
+    { sandbox: { excluded: { allow: ['Write(**)'] } } },
+    { sandbox: { excluded: { ask: ['exec'] } } },
+    { sandbox: { excluded: { deny: ['Exec()'] } } }
   ];
   for (const config of invalid) {
     assert.throws(() => inspectDevinSettings(config), /Devin/, JSON.stringify(config));
@@ -97,7 +132,8 @@ test('Devin settings inspection retains no rule scope, name, hook body, or setti
   const result = inspectDevinSettings({
     [marker]: marker,
     agent: { model: marker },
-    sandbox: { allowed_domains: [marker] },
+    sandbox: { allowed_domains: [marker], excluded: { allow: [`Exec(${marker})`], ask: [`Exec(${marker})`], [marker]: [] } },
+    read_config_from: { [marker]: true, claude: null, cursor: false },
     permissions: {
       allow: [`Exec(${marker})`, `Read(${marker})`, `Write(${marker})`, `Fetch(${marker})`, `mcp__${marker}__${marker}`, `mcp__${marker}__*`],
       ask: [`Write(${marker})`], deny: [`Exec(${marker})`], [marker]: [marker]
@@ -109,29 +145,38 @@ test('Devin settings inspection retains no rule scope, name, hook body, or setti
   assert.deepEqual(result.metadata, {
     permissionMode: null, allowRuleCount: 6, askRuleCount: 1, denyRuleCount: 1,
     autoApprovedExecCount: 1, autoApprovedWriteCount: 1, autoApprovedReadCount: 1,
-    autoApprovedFetchCount: 1, autoApprovedMcpCount: 2, hookCount: 1, mcpServerCount: 1,
-    localToolsBypassPermissions: false, externalConfigProviderCount: 0, uninspectedSettingCount: 2
+    autoApprovedFetchCount: 1, autoApprovedMcpCount: 2, broadAllowRuleCount: 0,
+    sandboxExcludedAllowCount: 1, sandboxExcludedAskCount: 1, sandboxExcludedDenyCount: 0,
+    hookCount: 1, mcpServerCount: 1,
+    localToolsBypassPermissions: false, externalConfigProviderCount: 10, uninspectedSettingCount: 4
   });
 });
 
-test('read_config_from that enables a provider is ASK under every policy, unlike a missing or all-false one', () => {
+test('read_config_from imports are on unless every documented provider is false, and stay ASK under every policy', () => {
   const permissive = { version: 1, unknownAction: 'allow', localAction: 'allow', sensitiveAction: 'allow',
     unpinnedAction: 'allow', shellAction: 'allow', verifiedPublisherAction: 'allow' };
   const marker = 'MARKER-VALUE';
-  for (const config of [{ read_config_from: { claude: true } }, { read_config_from: { cursor: false, [marker]: true, windsurf: true } }]) {
+  const enabled = [
+    [{}, 10],
+    [{ read_config_from: {} }, 10],
+    [{ read_config_from: { claude: true } }, 10],
+    [{ read_config_from: { ...NO_IMPORTS, claude: null } }, 1],
+    [{ read_config_from: { ...NO_IMPORTS, cloud: true } }, 1],
+    [{ read_config_from: { claude: false, cloud: false } }, 8],
+    [{ read_config_from: { ...NO_IMPORTS, [marker]: true } }, 1]
+  ];
+  for (const [config, count] of enabled) {
     const result = inspectDevinSettings(config);
-    assert.deepEqual(result.signals, ['devin-external-config']);
+    assert.ok(result.signals.includes('devin-external-config'), JSON.stringify(config));
+    assert.equal(result.metadata.externalConfigProviderCount, count, JSON.stringify(config));
     assert.equal(JSON.stringify(result).includes(marker), false);
     for (const pack of ['strict', 'official-first', 'development']) assert.equal(evaluate(config, pack).action, 'ask', pack);
-    const custom = { ...permissive, signalActions: { 'devin-external-config': 'allow' } };
+    const custom = { ...permissive, signalActions: { 'devin-external-config': 'allow', 'uninspected-devin-settings': 'allow' } };
     for (const policy of [permissive, custom]) assert.equal(evaluateAll([inspectDevinSettings(config)], policy)[0].action, 'ask');
   }
-  assert.equal(inspectDevinSettings({ read_config_from: { a: true, b: false, c: true } }).metadata.externalConfigProviderCount, 2);
-  for (const config of [{}, { read_config_from: {} }, { read_config_from: { claude: false, cloud: false } }]) {
-    const result = inspectDevinSettings(config);
-    assert.deepEqual(result.signals, [], JSON.stringify(config));
-    assert.equal(result.metadata.externalConfigProviderCount, 0);
-  }
+  const off = inspectDevinSettings({ read_config_from: NO_IMPORTS });
+  assert.deepEqual(off.signals, []);
+  assert.equal(off.metadata.externalConfigProviderCount, 0);
   for (const value of [true, 'claude', ['claude'], null, { claude: 'true' }, { claude: 1 }, { claude: { path: marker } }]) {
     assert.throws(() => inspectDevinSettings({ read_config_from: value }), /Devin read_config_from/, JSON.stringify(value));
   }
@@ -144,7 +189,7 @@ test('Devin settings CLI inspects the inert example and refuses invalid input wi
   assert.equal(inspected.status, 2);
   const result = JSON.parse(inspected.stdout)[0];
   assert.equal(result.kind, 'devin-settings');
-  assert.deepEqual(result.signals, ['devin-auto-approved-exec', 'devin-auto-approved-tools', 'devin-permission-mode-auto']);
+  assert.deepEqual(result.signals, ['devin-auto-approved-exec', 'devin-auto-approved-tools', 'devin-external-config', 'devin-permission-mode-auto']);
   assert.equal(inspected.stdout.includes('npm run lint'), false);
   assert.equal(inspected.stdout.includes('reviewed'), false);
 

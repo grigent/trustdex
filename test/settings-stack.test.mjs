@@ -293,7 +293,9 @@ test('no policy can make a permission settings file or stack ALLOW', () => {
     inspectCodexSettingsText(''),
     inspectCodexSettingsStack([{ scope: 'user', text: '' }]),
     inspectGeminiSettings({}),
-    inspectDevinSettings({})
+    inspectDevinSettings({ read_config_from: Object.fromEntries(
+      ['agents_standard', 'cursor', 'windsurf', 'claude', 'copilot', 'codex', 'kiro', 'opencode', 'zed', 'cloud']
+        .map((provider) => [provider, false])) })
   ];
   for (const item of items) {
     assert.deepEqual(item.signals, [], item.kind);

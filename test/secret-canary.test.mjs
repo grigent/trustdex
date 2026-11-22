@@ -183,7 +183,7 @@ test('no command prints or stores a planted value', () => {
       permission_mode: 'smart',
       read_config_from: { [canary()]: true, claude: false },
       agent: { model: canary() },
-      sandbox: { allowed_domains: [canary()] },
+      sandbox: { allowed_domains: [canary()], excluded: { allow: [`Exec(${canary()})`], [canary()]: [canary()] } },
       permissions: {
         allow: [`Exec(${canary()})`, `Read(${canary()})`, `Fetch(${canary()})`, `mcp__${canary()}__${canary()}`],
         ask: [`Write(${canary()})`], deny: [`Exec(${canary()})`], [canary()]: [canary()]
@@ -414,6 +414,8 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-devin-settings', 'json', () => ({ permissions: { allow: [canary(), `Shell(${canary()})`] } })],
     ['inspect-devin-settings', 'json', () => ({ [canary()]: canary(), hooks: { [canary()]: canary() } })],
     ['inspect-devin-settings', 'raw', () => `{"permissions": {"allow": [${canary()}]}}`],
+    ['inspect-devin-settings', 'json', () => ({ sandbox: { excluded: { allow: [canary(), `Read(${canary()})`] } } })],
+    ['inspect-devin-settings', 'json', () => ({ read_config_from: { claude: canary() } })],
     ['inspect-gemini-settings', 'json', () => ({ general: { defaultApprovalMode: canary() } })],
     ['inspect-gemini-settings', 'json', () => ({ tools: { allowed: [canary(), 5] } })],
     ['inspect-gemini-settings', 'json', () => ({ [canary()]: [canary()], tools: { discoveryCommand: [canary()] } })],

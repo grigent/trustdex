@@ -94,23 +94,30 @@ node ./bin/trustdex.mjs inspect-devin-settings ./.devin/config.json --pack stric
 | Observed setting | Signal | Built-in packs |
 | --- | --- | --- |
 | `permissions.allow` with an `Exec(...)` rule or the `exec` tool | `devin-auto-approved-exec` | `BLOCK` |
+| a broad `permissions.allow` rule: the `edit` tool, a `Write(...)` scope of only wildcards, separators, `~`, or `.` (such as `**`, `/**`, `~/**`), a `Write(...)` scope naming a `.devin`, `.claude`, or `.config` directory, or a `Fetch(...)` scope whose host is only a wildcard (`*`, `domain:*`, `https://*/*`) | `devin-broad-auto-approve` | `BLOCK` |
 | any other `permissions.allow` rule (`Read`, `Write`, `Fetch`, a tool name, `mcp__...`) | `devin-auto-approved-tools` | `ASK` |
 | `permission_mode: "dangerous"` | `devin-permission-mode-bypass` | `BLOCK` |
 | `permission_mode: "accept-edits"` or `"smart"` | `devin-permission-mode-auto` | `ASK` |
 | a non-empty `hooks` event | `devin-hooks` | `BLOCK` |
-| `local_tools_bypass_permissions: true` | `devin-local-tools-bypass` | `ASK` |
+| a non-empty `sandbox.excluded.allow` (matching commands run outside the sandbox without a prompt) | `devin-sandbox-excluded-exec` | `BLOCK` |
+| `local_tools_bypass_permissions: true` (Bypass mode for local-tools connections) | `devin-local-tools-bypass` | `BLOCK` |
 | a `mcpServers` key (read by older Devin CLI versions) | `devin-mcp-servers` | `ASK` |
-| `read_config_from` with a provider set to `true` (rules, skills, hooks, or MCP servers may be imported from that tool's files) | `devin-external-config` | `ASK` |
-| a setting TrustDex does not inspect, such as `proxy` | `uninspected-devin-settings` | `ASK` |
+| an import provider that is on: a documented `read_config_from` option that is missing, `true`, or `null`, including when `read_config_from` is absent (rules, skills, MCP servers, or plugins may be imported from that tool or from Devin Cloud) | `devin-external-config` | `ASK` |
+| a setting TrustDex does not inspect, such as `proxy`, an unknown `sandbox`, `sandbox.excluded`, or `read_config_from` key | `uninspected-devin-settings` | `ASK` |
 
 A config file never reaches ALLOW, whatever the policy says. `ask` and `deny` rules are
 restrictive and add no signal. Documented settings that grant the agent no autonomy
-(`agent`, display options, `keymap`, `sandbox`, and similar) are
-skipped without reading their values. For `read_config_from`, only the number of providers
-set to `true` is reported (`metadata.externalConfigProviderCount`); provider names and the
-imported files are neither read nor reported. A missing `read_config_from`, or one whose
-providers are all `false`, adds no signal; a value that is not an object of booleans fails
-closed.
+(`agent`, display options, `keymap`, and similar, plus `sandbox.allowed_domains`,
+`sandbox.denied_domains`, and `sandbox.network_mode`) are skipped without reading their
+values. `sandbox.excluded` lists accept only `Exec(...)` rules; only their counts are
+reported. Devin CLI turns on every `read_config_from` provider that is unset or `null`, so
+`devin-external-config` is absent only when the file sets all ten documented providers
+(`agents_standard`, `cursor`, `windsurf`, `claude`, `copilot`, `codex`, `kiro`, `opencode`,
+`zed`, `cloud`) to `false`. Another settings file can still change that at runtime. Only
+the number of enabled providers is reported (`metadata.externalConfigProviderCount`);
+provider names and the imported files are neither read nor reported. A value that is not
+an object of booleans or `null` fails closed. A broad rule is reported as a count
+(`metadata.broadAllowRuleCount`); the scope is not.
 
 A rule must have one of the documented forms: `Read(...)`, `Write(...)`, `Exec(...)`,
 `Fetch(...)`, the tool names `read`, `edit`, `grep`, `glob`, `exec`, or `mcp__*`,
