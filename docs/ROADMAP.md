@@ -69,7 +69,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 ## Then: prove integrity
 
 - verify immutable package artifacts when registries expose cryptographic hashes
-- verify the Sigstore signature on npm build provenance ([design notes](DESIGN_NOTES.md))
+- verify the Merkle inclusion proof and SCT of npm build provenance, and define how the pinned Sigstore trust root is refreshed (the signature, certificate chain, and log entry are verified offline; see [design notes](DESIGN_NOTES.md))
 - connect registry observations to exact package versions and repository identities
 - publish checksums or stronger provenance for TrustDex releases
 - add fixtures for ownership transfer, deleted releases, yanked packages, and registry drift
