@@ -142,6 +142,15 @@ export function parseTrustStore(value) {
               : null,
             verifiedAt: String(claim.evidence.artifactVerification.verifiedAt)
           }
+        } : {}),
+        ...(claim.evidence.buildProvenance ? {
+          buildProvenance: {
+            source: String(claim.evidence.buildProvenance.source),
+            version: String(claim.evidence.buildProvenance.version),
+            sourceRepository: String(claim.evidence.buildProvenance.sourceRepository),
+            workflowPath: claim.evidence.buildProvenance.workflowPath ? String(claim.evidence.buildProvenance.workflowPath) : null,
+            signatureVerified: false
+          }
         } : {})
       }
     }))

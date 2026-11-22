@@ -55,6 +55,20 @@ Unknown third-party sources remain blocked in `official-first`. A verified prove
 - re-review claims when ownership or capabilities change
 - do not record credentials, tokens, private URLs, or secrets in evidence fields
 
+## npm build provenance
+
+`provenance npm` and `trust-source npm` also read the SLSA provenance npm reports for the latest version. They compare its source repository with the repository the package declares now and declared in its previous version:
+
+| Result | Meaning | `trust-source` |
+|---|---|---|
+| `matched` | built by the declared GitHub repository | records `buildProvenance` (source repository, workflow path) in the claim |
+| `absent` | the package never published provenance | records the claim without it |
+| `dropped` | the latest version has no provenance although an earlier version did | refuses |
+| `mismatch` | built by a different repository than the package declares or declared before, as with a release built from an attacker's fork | refuses |
+| `unverifiable` | the attestation could not be fetched or parsed, or its subject does not match the version's sha512 | refuses |
+
+The attestation is fetched from `registry.npmjs.org` for that exact name and version only by these explicit commands; `check-install` and `claude-hook` do not make this request. TrustDex checks that the attestation names the exact version and its sha512 digest, but it does not verify the Sigstore signature: the result records what the registry reports (`signatureVerified: false`). It does not prove that the source repository or its workflow is safe.
+
 ## Integrity-backed package evidence
 
 The optional `--artifact` flag on `trust-source npm` and `trust-source mcp` verifies a user-supplied file before recording artifact evidence.

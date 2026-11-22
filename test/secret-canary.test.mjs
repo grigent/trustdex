@@ -1,10 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { inspectNpmPackage, provenanceObservationToClaim } from '../src/provenance-online.mjs';
+import { parseTrustStore } from '../src/provenance.mjs';
 
 // Canary sweep for the output redaction contract (docs/SECURITY_RESEARCH.md).
 //
@@ -13,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 // specs (URLs, name@url, scp-like remotes, uvx --from and --from=, and malformed forms:
 // several "@", whitespace, "https:/" with one slash, ;params), sensitive command-line flags,
 // Claude permission specifiers, hooks, helpers and directories, Codex writable roots,
-// skill bodies, plugin manifest values, and IDE extension manifest and registry
-// fields. Each command below then runs, including the changed-state paths of diff and
+// skill bodies, plugin manifest values, IDE extension manifest and registry
+// fields, and npm build provenance attestations. Each command below then runs, including the changed-state paths of diff and
 // recheck. No marker may appear, in any letter case, in stdout, stderr, or a written
 // file. Gated MCP and Codex outputs are excluded because they intentionally preserve
 // the original allowed entries. Policy, trust-store, and keyset files are trust inputs written
@@ -304,4 +308,43 @@ test('blocking a known malicious release does not disclose a custom index URL', 
   assert.equal(JSON.parse(result.stdout).decision, 'block');
   assert.match(result.stdout, /known-malicious-release/);
   assertNoLeak(args, result);
+});
+
+test('npm build provenance evidence does not carry planted attestation values', async () => {
+  const digest = crypto.createHash('sha512').update('bytes').digest();
+  const integrity = `sha512-${digest.toString('base64')}`;
+  const hex = digest.toString('hex');
+  const attestation = (repository, workflowPath) => ({ attestations: [{
+    predicateType: 'https://slsa.dev/provenance/v1',
+    bundle: { dsseEnvelope: { payloadType: 'application/vnd.in-toto+json', payload: Buffer.from(JSON.stringify({
+      subject: [{ name: 'pkg:npm/agent@2.0.0', digest: { sha512: hex } }],
+      predicate: { buildDefinition: { externalParameters: { workflow: { repository, path: workflowPath } } } }
+    })).toString('base64') } }
+  }] });
+  const packument = (previousRepository) => ({
+    name: 'agent',
+    'dist-tags': { latest: '2.0.0' },
+    time: { '1.0.0': '2026-01-01T00:00:00Z', '2.0.0': '2026-11-01T00:00:00Z' },
+    versions: {
+      '1.0.0': { repository: { url: previousRepository }, dist: { integrity } },
+      '2.0.0': { repository: { url: 'git+https://github.com/example/agent.git' },
+        dist: { integrity, attestations: { provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } } }
+    }
+  });
+  const inspect = (doc, statement) => inspectNpmPackage('agent', {
+    fetchImpl: async (url) => ({ ok: true, status: 200, json: async () => (url.includes('/attestations/') ? statement : doc) })
+  });
+
+  const matched = await inspect(packument('git+https://github.com/example/agent.git'),
+    attestation('https://github.com/example/agent', `.github/workflows/publish.yml?token=${canary()}`));
+  assert.equal(matched.evidence.buildProvenance.status, 'matched');
+  const claim = provenanceObservationToClaim(matched, 'Example');
+  const stored = parseTrustStore({ version: 1, claims: [claim] });
+
+  const mismatch = await inspect(packument(`https://user:${canary()}@github.com/example/agent`),
+    attestation(`https://user:${canary()}@github.com/attacker/agent`, `.github/workflows/${canary()}/x.yml`));
+  assert.notEqual(mismatch.evidence.buildProvenance.status, 'matched');
+
+  const found = leaked(JSON.stringify([matched, claim, stored, mismatch]));
+  assert.deepEqual(found, [], `build provenance retained ${found.join(', ')}`);
 });

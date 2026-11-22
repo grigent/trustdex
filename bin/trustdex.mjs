@@ -532,6 +532,23 @@ async function loadClaudeBindingLayers(args) {
   return layers;
 }
 
+function describeBuildProvenance(build) {
+  const repo = (slug) => (slug ? `github.com/${slug}` : 'no GitHub repository');
+  const refuse = ' trust-source refuses this version.';
+  switch (build.status) {
+    case 'matched':
+      return `built by ${repo(build.sourceRepository)}${build.workflowPath ? ` (${build.workflowPath})` : ''}, matching the declared repository. Registry-reported; signature not verified.`;
+    case 'absent':
+      return 'none published.';
+    case 'dropped':
+      return `missing, although earlier versions had it.${refuse}`;
+    case 'mismatch':
+      return `built by ${repo(build.sourceRepository)}, but the package declares ${repo(build.declaredRepository)}${build.previousRepository && build.previousRepository !== build.declaredRepository ? ` (earlier versions: ${repo(build.previousRepository)})` : ''}.${refuse}`;
+    default:
+      return `could not be checked (${build.reason || 'unknown'}).${refuse}`;
+  }
+}
+
 function printObservation(observation, asJson) {
   if (asJson) {
     console.log(JSON.stringify(observation, null, 2));
@@ -540,6 +557,8 @@ function printObservation(observation, asJson) {
   console.log(`${observation.adapter.toUpperCase()} ${observation.subject}`);
   console.log(`Publisher hint: ${observation.publisherHint || 'none'}`);
   console.log(`Evidence: ${observation.evidence.kind} ${observation.evidence.reference}`);
+  const build = observation.evidence.buildProvenance;
+  if (build) console.log(`Build provenance: ${describeBuildProvenance(build)}`);
   console.log('Observation only. Nothing is trusted until you explicitly create a trust-store claim.');
 }
 

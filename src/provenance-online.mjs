@@ -162,6 +162,81 @@ export async function inspectGitHubReleaseSignature(repository, options = {}) {
   };
 }
 
+const SLSA_V1 = 'https://slsa.dev/provenance/v1';
+const SLSA_V02 = 'https://slsa.dev/provenance/v0.2';
+
+// owner/repo (lowercase) for GitHub repository references in the forms npm accepts.
+export function githubRepositorySlug(value) {
+  const raw = typeof value === 'string' ? value : value?.url;
+  if (typeof raw !== 'string') return null;
+  const text = raw.trim().replace(/^git\+/, '').replace(/\/+$/, '').replace(/\.git$/, '');
+  const match = /^(?:github:|(?:https?|git|ssh):\/\/(?:git@)?github\.com\/|git@github\.com:)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(text);
+  return match ? `${match[1]}/${match[2]}`.toLowerCase() : null;
+}
+
+function npmSha512Hex(integrity) {
+  const entry = String(integrity || '').trim().split(/\s+/).find((token) => token.startsWith('sha512-'));
+  return entry ? Buffer.from(entry.slice(7).split('?')[0], 'base64').toString('hex') : null;
+}
+
+// Reads the SLSA provenance npm reports for one exact version and compares its
+// source repository with the repository the package declares now and declared in
+// earlier versions. The Sigstore signature is not verified: this records what the
+// registry reports, bound to the version's sha512 digest.
+async function inspectNpmBuildProvenance(data, version, fetchImpl) {
+  const meta = data.versions[version];
+  const declared = githubRepositorySlug(meta.repository ?? data.repository);
+  const releasedAt = Date.parse(data.time?.[version]);
+  // A version without usable timestamps counts as earlier, so missing times cannot hide history.
+  const earlier = (other) => other !== version && !(Date.parse(data.time?.[other]) >= releasedAt);
+  const previous = Object.keys(data.versions)
+    .filter(earlier)
+    .sort((a, b) => (Date.parse(data.time?.[b]) || 0) - (Date.parse(data.time?.[a]) || 0))
+    .map((other) => githubRepositorySlug(data.versions[other]?.repository))
+    .find(Boolean) || null;
+  const base = { declaredRepository: declared, previousRepository: previous, signatureVerified: false };
+  if (!meta.dist?.attestations?.provenance) {
+    const attestedBefore = Object.keys(data.versions).some((other) => earlier(other) &&
+      data.versions[other]?.dist?.attestations?.provenance);
+    return { status: attestedBefore ? 'dropped' : 'absent', ...base };
+  }
+
+  const unverifiable = (reason) => ({ status: 'unverifiable', reason, ...base });
+  let bundle;
+  try {
+    bundle = await fetchJson(`https://registry.npmjs.org/-/npm/v1/attestations/${encodeURIComponent(data.name)}@${encodeURIComponent(version)}`, {
+      headers: { Accept: 'application/json', 'User-Agent': 'trustdex' }
+    }, fetchImpl);
+  } catch {
+    return unverifiable('lookup-failed');
+  }
+  const attestation = (Array.isArray(bundle?.attestations) ? bundle.attestations : [])
+    .find((item) => item?.predicateType === SLSA_V1 || item?.predicateType === SLSA_V02);
+  const envelope = attestation?.bundle?.dsseEnvelope;
+  let statement;
+  try {
+    if (envelope?.payloadType !== 'application/vnd.in-toto+json') throw new Error('payload');
+    statement = JSON.parse(Buffer.from(String(envelope.payload), 'base64').toString('utf8'));
+  } catch {
+    return unverifiable('malformed-attestation');
+  }
+  const purl = `pkg:npm/${data.name.replace(/^@/, '%40')}@${version}`;
+  const digest = npmSha512Hex(meta.dist.integrity);
+  const subjects = Array.isArray(statement?.subject) ? statement.subject : [];
+  if (!digest || !subjects.some((item) => item?.name === purl && String(item?.digest?.sha512 || '').toLowerCase() === digest)) {
+    return unverifiable('subject-mismatch');
+  }
+  const predicate = statement.predicate || {};
+  const workflow = predicate.buildDefinition?.externalParameters?.workflow;
+  const configSource = predicate.invocation?.configSource;
+  const sourceRepository = githubRepositorySlug(workflow?.repository ?? String(configSource?.uri || '').replace(/@[^@]*$/, ''));
+  const entryPoint = workflow?.path ?? configSource?.entryPoint;
+  const workflowPath = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(entryPoint) ? entryPoint : null;
+  if (!sourceRepository) return unverifiable('unknown-source');
+  const matched = sourceRepository === declared && (!previous || sourceRepository === previous);
+  return { status: matched ? 'matched' : 'mismatch', sourceRepository, workflowPath, ...base };
+}
+
 export async function inspectNpmPackage(packageName, options = {}) {
   const name = normalizeNpmPackage(packageName);
   const url = `https://registry.npmjs.org/${encodeURIComponent(name)}`;
@@ -215,6 +290,7 @@ export async function inspectNpmPackage(packageName, options = {}) {
         shasum: latestMeta.dist.shasum ? String(latestMeta.dist.shasum) : null
       } : null,
       repository,
+      buildProvenance: await inspectNpmBuildProvenance(data, latest, options.fetchImpl),
       maintainers: Array.isArray(data.maintainers)
         ? data.maintainers.map((item) => item?.name).filter(Boolean).sort()
         : []
@@ -403,6 +479,25 @@ export function provenanceObservationToClaim(observation, publisher, options = {
     reference: observation.evidence.reference,
     checkedAt: observation.observedAt || new Date().toISOString()
   };
+
+  const build = observation.evidence.buildProvenance;
+  if (observation.adapter === 'npm') {
+    if (!build || !['absent', 'matched'].includes(build.status)) {
+      throw new Error({
+        mismatch: 'Refusing to trust an npm package whose provenance was built from a different repository than it declares or declared before.',
+        dropped: 'Refusing to trust an npm package whose latest version has no provenance although earlier versions did.'
+      }[build?.status] || 'Refusing to trust an npm package whose provenance could not be checked.');
+    }
+    if (build.status === 'matched') {
+      evidence.buildProvenance = {
+        source: 'npm-registry-attestation',
+        version: observation.evidence.latestVersion,
+        sourceRepository: build.sourceRepository,
+        workflowPath: build.workflowPath,
+        signatureVerified: false
+      };
+    }
+  }
 
   if (options.artifactVerification) {
     if (!options.artifactVerification.verified || !observation.evidence.artifact) {
