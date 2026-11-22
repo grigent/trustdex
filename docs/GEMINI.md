@@ -105,6 +105,7 @@ Settings are classified by capability rather than echoed:
 | `general.defaultApprovalMode` is `auto_edit` | `gemini-auto-edit` | at least `ASK` |
 | `tools.sandboxAllowedPaths` or `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | at least `ASK` |
 | `tools.sandbox` is `false`, `"false"`, or `"0"` (this file turns the sandbox off) | `gemini-sandbox-disabled` | at least `ASK` |
+| `tools.sandbox` contains an environment variable reference (`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`) | `gemini-sandbox-unresolved` | at least `ASK` |
 | `security.enablePermanentToolApproval` or `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | at least `ASK` |
 | `security.folderTrust.enabled` is `false` | `gemini-folder-trust-disabled` | at least `ASK` |
 | `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | at least `ASK` |
@@ -119,13 +120,21 @@ an unsupported approval mode, and a file that is not plain JSON (including one w
 comments) fail closed.
 
 `metadata.sandboxSetting` is `omitted`, `disabled` (`false`, `"false"`, or `"0"`, which Gemini
-CLI treats as off), or `enabled` (`true`, `"true"`, `"1"`, or a sandbox command Gemini CLI supports: `docker`,
-`podman`, `sandbox-exec`, `runsc`, `lxc`, or `windows-native`; the command is not reported), so an omitted sandbox is distinguishable from one that is turned off.
+CLI treats as off), `enabled` (`true`, `"true"`, `"1"`, or a sandbox command Gemini CLI supports: `docker`,
+`podman`, `sandbox-exec`, `runsc`, `lxc`, or `windows-native`; the command is not reported), or
+`unresolved`, so an omitted sandbox is distinguishable from one that is turned off.
 `metadata.sandboxConfigured` is `true` only for `enabled`. Both describe the value written in
 the inspected file. The sandbox that applies at runtime can differ: another settings layer,
-the `GEMINI_SANDBOX` environment variable, or the `--sandbox` CLI option can change it. Any
-other `tools.sandbox` string, which Gemini CLI rejects as a configuration error, fails closed
-without the value appearing in the error or report. The report holds the approval mode, booleans, and counts. It does not hold tool names,
+the `GEMINI_SANDBOX` environment variable, or the `--sandbox` CLI option can change it.
+
+Gemini CLI replaces `$VAR`, `${VAR}`, and `${VAR:-DEFAULT}` references with environment values
+before it validates settings. TrustDex does not read the environment, so a `tools.sandbox`
+string containing such a reference is `unresolved` and adds `gemini-sandbox-unresolved`
+(at least `ASK`; other signals in the file still apply their own policy). The variable name,
+default value, and string are not reported. Any other `tools.sandbox` string, which Gemini CLI
+rejects as a configuration error, fails closed (`BLOCK`, exit 2) without the value appearing in
+the error or report. An empty string also fails closed, although Gemini CLI's sandbox parser
+treats it as off: TrustDex does not accept it as an explicit setting. The report holds the approval mode, booleans, and counts. It does not hold tool names,
 commands, paths, hook bodies, extension patterns, variable names, or the names of
 uninspected settings. It therefore has no content fingerprint or signed review record:
 a same-count change inside one category is not detected.

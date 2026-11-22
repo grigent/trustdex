@@ -407,6 +407,8 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-gemini-settings', 'json', () => ({ [canary()]: [canary()], tools: { discoveryCommand: [canary()] } })],
     ['inspect-gemini-settings', 'json', () => ({ hooks: { [canary()]: canary() } })],
     ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: canary() } })],
+    ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: `${'$'}{${canary()}:-${canary()}}` } })],
+    ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: `${canary()}$${canary()}` } })],
     ['inspect-gemini-settings', 'raw', () => `{"tools": {"allowed": [${canary()}]}}`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = "${canary()}"\n`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = ${canary()}\n`],

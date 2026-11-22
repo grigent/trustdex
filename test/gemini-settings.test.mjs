@@ -140,6 +140,54 @@ test('only sandbox commands Gemini CLI supports are enabled; others fail closed 
   }
 });
 
+test('tools.sandbox environment variable references are unresolved and ASK, without names or defaults', () => {
+  const permissive = { version: 1, unknownAction: 'allow', localAction: 'allow', sensitiveAction: 'allow', unpinnedAction: 'allow', shellAction: 'allow', verifiedPublisherAction: 'allow' };
+  const custom = { ...permissive, signalActions: { 'gemini-sandbox-unresolved': 'allow' } };
+  const name = 'MARKER_NAME';
+  const fallback = 'MARKER-DEFAULT';
+  for (const sandbox of [`$${name}`, `\${${name}}`, `\${${name}:-${fallback}}`, `\${${name}:-docker}`, `dock$${name}`]) {
+    const settings = { tools: { sandbox } };
+    const result = inspectGeminiSettings(settings);
+    assert.deepEqual(result.signals, ['gemini-sandbox-unresolved'], sandbox);
+    assert.equal(result.metadata.sandboxSetting, 'unresolved');
+    assert.equal(result.metadata.sandboxConfigured, false);
+    const text = JSON.stringify(result);
+    assert.equal(text.includes(name) || text.includes(fallback), false, sandbox);
+    for (const pack of ['strict', 'official-first', 'development']) assert.equal(evaluate(settings, pack).action, 'ask', pack);
+    for (const policy of [permissive, custom]) assert.equal(evaluateAll([result], policy)[0].action, 'ask');
+  }
+
+  const withHooks = { tools: { sandbox: `$${name}` }, hooks: { BeforeTool: [{}] } };
+  assert.equal(evaluate(withHooks).action, 'block');
+  assert.deepEqual(evaluate(withHooks).signals, ['gemini-hooks', 'gemini-sandbox-unresolved']);
+
+  for (const sandbox of ['', '$', '${}', 'docker$', 'gvisor']) {
+    assert.throws(() => inspectGeminiSettings({ tools: { sandbox } }), /Gemini tools\.sandbox/, JSON.stringify(sandbox));
+  }
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trustdex-gemini-sandbox-'));
+  try {
+    const cases = [
+      [{ tools: { sandbox: `\${${name}:-${fallback}}` } }, 1, 'ask'],
+      [{ tools: { sandbox: '' } }, 2, 'block'],
+      [{ tools: { sandbox: 'gvisor' } }, 2, 'block']
+    ];
+    for (const [settings, status, decision] of cases) {
+      const file = path.join(dir, 'settings.json');
+      fs.writeFileSync(file, JSON.stringify(settings));
+      for (const flags of [[], ['--json'], ['--decisions']]) {
+        const run = spawnSync(process.execPath, [cli, 'inspect-gemini-settings', file, ...flags], { encoding: 'utf8' });
+        assert.equal(run.status, status, `${JSON.stringify(settings)} ${flags.join(' ')}`);
+        const output = `${run.stdout}${run.stderr}`;
+        assert.equal(output.includes(name) || output.includes(fallback), false, flags.join(' '));
+        if (flags[0] === '--decisions') assert.equal(JSON.parse(run.stdout).decision, decision);
+      }
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a policy overlay cannot be needed to see a shell grant: every pack blocks it', () => {
   for (const pack of ['strict', 'official-first', 'development']) {
     assert.equal(evaluate({ tools: { allowed: ['run_shell_command'] } }, pack).action, 'block', pack);

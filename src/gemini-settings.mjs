@@ -5,6 +5,9 @@
 const SANDBOX_OFF = new Set([false, 'false', '0']);
 // The values Gemini CLI's sandboxConfig.ts accepts; any other string is a fatal config error there.
 const SANDBOX_ON = new Set([true, 'true', '1', 'docker', 'podman', 'sandbox-exec', 'runsc', 'lxc', 'windows-native']);
+// Gemini CLI expands $VAR, ${VAR}, and ${VAR:-DEFAULT} in settings before validating them.
+// TrustDex does not read the environment, so a value with such a reference is unresolved.
+const ENV_REFERENCE = /\$(?:\w+|\{[^}]+\})/;
 const APPROVAL_MODES = new Set(['default', 'auto_edit', 'plan']);
 const SECTION_KEYS = Object.freeze({
   general: new Set(['defaultApprovalMode']),
@@ -96,15 +99,20 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
   strings(tools, 'exclude', 'tools.exclude');
 
   const sandbox = own(tools, 'sandbox');
-  if (sandbox !== undefined && !SANDBOX_OFF.has(sandbox) && !SANDBOX_ON.has(sandbox)) {
-    throw new Error('Gemini tools.sandbox must be a boolean, "true", "false", "1", "0", or a sandbox command Gemini CLI supports (docker, podman, sandbox-exec, runsc, lxc, windows-native).');
+  const sandboxUnresolved = typeof sandbox === 'string' && ENV_REFERENCE.test(sandbox);
+  // Gemini CLI also treats an empty string as off; TrustDex rejects it like any other
+  // unsupported value rather than guessing which meaning the author intended.
+  if (sandbox !== undefined && !sandboxUnresolved && !SANDBOX_OFF.has(sandbox) && !SANDBOX_ON.has(sandbox)) {
+    throw new Error('Gemini tools.sandbox must be a boolean, "true", "false", "1", "0", an environment variable reference, or a sandbox command Gemini CLI supports (docker, podman, sandbox-exec, runsc, lxc, windows-native).');
   }
   // Gemini CLI treats false, "false", and "0" as off. This is the value in this file only;
   // another settings layer, GEMINI_SANDBOX, or --sandbox can change what applies at runtime.
-  const sandboxSetting = sandbox === undefined
-    ? 'omitted'
-    : SANDBOX_OFF.has(sandbox) ? 'disabled' : 'enabled';
+  let sandboxSetting = 'enabled';
+  if (sandbox === undefined) sandboxSetting = 'omitted';
+  else if (sandboxUnresolved) sandboxSetting = 'unresolved';
+  else if (SANDBOX_OFF.has(sandbox)) sandboxSetting = 'disabled';
   if (sandboxSetting === 'disabled') signals.add('gemini-sandbox-disabled');
+  if (sandboxSetting === 'unresolved') signals.add('gemini-sandbox-unresolved');
   const sandboxPaths = strings(tools, 'sandboxAllowedPaths', 'tools.sandboxAllowedPaths');
   const sandboxNetwork = boolean(tools, 'sandboxNetworkAccess', 'tools.sandboxNetworkAccess') === true;
   if (sandboxPaths.length || sandboxNetwork) signals.add('gemini-sandbox-relaxed');
