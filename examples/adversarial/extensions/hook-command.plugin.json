@@ -1,0 +1,16 @@
+{
+  "name": "hook-command",
+  "version": "1.0.0",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./fixture-hook.js"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -2,7 +2,9 @@ import { sha256Json } from './canonical.mjs';
 import path from 'node:path';
 
 const SECRET_KEY_RE = /(token|secret|password|passwd|api[_-]?key|credential|auth)/i;
-const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'cmd', 'powershell', 'pwsh']);
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'fish', 'dash', 'ksh', 'cmd', 'powershell', 'pwsh']);
+// Programs that run the command named in their arguments.
+const COMMAND_WRAPPERS = new Set(['env', 'sudo', 'doas', 'nohup', 'nice', 'timeout', 'stdbuf', 'setsid', 'xargs', 'busybox', 'wsl', 'command', 'exec']);
 const RUNNERS = new Set(['npx', 'pnpx', 'bunx', 'uvx']);
 
 function executableName(command = '') {
@@ -351,8 +353,26 @@ function extractRemoteEndpoint(server) {
   }
 }
 
+// A wrapper hides the real program. Any shell name among its arguments counts; this
+// can over-report, which costs a review, never a missed shell.
+function wrapsShell(command, args) {
+  return COMMAND_WRAPPERS.has(executableName(command)) && args.some((arg) => SHELLS.has(executableName(arg)));
+}
+
+// Fields of the wrong type are coerced below, so the report would not describe what a
+// client that accepts them actually runs.
+function hasMalformedFields(server) {
+  const { command, args, env, url, endpoint } = server;
+  const absent = (value) => value === undefined || value === null;
+  return (!absent(command) && typeof command !== 'string') ||
+    (!absent(args) && (!Array.isArray(args) || args.some((arg) => typeof arg !== 'string'))) ||
+    (!absent(env) && (typeof env !== 'object' || Array.isArray(env))) ||
+    [url, endpoint].some((value) => !absent(value) && typeof value !== 'string');
+}
+
 function normalizeServer(name, server = {}) {
-  const command = String(server.command || '');
+  const malformed = hasMalformedFields(server);
+  const command = typeof server.command === 'string' ? server.command : '';
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
   const env = server.env && typeof server.env === 'object' ? server.env : {};
   const envKeys = Object.keys(env).sort();
@@ -375,7 +395,8 @@ function normalizeServer(name, server = {}) {
   if (pkg?.credentials || args.some((arg) => argumentCredentials(arg) !== null)) signals.add('embedded-credentials');
   if (pkg?.query) signals.add('package-url-query');
   if (pkg?.unparseable) signals.add('unparseable-package-spec');
-  if (SHELLS.has(executableName(command))) signals.add('shell-execution');
+  if (malformed) signals.add('malformed-server-fields');
+  if (SHELLS.has(executableName(command)) || wrapsShell(command, args)) signals.add('shell-execution');
   if (RUNNERS.has(executableName(command))) signals.add('install-on-run');
   if (RUNNERS.has(executableName(command)) && envKeys.some((key) => RUNNER_ENV_RE.test(key))) {
     signals.add('runner-environment-override');
@@ -407,6 +428,7 @@ function normalizeServer(name, server = {}) {
       queryKeys: remote.queryKeys
     } : null,
     invalidEndpoint: (server.url || server.endpoint) && !remote ? true : null,
+    ...(malformed ? { malformed: true } : {}),
     envKeys,
     adapter: server._trustdexFingerprintData || null
   });

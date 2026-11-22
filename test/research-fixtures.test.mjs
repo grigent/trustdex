@@ -150,3 +150,73 @@ test('duplicate trust-store source claims fail closed', () => {
     c, { ...c, subject: 'EXAMPLE.TEST.', publisher: 'B' }
   ] }), /duplicate claims/);
 });
+
+test('adversarial skill and plugin fixtures report the documented signals and decisions', async () => {
+  const { inspectSkillText, inspectPluginManifest } = await import('../src/extensions.mjs');
+  const dir = new URL('extensions/', fixtureUrl);
+  const expected = await readFixture('extensions/expected.json');
+  const files = (await fs.readdir(dir)).filter((name) => name !== 'expected.json' && !name.startsWith('README')).sort();
+  assert.deepEqual(files, Object.keys(expected).sort());
+
+  for (const [name, expectation] of Object.entries(expected)) {
+    const text = await fs.readFile(new URL(name, dir), 'utf8');
+    const record = expectation.kind === 'skill'
+      ? inspectSkillText(text, name)
+      : inspectPluginManifest(JSON.parse(text), name);
+    for (const pack of ['strict', 'official-first', 'development']) {
+      const [result] = evaluateAll([record], getPolicyPack(pack));
+      assert.notEqual(result.action, 'allow', `${name} reached ALLOW under ${pack}`);
+    }
+    const [strict] = evaluateAll([record], getPolicyPack('strict'));
+    assert.equal(strict.action, expectation.action, name);
+    assert.deepEqual(record.signals, expectation.signals, name);
+  }
+});
+
+test('a tool scope that hides behind formatting is still reported', async () => {
+  const { inspectSkillText } = await import('../src/extensions.mjs');
+  const narrow = inspectSkillText('---\nallowed-tools:\n  - Read\n  - Grep # search\n---\nbody\n');
+  assert.deepEqual(narrow.signals, []);
+  assert.deepEqual(narrow.metadata.allowedTools, ['Read', 'Grep']);
+  for (const header of [
+    'allowed-tools:\n- "*"',
+    ' allowed_tools : "*"',
+    'ALLOWED-TOOLS: Read, *',
+    'tools: [Read, "*"] # all',
+    'allowed-tools: Read\nallowed-tools: Bash( * )'
+  ]) {
+    assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('wildcard-tool-scope'), header);
+  }
+  for (const header of ['allowed-tools: |\n  *', 'allowed-tools:\n  nested:\n    - "*"', 'allowed-tools: [Read,']) {
+    assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
+  }
+});
+
+test('a plugin manifest nested too deeply is rejected instead of crashing or passing', async () => {
+  const { inspectPluginManifest } = await import('../src/extensions.mjs');
+  const manifest = { name: 'deep', version: '1.0.0' };
+  let cursor = manifest;
+  for (let i = 0; i < 5000; i += 1) cursor = cursor.next = {};
+  assert.throws(() => inspectPluginManifest(manifest), /nested too deeply/);
+  assert.deepEqual(inspectPluginManifest({ name: 'p', version: '1.0.0', hooks: {}, mcpServers: null }).signals, []);
+});
+
+test('MCP entries that hide a shell or use wrong field types never reach ALLOW', async () => {
+  const expected = await readFixture('mcp-evasion.expected.json');
+  const config = await readFixture('mcp-evasion.json');
+  for (const pack of ['strict', 'official-first', 'development']) {
+    const results = evaluateAll(inspectMcpConfig(config), getPolicyPack(pack));
+    assert.equal(results.length, Object.keys(expected).length);
+    for (const result of results) {
+      // The development pack asks about shells by design; wrong field types always block.
+      const shellOnly = pack === 'development' && !result.signals.includes('malformed-server-fields');
+      assert.equal(result.action, shellOnly ? 'ask' : expected[result.name].action, `${result.name} under ${pack}`);
+      for (const signal of expected[result.name].signals) assert.ok(result.signals.includes(signal), result.name);
+    }
+  }
+  // A wrong-typed field must not share a fingerprint with the well-formed entry it resembles.
+  const [bad] = inspectMcpConfig({ mcpServers: { a: { command: 'npx', args: '-y pkg' } } });
+  const [good] = inspectMcpConfig({ mcpServers: { a: { command: 'npx' } } });
+  assert.notEqual(bad.fingerprint, good.fingerprint);
+  assert.deepEqual(inspectMcpConfig({ mcpServers: { a: { command: 'node', args: ['./server.js'], env: {} } } })[0].signals, ['filesystem-path']);
+});

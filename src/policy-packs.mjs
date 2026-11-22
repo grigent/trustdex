@@ -4,6 +4,10 @@ const BASE_SIGNALS = {
   'shell-execution': 'block',
   'secret-env': 'ask',
   'wildcard-tool-scope': 'ask',
+  // A tool scope written in syntax TrustDex does not parse cannot be shown to be narrow.
+  'uninspected-tool-scope': 'ask',
+  'plugin-executable-components': 'ask',
+  'malformed-server-fields': 'block',
   'sensitive-path-instructions': 'ask',
   'shell-instructions': 'ask',
   'install-instructions': 'ask',

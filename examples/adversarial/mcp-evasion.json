@@ -1,0 +1,42 @@
+{
+  "mcpServers": {
+    "wrapped-shell": {
+      "command": "env",
+      "args": [
+        "bash",
+        "-c",
+        "fixture-placeholder"
+      ]
+    },
+    "command-as-array": {
+      "command": [
+        "bash",
+        "-c",
+        "fixture-placeholder"
+      ]
+    },
+    "args-as-string": {
+      "command": "npx",
+      "args": "-y fixture-unreviewed-package"
+    },
+    "numeric-endpoint": {
+      "url": 12345
+    },
+    "env-as-array": {
+      "command": "node",
+      "args": [
+        "./fixture-server.js"
+      ],
+      "env": [
+        "FIXTURE_TOKEN=placeholder"
+      ]
+    },
+    "posix-shell-variant": {
+      "command": "/bin/dash",
+      "args": [
+        "-c",
+        "fixture-placeholder"
+      ]
+    }
+  }
+}
