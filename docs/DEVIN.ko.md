@@ -90,21 +90,28 @@ node ./bin/trustdex.mjs inspect-devin-settings ./.devin/config.json --pack stric
 | 관찰된 설정 | 신호 | 기본 제공 팩 |
 | --- | --- | --- |
 | `permissions.allow`의 `Exec(...)` 규칙 또는 `exec` 도구 | `devin-auto-approved-exec` | `BLOCK` |
+| 넓은 `permissions.allow` 규칙: `edit` 도구, 와일드카드·구분자·`~`·`.`로만 된 `Write(...)` 범위(`**`, `/**`, `~/**` 등), `.devin`·`.claude`·`.config` 디렉터리를 가리키는 `Write(...)` 범위, 호스트가 와일드카드뿐인 `Fetch(...)` 범위(`*`, `domain:*`, `https://*/*`) | `devin-broad-auto-approve` | `BLOCK` |
 | 그 밖의 `permissions.allow` 규칙(`Read`, `Write`, `Fetch`, 도구 이름, `mcp__...`) | `devin-auto-approved-tools` | `ASK` |
 | `permission_mode: "dangerous"` | `devin-permission-mode-bypass` | `BLOCK` |
 | `permission_mode: "accept-edits"` 또는 `"smart"` | `devin-permission-mode-auto` | `ASK` |
 | 비어 있지 않은 `hooks` 이벤트 | `devin-hooks` | `BLOCK` |
-| `local_tools_bypass_permissions: true` | `devin-local-tools-bypass` | `ASK` |
+| 비어 있지 않은 `sandbox.excluded.allow`(일치하는 명령이 확인 없이 샌드박스 밖에서 실행됨) | `devin-sandbox-excluded-exec` | `BLOCK` |
+| `local_tools_bypass_permissions: true`(로컬 도구 연결의 Bypass 모드) | `devin-local-tools-bypass` | `BLOCK` |
 | `mcpServers` 키(예전 Devin CLI 버전이 읽음) | `devin-mcp-servers` | `ASK` |
-| `read_config_from`에 `true`인 제공자가 있음(그 도구의 파일에서 규칙, 스킬, 훅, MCP 서버를 가져올 수 있음) | `devin-external-config` | `ASK` |
-| `proxy`처럼 TrustDex가 검사하지 않는 설정 | `uninspected-devin-settings` | `ASK` |
+| 켜진 가져오기 제공자: 문서화된 `read_config_from` 옵션이 없거나 `true` 또는 `null`임(`read_config_from` 자체가 없는 경우 포함, 그 도구나 Devin Cloud에서 규칙, 스킬, MCP 서버, 플러그인을 가져올 수 있음) | `devin-external-config` | `ASK` |
+| `proxy`나 알 수 없는 `sandbox`·`sandbox.excluded`·`read_config_from` 키처럼 TrustDex가 검사하지 않는 설정 | `uninspected-devin-settings` | `ASK` |
 
 설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. `ask`와 `deny` 규칙은 제한하는
 규칙이라 신호를 추가하지 않습니다. 에이전트에 자율성을 주지 않는 문서화된 설정(`agent`,
-표시 옵션, `keymap`, `sandbox` 등)은 값을 읽지 않고 건너뜁니다. `read_config_from`은 `true`인
-제공자의 개수(`metadata.externalConfigProviderCount`)만 보고하며, 제공자 이름과 가져오는 파일은
-읽지도 보고하지도 않습니다. `read_config_from`이 없거나 모든 제공자가 `false`이면 신호가 없고,
-불리언 객체가 아닌 값은 거부합니다.
+표시 옵션, `keymap` 등과 `sandbox.allowed_domains`, `sandbox.denied_domains`,
+`sandbox.network_mode`)은 값을 읽지 않고 건너뜁니다. `sandbox.excluded` 목록은 `Exec(...)`
+규칙만 받으며 개수만 보고합니다. Devin CLI는 값이 없거나 `null`인 `read_config_from` 제공자를
+켜므로, 파일이 문서화된 제공자 10개(`agents_standard`, `cursor`, `windsurf`, `claude`,
+`copilot`, `codex`, `kiro`, `opencode`, `zed`, `cloud`)를 모두 `false`로 둘 때만
+`devin-external-config`가 없습니다. 다른 설정 파일이 실행 시 이를 바꿀 수 있습니다. 켜진
+제공자의 개수(`metadata.externalConfigProviderCount`)만 보고하며, 제공자 이름과 가져오는
+파일은 읽지도 보고하지도 않습니다. 불리언이나 `null`로 된 객체가 아닌 값은 거부합니다. 넓은
+규칙은 개수(`metadata.broadAllowRuleCount`)만 보고하고 범위는 보고하지 않습니다.
 
 규칙은 문서화된 형식이어야 합니다: `Read(...)`, `Write(...)`, `Exec(...)`, `Fetch(...)`,
 도구 이름 `read`, `edit`, `grep`, `glob`, `exec`, 또는 `mcp__*`, `mcp__server__*`,

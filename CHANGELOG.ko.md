@@ -14,6 +14,12 @@
 - Claude Code 설정 검사는 실행형 도우미와 보호 훅을 끌 수 있는 설정을 차단하고, 알 수 없는 설정 이름은 출력하지 않습니다. 환경 변수 키, 관리형 전용 권한 규칙, 작업 디렉터리 외부 접근 제한에는 공식 병합 규칙을 적용합니다. Claude 권한 스냅샷 v1/v2에는 쓰기 차단, 확인 대신 거부, 관리형 전용 규칙 여부를 선택 필드로 기록합니다. 이 정보가 없는 스냅샷과 비교하면 다시 검토해야 합니다.
 - Gemini MCP 검사에서 실행 대상이나 도구 필터의 미확인 참조를 거부하고, 헤더와 `env`의 단순 자격 증명 참조를 값 없이 추적합니다. 영향을 받는 설정은 다시 검토하고 서명해야 할 수 있습니다.
 - Gemini 권한 검사에서 `tools.core`의 자동 승인과 MCP 자동 승인 설정을 보고하고, 기본 제공 팩에서 미확인 도구 승인을 차단합니다. 관리자 보안 모드는 YOLO 및 항상 허용 표시에도 반영됩니다.
+- `inspect-devin-settings`가 Devin CLI 문서의 동작을 더 정확히 따릅니다. 모든 변경은 신호를 더하거나 조치를 높이기만 하며, 설정 파일은 여전히 ALLOW가 되지 않습니다.
+  - 일치하는 명령을 확인 없이 샌드박스 밖에서 실행하는 `sandbox.excluded.allow`는 `devin-sandbox-excluded-exec`(`BLOCK`)를 추가합니다. 이전에는 `sandbox`를 건너뛰었습니다. `sandbox.excluded` 목록은 `Exec(...)` 규칙만 받으며 그 밖의 값은 거부합니다. 알 수 없는 `sandbox` 키는 검사하지 않는 설정으로 셉니다.
+  - 넓은 허용 규칙(`edit` 도구, `**` 같은 모든 경로 `Write(...)` 범위, `.devin`·`.claude`·`.config`를 가리키는 `Write(...)` 범위, 모든 호스트 `Fetch(...)` 범위)은 `devin-broad-auto-approve`(`BLOCK`)를 추가합니다. 에이전트가 자기 규칙과 훅을 고치거나 읽은 내용을 아무 곳에나 보낼 수 있기 때문입니다.
+  - `local_tools_bypass_permissions: true`는 `permission_mode: "dangerous"`처럼 `ASK` 대신 `BLOCK`입니다.
+  - 값이 없거나 `null`인 `read_config_from` 제공자는 Devin CLI처럼 켜진 것으로 셉니다. 따라서 문서화된 제공자 10개가 모두 `false`일 때만 `devin-external-config`가 없으며, `null`은 더 이상 거부되지 않습니다. 알 수 없는 제공자 키는 검사하지 않는 설정으로 셉니다.
+  - 새 메타데이터: `broadAllowRuleCount`, `sandboxExcludedAllowCount`/`AskCount`/`DenyCount`.
 
 ## 0.20.4 - 2026-11-22
 

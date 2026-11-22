@@ -8,14 +8,26 @@ const RULE_LISTS = ['allow', 'ask', 'deny'];
 const SCOPE_RULE = /^(Read|Write|Exec|Fetch)\(.+\)$/s;
 const TOOL_RULES = new Map([['read', 'Read'], ['grep', 'Read'], ['glob', 'Read'], ['edit', 'Write'], ['exec', 'Exec']]);
 const MCP_RULE = /^mcp__(?:\*|[^*\s]+__(?:\*|[^*\s]+))$/;
+const EXEC_RULE = /^Exec\(.+\)$/s;
+// A Write scope made only of wildcards, separators, `~`, or `.` covers every path; one that
+// names an agent configuration directory lets the agent edit its own rules and hooks.
+const ALL_PATHS_SCOPE = /^[*/\\~.]*$/;
+const AGENT_CONFIG_SCOPE = /(?:^|[/\\])\.(?:devin|claude|config)(?:[/\\*]|$)/i;
+// A Fetch scope whose host is only a wildcard matches every URL.
+const ALL_HOSTS_SCOPE = /^(?:domain:)?\*{1,2}$|^[a-z*]*:\/\/\*{1,2}(?:[/:?#].*)?$/i;
+// read_config_from options Devin CLI documents; each one is enabled when unset or null.
+const CONFIG_PROVIDERS = [
+  'agents_standard', 'cursor', 'windsurf', 'claude', 'copilot', 'codex', 'kiro', 'opencode', 'zed', 'cloud'
+];
+const SANDBOX_KEYS = new Set(['allowed_domains', 'denied_domains', 'network_mode', 'excluded']);
 // Documented settings that grant the agent no autonomy. Their values are not read.
 const NEUTRAL_ROOT_KEYS = new Set([
   'agent', 'theme_mode', 'show_path', 'unicode_mode', 'show_hints', 'include_gitignored_files',
-  'respect_gitignore', 'attribution', 'subagents_enabled', 'keymap', 'auto_update', 'notify',
-  'sandbox'
+  'respect_gitignore', 'attribution', 'subagents_enabled', 'keymap', 'auto_update', 'notify'
 ]);
 const INSPECTED_ROOT_KEYS = new Set([
-  'permissions', 'permission_mode', 'hooks', 'mcpServers', 'local_tools_bypass_permissions', 'read_config_from'
+  'permissions', 'permission_mode', 'hooks', 'mcpServers', 'local_tools_bypass_permissions', 'read_config_from',
+  'sandbox'
 ]);
 
 function isObject(value) {
@@ -30,13 +42,35 @@ function ruleCategory(rule) {
   throw new Error('Unsupported Devin permission rule.');
 }
 
-function rules(permissions, key) {
-  if (!Object.hasOwn(permissions, key)) return [];
-  const value = permissions[key];
+function isBroadRule(rule) {
+  if (rule === 'edit') return true;
+  const scope = SCOPE_RULE.exec(rule);
+  if (!scope) return false;
+  const inner = rule.slice(scope[1].length + 1, -1).trim();
+  if (scope[1] === 'Write') return ALL_PATHS_SCOPE.test(inner) || AGENT_CONFIG_SCOPE.test(inner);
+  if (scope[1] === 'Fetch') return ALL_HOSTS_SCOPE.test(inner);
+  return false;
+}
+
+function stringList(container, key, label) {
+  if (!Object.hasOwn(container, key)) return [];
+  const value = container[key];
   if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
-    throw new Error(`Devin permissions.${key} must be an array of strings.`);
+    throw new Error(`Devin ${label}.${key} must be an array of strings.`);
   }
-  return value.map(ruleCategory);
+  return value;
+}
+
+function rules(permissions, key) {
+  return stringList(permissions, key, 'permissions').map(ruleCategory);
+}
+
+function sandboxRules(excluded, key) {
+  const value = stringList(excluded, key, 'sandbox.excluded');
+  if (value.some((rule) => !EXEC_RULE.test(rule))) {
+    throw new Error(`Devin sandbox.excluded.${key} supports only Exec(...) rules.`);
+  }
+  return value.length;
 }
 
 export function inspectDevinSettings(settings, sourceName = 'config.json') {
@@ -60,6 +94,29 @@ export function inspectDevinSettings(settings, sourceName = 'config.json') {
   const allowed = (category) => allow.filter((item) => item === category).length;
   if (allow.length) signals.add('devin-auto-approved-tools');
   if (allowed('Exec')) signals.add('devin-auto-approved-exec');
+  // Reads are auto-approved by default, so an all-host Fetch grant is an exfiltration path, and
+  // an all-path or agent-config Write grant lets the agent add its own hooks or Exec rules.
+  const broadAllowRuleCount = stringList(permissions, 'allow', 'permissions').filter(isBroadRule).length;
+  if (broadAllowRuleCount) signals.add('devin-broad-auto-approve');
+
+  // sandbox.excluded.allow runs matching commands outside sandbox isolation without a prompt.
+  let sandboxExcludedAllowCount = 0;
+  let sandboxExcludedAskCount = 0;
+  let sandboxExcludedDenyCount = 0;
+  if (Object.hasOwn(settings, 'sandbox')) {
+    const sandbox = settings.sandbox;
+    if (!isObject(sandbox)) throw new Error('Devin sandbox must be an object.');
+    uninspectedSettingCount += Object.keys(sandbox).filter((key) => !SANDBOX_KEYS.has(key)).length;
+    if (Object.hasOwn(sandbox, 'excluded')) {
+      const excluded = sandbox.excluded;
+      if (!isObject(excluded)) throw new Error('Devin sandbox.excluded must be an object.');
+      uninspectedSettingCount += Object.keys(excluded).filter((key) => !RULE_LISTS.includes(key)).length;
+      sandboxExcludedAllowCount = sandboxRules(excluded, 'allow');
+      sandboxExcludedAskCount = sandboxRules(excluded, 'ask');
+      sandboxExcludedDenyCount = sandboxRules(excluded, 'deny');
+    }
+  }
+  if (sandboxExcludedAllowCount) signals.add('devin-sandbox-excluded-exec');
 
   // Hooks run shell commands or prompts on lifecycle events.
   let hookCount = 0;
@@ -85,16 +142,18 @@ export function inspectDevinSettings(settings, sourceName = 'config.json') {
   if (typeof localBypass !== 'boolean') throw new Error('Devin local_tools_bypass_permissions must be a boolean.');
   if (localBypass) signals.add('devin-local-tools-bypass');
 
-  // read_config_from turns on providers whose rules, skills, hooks, and MCP servers Devin CLI
-  // imports. Only the number of enabled providers is kept; the imported files are not read.
-  let externalConfigProviderCount = 0;
-  if (Object.hasOwn(settings, 'read_config_from')) {
-    const providers = settings.read_config_from;
-    if (!isObject(providers) || Object.values(providers).some((value) => typeof value !== 'boolean')) {
-      throw new Error('Devin read_config_from must be an object of booleans.');
-    }
-    externalConfigProviderCount = Object.values(providers).filter(Boolean).length;
+  // read_config_from turns on providers whose rules, skills, MCP servers, and plugins Devin CLI
+  // imports. Every documented provider is on unless this file sets it to false, as Devin CLI
+  // enables a provider that is unset or null. Only the number of enabled providers is kept;
+  // the imported files are not read.
+  const providers = Object.hasOwn(settings, 'read_config_from') ? settings.read_config_from : {};
+  if (!isObject(providers) ||
+      Object.values(providers).some((value) => value !== null && typeof value !== 'boolean')) {
+    throw new Error('Devin read_config_from must be an object of booleans.');
   }
+  const externalConfigProviderCount = new Set([...CONFIG_PROVIDERS, ...Object.keys(providers)])
+    .size - Object.values(providers).filter((value) => value === false).length;
+  uninspectedSettingCount += Object.keys(providers).filter((key) => !CONFIG_PROVIDERS.includes(key)).length;
   if (externalConfigProviderCount) signals.add('devin-external-config');
 
   if (uninspectedSettingCount) signals.add('uninspected-devin-settings');
@@ -113,6 +172,10 @@ export function inspectDevinSettings(settings, sourceName = 'config.json') {
       autoApprovedReadCount: allowed('Read'),
       autoApprovedFetchCount: allowed('Fetch'),
       autoApprovedMcpCount: allowed('Mcp'),
+      broadAllowRuleCount,
+      sandboxExcludedAllowCount,
+      sandboxExcludedAskCount,
+      sandboxExcludedDenyCount,
       hookCount,
       mcpServerCount,
       localToolsBypassPermissions: localBypass,
