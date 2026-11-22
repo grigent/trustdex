@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "reviewed": {
+      "url": "https://reviewed.invalid/mcp",
+      "transport": "http"
+    },
+    "unknown": {
+      "url": "https://unknown.invalid/mcp"
+    },
+    "needsReview": {
+      "url": "https://reviewed.invalid/mcp",
+      "headers": {
+        "Authorization": "Bearer ${env:EXAMPLE_API_TOKEN}"
+      }
+    },
+    "disabledLocal": {
+      "command": "node",
+      "args": ["./inert-not-executed.mjs"],
+      "disabled": true
+    }
+  }
+}
