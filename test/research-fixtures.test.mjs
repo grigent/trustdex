@@ -176,7 +176,7 @@ test('adversarial skill and plugin fixtures report the documented signals and de
 test('a tool scope that hides behind formatting is still reported', async () => {
   const { inspectSkillText } = await import('../src/extensions.mjs');
   const narrow = inspectSkillText('---\nallowed-tools:\n  - Read\n  - Grep # search\n---\nbody\n');
-  assert.deepEqual(narrow.signals, []);
+  assert.deepEqual(narrow.signals, ['skill-auto-approved-tools']);
   assert.deepEqual(narrow.metadata.allowedTools, ['Read', 'Grep']);
   for (const header of [
     'allowed-tools:\n- "*"',
@@ -209,7 +209,8 @@ test('a tool scope that hides behind formatting is still reported', async () => 
     '{allowed-tools: "*"}', 'meta:\n  allowed-tools: "*"', 'tags: [a,\n"allowed-tools": "*"]']) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
   }
-  assert.deepEqual(inspectSkillText('---\nname: x\nallowed-tools: Read\n---\nallowed-tools in the body\n').signals, []);
+  assert.deepEqual(inspectSkillText('---\nname: x\nallowed-tools: Read\n---\nallowed-tools in the body\n').signals,
+    ['skill-auto-approved-tools']);
   // Breaking the list syntax cannot lower a wildcard to the weaker uninspected signal.
   for (const header of ['allowed-tools: [Read,\n  tools:search,\n  Bash(*)]', 'allowed-tools: [Read,\n  "*"',
     'meta:\n  allowed-tools: ["*"]', '{allowed-tools: "*"}']) {
@@ -227,7 +228,8 @@ test('a plugin manifest nested too deeply is rejected instead of crashing or pas
   let cursor = manifest;
   for (let i = 0; i < 5000; i += 1) cursor = cursor.next = {};
   assert.throws(() => inspectPluginManifest(manifest), /nested too deeply/);
-  assert.deepEqual(inspectPluginManifest({ name: 'p', version: '1.0.0', hooks: {}, mcpServers: null }).signals, []);
+  assert.deepEqual(inspectPluginManifest({ name: 'p', version: '1.0.0', hooks: {}, mcpServers: null }).signals,
+    ['plugin-components-uninspected']);
 });
 
 test('MCP entries that hide a shell or use wrong field types never reach ALLOW', async () => {

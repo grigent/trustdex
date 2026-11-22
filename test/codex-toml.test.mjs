@@ -171,12 +171,13 @@ test('a static env value keeps its origin regardless of file order', () => {
   const b = origins('[mcp_servers.x]\ncommand = "node"\nenv = { T = "v" }\nenv_vars = ["T"]\n');
   assert.deepEqual(a, b);
   assert.deepEqual(a.T, ['host', 'static']);
-  const bearer = origins('[mcp_servers.x]\nurl = "https://h.invalid/"\nenv = { T = "v" }\nbearer_token_env_var = "T"\n');
-  assert.deepEqual(bearer.T, ['bearer-token', 'static']);
+  // Codex rejects env on an HTTP server, so a bearer variable cannot also be static.
+  assert.throws(() => origins('[mcp_servers.x]\nurl = "https://h.invalid/"\nenv = { T = "v" }\nbearer_token_env_var = "T"\n'),
+    /"env" is not supported for the HTTP transport/);
   const collide = (toml) => inspectMcpConfig(parseCodexMcpToml(toml))[0].fingerprint;
   assert.notEqual(
-    collide('[mcp_servers.x]\ncommand = "node"\nenv_vars = [{ name = "T", source = "a+static" }]\n'),
-    collide('[mcp_servers.x]\ncommand = "node"\nenv_vars = [{ name = "T", source = "a" }]\nenv = { T = "v" }\n')
+    collide('[mcp_servers.x]\ncommand = "node"\nenv_vars = [{ name = "T", source = "local" }]\n'),
+    collide('[mcp_servers.x]\ncommand = "node"\nenv_vars = [{ name = "T", source = "local" }]\nenv = { T = "v" }\n')
   );
 });
 

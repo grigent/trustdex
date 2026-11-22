@@ -370,7 +370,20 @@ function hasMalformedFields(server) {
     [url, endpoint].some((value) => !absent(value) && typeof value !== 'string');
 }
 
-function normalizeServer(name, server = {}) {
+const GENERIC_SERVER_KEYS = new Set(['command', 'args', 'env', 'url', 'endpoint']);
+const GENERIC_TRANSPORT_TYPES = new Set(['stdio', 'http', 'sse', 'streamable-http']);
+
+// Generic configs share no single schema; a field TrustDex does not read (headers,
+// envFile, cwd, an unknown transport) can change what runs, so it needs review.
+// Adapter metadata is trusted only when the caller says the servers came from an adapter
+// parser; in a generic file the same keys are just more unread fields.
+function hasUninspectedFields(server, generic) {
+  if (!generic && server._trustdexFingerprintData) return false;
+  return Object.keys(server).some((key) => !GENERIC_SERVER_KEYS.has(key) &&
+    !(key === 'type' && GENERIC_TRANSPORT_TYPES.has(server.type)));
+}
+
+function normalizeServer(name, server = {}, generic = false) {
   const malformed = hasMalformedFields(server);
   const command = typeof server.command === 'string' ? server.command : '';
   const args = Array.isArray(server.args) ? server.args.map(String) : [];
@@ -396,6 +409,7 @@ function normalizeServer(name, server = {}) {
   if (pkg?.query) signals.add('package-url-query');
   if (pkg?.unparseable) signals.add('unparseable-package-spec');
   if (malformed) signals.add('malformed-server-fields');
+  if (hasUninspectedFields(server, generic)) signals.add('uninspected-server-fields');
   if (SHELLS.has(executableName(command)) || wrapsShell(command, args)) signals.add('shell-execution');
   if (RUNNERS.has(executableName(command))) signals.add('install-on-run');
   if (RUNNERS.has(executableName(command)) && envKeys.some((key) => RUNNER_ENV_RE.test(key))) {
@@ -436,7 +450,9 @@ function normalizeServer(name, server = {}) {
   return { name, source, fingerprint, signals: [...signals].sort(), envKeys };
 }
 
-export function inspectMcpConfig(config) {
+// Pass { generic: true } for MCP JSON read directly from a file rather than from an
+// adapter parser, so adapter-only keys in the file cannot skip field review.
+export function inspectMcpConfig(config, { generic = false } = {}) {
   if (config && Object.hasOwn(config, 'mcpServers') && Object.hasOwn(config, 'servers')) {
     throw new Error('Ambiguous MCP configuration: both mcpServers and servers are present.');
   }
@@ -454,6 +470,6 @@ export function inspectMcpConfig(config) {
     }
   }
   return Object.entries(servers)
-    .map(([name, server]) => normalizeServer(name, server))
+    .map(([name, server]) => normalizeServer(name, server, generic))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

@@ -7,6 +7,14 @@ const BASE_SIGNALS = {
   // A tool scope written in syntax TrustDex does not parse cannot be shown to be narrow.
   'uninspected-tool-scope': 'ask',
   'plugin-executable-components': 'ask',
+  // The manifest cannot show the components Claude Code loads from default locations.
+  'plugin-components-uninspected': 'ask',
+  'skill-hooks': 'block',
+  'skill-shell-injection': 'block',
+  'skill-frontmatter-uninspected': 'ask',
+  'skill-auto-approved-tools': 'ask',
+  'skill-shell-auto-approve': 'block',
+  'uninspected-server-fields': 'ask',
   'malformed-server-fields': 'block',
   'sensitive-path-instructions': 'ask',
   'shell-instructions': 'ask',

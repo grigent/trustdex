@@ -6,6 +6,10 @@
 
 ## 미출시
 
+- 스킬(`inspect-skill`): Claude Code 스킬 문서와 대조했습니다. frontmatter의 `hooks`는 `skill-hooks`(키로 읽을 수 없는 frontmatter나 그 밖의 `hooks` 언급은 검토가 필요한 `skill-frontmatter-uninspected`), `` !`command` ``와 ` ```! ` 블록은 `skill-shell-injection`을 추가하며, Claude Code가 확인 없이 실행하므로 둘 다 `BLOCK`입니다. `allowed-tools` 권한 부여는 모두 `skill-auto-approved-tools`(최소 `ASK`), `Bash`나 `PowerShell` 부여는 `skill-shell-auto-approve`(`BLOCK`)를 추가합니다. 이전에는 와일드카드만 보고했습니다.
+- 플러그인(`inspect-plugin`): Claude Code는 매니페스트에 없어도 플러그인 루트의 `hooks/hooks.json`, `.mcp.json`, `.lsp.json`, `monitors/monitors.json`, `bin/`을 불러오므로 모든 매니페스트에 `plugin-components-uninspected`(최소 `ASK`)가 붙습니다. `monitors`, `experimental.monitors`, `channels`도 `plugin-executable-components`로 봅니다.
+- 일반 MCP(`inspect`): TrustDex가 읽지 않는 서버 필드(예: `headers`, `envFile`, `cwd`, `stdio`/`http`/`sse`/`streamable-http` 외의 `type`)는 무시하지 않고 `uninspected-server-fields`(최소 `ASK`)를 추가합니다.
+- Codex MCP(`inspect-codex`): Codex 자체 검증에 맞춰 `default_tools_approval_mode`는 `auto`, `prompt`, `writes`, `approve`만, `env_vars`의 `source`는 `local`, `remote`만 허용합니다. `command` 서버의 HTTP 전용 키, `url` 서버의 `args`/`env`/`env_vars`/`cwd`, `command`와 `url`이 모두 없는 서버, 빈 `http_headers_helper`는 실패 처리(fail closed)합니다.
 - Claude Code 설정 검사는 실행형 도우미와 보호 훅을 끌 수 있는 설정을 차단하고, 알 수 없는 설정 이름은 출력하지 않습니다. 환경 변수 키, 관리형 전용 권한 규칙, 작업 디렉터리 외부 접근 제한에는 공식 병합 규칙을 적용합니다. Claude 권한 스냅샷 v1/v2에는 쓰기 차단, 확인 대신 거부, 관리형 전용 규칙 여부를 선택 필드로 기록합니다. 이 정보가 없는 스냅샷과 비교하면 다시 검토해야 합니다.
 
 ## 0.20.4 - 2026-11-22

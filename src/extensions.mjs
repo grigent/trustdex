@@ -81,6 +81,23 @@ export function parseFrontmatter(text) {
 }
 
 // "*" alone, or a tool with an unrestricted specifier such as "Bash(*)".
+// Claude Code runs `!`command`` and ```! blocks in SKILL.md while rendering the skill,
+// before the model sees it and without a permission prompt.
+const SKILL_SHELL_INJECTION_RE = /!`[^`\r\n]+`|^[ \t]*(?:`{3,}|~{3,})!/m;
+// A plain or quoted `hooks` key in a block mapping or a flow map registers session hooks.
+const SKILL_HOOKS_KEY_RE = /(?:^|[{,])[ \t]*["']?hooks["']?[ \t]*:/m;
+// Frontmatter this inspector cannot read as keys: any other mention of hooks, YAML explicit
+// keys, aliases, tags and anchors at a key position, escaped quoted keys, and any of those
+// after a flow map opens, including on later lines.
+const SKILL_UNREAD_FRONTMATTER_RE =
+  /hooks|^[ \t]*(?:\?(?:[ \t]|$)|\*[^\s*,{}[\]]|[!&]|"[^"\n]*\\)/im;
+
+function hasUnreadFrontmatter(header) {
+  const flow = header.indexOf('{');
+  return SKILL_UNREAD_FRONTMATTER_RE.test(header) || (flow >= 0 && /[?*!&\\]/.test(header.slice(flow)));
+}
+const SHELL_TOOL_RE = /(?:^|[\s,[\]"'])(?:Bash|PowerShell)(?=$|[\s,(\]"'])/i;
+
 function isWildcard(tools) {
   if (Array.isArray(tools)) return tools.some((tool) => isWildcard(String(tool)));
   return typeof tools === 'string' && /(?:^|[,\s])(?:[A-Za-z0-9_-]+\(\s*\*\s*\)|\*)(?=$|[,\s])/.test(tools);
@@ -103,9 +120,21 @@ function toolScopeSignals(entries) {
   // breaking the syntax cannot lower a wildcard finding to the weaker signal.
   const wildcard = scopes.some((entry) => isWildcard(entry.value)) ||
     (uninspected && isWildcard((entries.header || '').replace(/[[\]{}"',]/g, ' ')));
+  // allowed-tools grants run without a permission prompt; a grant that cannot be read
+  // in full counts as one, and a shell tool named anywhere in it counts as shell.
+  const grants = scopes.filter((entry) => /^allowed[-_]?tools$/i.test(entry.key));
+  const granted = grants.some((entry) => [entry.value].flat().some((item) => String(item ?? '').trim())) ||
+    mentioned > read || grants.some((entry) => entry.unsupported);
+  // A YAML comment folded into a list item is not a grant.
+  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test([entry.value].flat()
+    .map((item) => String(item ?? '').replace(/(?:^|\s)#.*$/, '')).join(' '))) ||
+    ((mentioned > read || grants.some((entry) => entry.unsupported || hasStraySyntax(entry.value))) &&
+      SHELL_TOOL_RE.test(entries.header || ''));
   return [
     ...(wildcard ? ['wildcard-tool-scope'] : []),
-    ...(uninspected ? ['uninspected-tool-scope'] : [])
+    ...(uninspected ? ['uninspected-tool-scope'] : []),
+    ...(granted ? ['skill-auto-approved-tools'] : []),
+    ...(shellGrant ? ['skill-shell-auto-approve'] : [])
   ];
 }
 
@@ -120,6 +149,11 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
   if (SENSITIVE_PATH_RE.test(value)) signals.add('sensitive-path-instructions');
   if (SHELL_INSTRUCTION_RE.test(value)) signals.add('shell-instructions');
   if (INSTALL_RE.test(value)) signals.add('install-instructions');
+  // Skill hooks register commands for the rest of the session, however the key is written.
+  const header = entries.header || '';
+  if (SKILL_HOOKS_KEY_RE.test(header)) signals.add('skill-hooks');
+  else if (hasUnreadFrontmatter(header)) signals.add('skill-frontmatter-uninspected');
+  if (SKILL_SHELL_INJECTION_RE.test(value)) signals.add('skill-shell-injection');
 
   return {
     name: String(metadata.name || sourceName),
@@ -163,9 +197,15 @@ export function inspectPluginManifest(manifest, sourceName = 'plugin.json') {
   if (textLeaves.some((entry) => SHELL_INSTRUCTION_RE.test(entry.value))) signals.add('shell-reference');
 
   // Components that run a program when the plugin loads or a tool is used.
-  const present = (key) => manifest[key] !== undefined && manifest[key] !== null &&
-    (typeof manifest[key] !== 'object' || Object.keys(manifest[key]).length > 0);
-  if (['hooks', 'mcpServers', 'lspServers', 'scripts'].some(present)) signals.add('plugin-executable-components');
+  const present = (value) => value !== undefined && value !== null &&
+    (typeof value !== 'object' || Object.keys(value).length > 0);
+  const experimental = manifest.experimental && typeof manifest.experimental === 'object' ? manifest.experimental : {};
+  if (['hooks', 'mcpServers', 'lspServers', 'scripts', 'monitors', 'channels'].some((key) => present(manifest[key])) ||
+    present(experimental.monitors)) signals.add('plugin-executable-components');
+  // Claude Code also loads hooks/hooks.json, .mcp.json, .lsp.json, monitors/monitors.json,
+  // bin/, skills, and commands from the plugin root whether or not the manifest names
+  // them, so a manifest alone never shows that a plugin runs nothing.
+  signals.add('plugin-components-uninspected');
 
   const toolish = leaves.filter((entry) => /(?:tool|permission|capabilit)/i.test(entry.path));
   if (toolish.some((entry) => isWildcard(entry.value))) {
