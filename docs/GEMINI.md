@@ -111,7 +111,7 @@ Settings are classified by capability rather than echoed:
 | `mcpServers`, `admin.mcp.config`, or `admin.mcp.requiredConfig` entries | `gemini-mcp-servers` | at least `ASK` |
 | any setting TrustDex does not inspect | `uninspected-gemini-settings` | at least `ASK` |
 
-A settings file never reaches ALLOW in a built-in pack. Restrictive settings
+A settings file never reaches ALLOW, whatever the policy says. Restrictive settings
 (`tools.exclude`, `tools.core`, `tools.confirmationRequired`, `security.disableYoloMode`,
 `security.disableAlwaysAllow`) add no signal. An inspected setting with the wrong type,
 an unsupported approval mode, and a file that is not plain JSON (including one with

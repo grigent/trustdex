@@ -109,7 +109,7 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 | `mcpServers`, `admin.mcp.config`, `admin.mcp.requiredConfig` 항목 | `gemini-mcp-servers` | 최소 `ASK` |
 | TrustDex가 검사하지 않는 설정 | `uninspected-gemini-settings` | 최소 `ASK` |
 
-설정 파일은 기본 제공 팩에서 ALLOW가 되지 않습니다. 제한하는 설정(`tools.exclude`,
+설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. 제한하는 설정(`tools.exclude`,
 `tools.core`, `tools.confirmationRequired`, `security.disableYoloMode`,
 `security.disableAlwaysAllow`)은 신호를 추가하지 않습니다. 검사 대상 설정의 타입이
 틀리거나, 지원하지 않는 승인 모드이거나, 순수 JSON이 아닌 파일(주석 포함)은 거부합니다.
