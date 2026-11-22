@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- `slack-approver`: 토큰 파일에는 봇 토큰 형태의 값 하나만 있어야 합니다. `tokenFile`이 다른 파일을 가리켜도 그 내용이 Slack으로 전송되지 않으며, `slack.com` 요청은 더 이상 리디렉션을 따르지 않습니다
+
 ## 0.17.3 - 2026-11-22
 
 - `provenance npm`과 `trust-source npm`이 최신 버전의 npm 빌드 provenance를 패키지가 지금 선언한 저장소, 이전에 선언했던 저장소와 비교합니다. `trust-source`는 다른 저장소에서 빌드된 릴리스(`mismatch`), 이전 버전에 있던 provenance가 빠진 릴리스(`dropped`), 버전의 sha512와 맞출 수 없는 provenance(`unverifiable`)를 거부하고, 일치하면 소스 저장소와 워크플로를 주장에 기록합니다. Sigstore 서명은 검증하지 않으며, `check-install`은 새 요청을 하지 않습니다
