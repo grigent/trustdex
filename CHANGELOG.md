@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.20.4 - 2026-11-22
+
 - `inspect-gemini-settings`: a `tools.sandbox` string with an environment variable reference (`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`), which Gemini CLI expands before validating, is now reported as `sandboxSetting: "unresolved"` with the `gemini-sandbox-unresolved` signal (at least `ASK`) instead of failing closed. The variable name, default value, and string are not reported. Unsupported command strings and the empty string still fail closed; the docs now note that Gemini CLI treats an empty string as off.
 
 ## 0.20.3 - 2026-11-22
