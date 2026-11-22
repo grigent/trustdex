@@ -47,7 +47,7 @@ The version that would be installed is resolved the way the installer does for t
 | `pipe-to-shell` | BLOCK | downloaded content runs in a shell or interpreter without review |
 | `package-not-found` | BLOCK | the registry has no package with this name (typo, made-up name, or removed package) |
 | `invalid-registry-metadata` | BLOCK | name mismatch, unpublished package, missing npm SRI integrity, or a PyPI file without SHA-256 |
-| `known-malicious-release` | BLOCK | the requested or resolved PyPI version matches a bundled malware advisory |
+| `known-malicious-release` | BLOCK | the requested or resolved npm or PyPI version matches a bundled malware advisory |
 | `recent-release` | ASK | the resolved version is newer than `minReleaseAgeHours` (default 48). Hijacked releases are usually found and removed within this window |
 | `new-package` | ASK | the package itself is newer than `minPackageAgeDays` (default 30) |
 | `install-scripts` | ASK | the npm version has `preinstall`/`install`/`postinstall` scripts or a native build (`gypfile`) |
@@ -63,9 +63,19 @@ The version that would be installed is resolved the way the installer does for t
 | `lookup-failed` | ASK | the registry could not be reached or answered with an error |
 | `local-source`, `local-bin`, `install-scripts-disabled` | ALLOW | local path, an executable already in `node_modules/.bin` (bare `npx name` only), or scripts disabled with `--ignore-scripts` |
 
-TrustDex checks named PyPI requirements against bundled advisories when the version is pinned exactly or resolved from PyPI metadata. It checks exact pins offline, including those using a custom index, and excludes affected releases from older-version suggestions. Package contents, local artifacts, and transitive dependencies are outside advisory matching.
+TrustDex checks named npm and PyPI requirements against bundled advisories when the version is pinned exactly or resolved from registry metadata. It checks exact pins offline, including those using a custom index, and excludes affected releases from older-version suggestions. Package contents, local artifacts, and transitive dependencies are outside advisory matching.
 
-The bundled advisory covers `agent-framework` versions `1.26.1` and `1.26.2`. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
+The bundled advisories cover:
+
+| Package | Versions | Source |
+|---|---|---|
+| PyPI `agent-framework` | `1.26.1`, `1.26.2` | [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73) |
+| npm `vant` | `2.13.3`–`2.13.5`, `3.6.13`–`3.6.15`, `4.9.11`–`4.9.14` | [maintainer notice](https://github.com/youzan/vant/discussions/13273) |
+| npm `@wppconnect-team/wppconnect` | `2.4.1` | [GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9) |
+| npm `@wppconnect/server` | `2.10.82` | [maintainer-confirmed report](https://github.com/wppconnect-team/wppconnect-server/issues/2734) |
+| npm `qrcode-reader-vue3` | `3.1.4` | [GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh) |
+
+The list covers hijacked releases of established packages. Malicious packages that were never legitimate are usually caught as `package-not-found`, `new-package`, or `similar-to-popular`.
 
 An ALLOW only means that no configured signal fired. Combine these checks with `ignore-scripts`, lockfiles, and a sandbox.
 

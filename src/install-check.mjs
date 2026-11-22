@@ -8,7 +8,7 @@
 //
 // What the checks mean: they compare registry metadata (publish times, install
 // scripts, wheels, publishers, provenance presence, deprecation) with a local policy and check known
-// malicious releases against bundled advisories. An ALLOW means no signal fired.
+// malicious npm and PyPI releases against bundled advisories. An ALLOW means no signal fired.
 
 import {
   analyzeInstallCommand,
@@ -335,6 +335,7 @@ async function checkNpm(item, parsed, context) {
     return;
   }
   if (version === null) return item.signal('version-not-found', 'No published version matches the requested version or tag.');
+  if (blockKnownRelease(item, npmMalwareAdvisory(parsed.name, version), version)) return;
   item.version = version;
   const meta = doc.versions[version];
   if (!meta || meta.version && meta.version !== version || !hasValidRegistryIntegrity(meta.dist?.integrity)) {
@@ -416,7 +417,7 @@ function olderNpmRelease(doc, selector, cutoff) {
       const parsed = parseVersion(version);
       const published = Date.parse(doc.time?.[version]);
       return parsed && !parsed.pre.length && Number.isFinite(published) && published < cutoff &&
-        !doc.versions[version]?.deprecated && (!satisfies || satisfies(version));
+        !doc.versions[version]?.deprecated && !npmMalwareAdvisory(doc.name, version) && (!satisfies || satisfies(version));
     })
     .sort((a, b) => compareVersions(parseVersion(b), parseVersion(a)));
   return candidates[0] ?? null;
@@ -429,13 +430,39 @@ function pypiReleaseTime(files) {
   return times.length ? Math.min(...times) : null;
 }
 
+const GHSA = (id) => `https://github.com/advisories/${id}`;
+
 // Public PyPI malware advisories keyed by normalized project and final release.
 const PYPI_MALWARE_ADVISORIES = new Map([
   ['agent-framework', new Map([
-    ['1.26.1', 'GHSA-764m-3ppc-5m73'],
-    ['1.26.2', 'GHSA-764m-3ppc-5m73']
+    ['1.26.1', GHSA('GHSA-764m-3ppc-5m73')],
+    ['1.26.2', GHSA('GHSA-764m-3ppc-5m73')]
   ])]
 ]);
+
+// Hijacked releases of established npm packages, keyed by name and exact version,
+// each confirmed by a GitHub advisory or the maintainers' own notice.
+const VANT_NOTICE = 'https://github.com/youzan/vant/discussions/13273';
+const NPM_MALWARE_ADVISORIES = new Map([
+  ['vant', new Map(['2.13.3', '2.13.4', '2.13.5', '3.6.13', '3.6.14', '3.6.15', '4.9.11', '4.9.12', '4.9.13', '4.9.14']
+    .map((version) => [version, VANT_NOTICE]))],
+  ['@wppconnect-team/wppconnect', new Map([['2.4.1', GHSA('GHSA-cxc9-87g6-qrj9')]])],
+  ['@wppconnect/server', new Map([['2.10.82', 'https://github.com/wppconnect-team/wppconnect-server/issues/2734']])],
+  ['qrcode-reader-vue3', new Map([['3.1.4', GHSA('GHSA-9q69-8j7m-ppmh')]])]
+]);
+
+function npmMalwareAdvisory(name, version) {
+  if (typeof version !== 'string') return undefined;
+  // npm ignores build metadata when matching versions, so `1.2.3+x` installs 1.2.3.
+  return NPM_MALWARE_ADVISORIES.get(name)?.get(version.trim().replace(/^[=v]+/i, '').replace(/\+.*$/, ''));
+}
+
+function blockKnownRelease(item, advisory, version) {
+  if (!advisory) return false;
+  item.version = version;
+  item.signal('known-malicious-release', `This release was identified as malicious in ${advisory}.`);
+  return true;
+}
 
 function pypiMalwareAdvisory(name, version) {
   const advisories = PYPI_MALWARE_ADVISORIES.get(name);
@@ -449,11 +476,7 @@ function pypiMalwareAdvisory(name, version) {
 }
 
 function blockKnownPypiRelease(item, name, version) {
-  const advisory = pypiMalwareAdvisory(name, version);
-  if (!advisory) return false;
-  item.version = version;
-  item.signal('known-malicious-release', `This release was identified as malicious in https://github.com/advisories/${advisory}.`);
-  return true;
+  return blockKnownRelease(item, pypiMalwareAdvisory(name, version), version);
 }
 
 async function checkPypi(item, parsed, context) {
@@ -610,6 +633,11 @@ export async function evaluateInstallCommand(command, options = {}) {
     }
 
     const item = makeItem(`${finding.ecosystem}:${parsed.name}`, { ignoreScripts: Boolean(finding.ignoreScripts) });
+    if (finding.ecosystem === 'npm' && parsed.selector.kind === 'exact' &&
+        blockKnownRelease(item, npmMalwareAdvisory(parsed.name, parsed.selector.value), parsed.selector.value)) {
+      items.push(item);
+      continue;
+    }
     if (finding.ecosystem === 'pypi') {
       const { kind, value } = parsed.selector;
       // The generic parser leaves pins with an epoch in the unresolved range category.

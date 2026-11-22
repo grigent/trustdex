@@ -378,6 +378,35 @@ test('known malicious PyPI pins block offline, including mirrored and equivalent
   assert.deepEqual(calls, []);
 });
 
+test('hijacked npm releases block offline and when resolved, and are never suggested', async () => {
+  const calls = [];
+  const policy = { minReleaseAgeHours: 0, allowPackages: ['npm:vant'], allowInstallScripts: ['npm:vant'] };
+  for (const [command, name, advisory] of [
+    ['npm i vant@4.9.11', 'npm:vant@4.9.11', /youzan\/vant\/discussions\/13273/],
+    ['pnpm add vant@=2.13.5', 'npm:vant@2.13.5', /youzan\/vant\/discussions\/13273/],
+    ['npm i vant@4.9.12+build.7', 'npm:vant@4.9.12+build.7', /youzan\/vant\/discussions\/13273/],
+    ['npm i --registry https://mirror.example.invalid/ qrcode-reader-vue3@3.1.4', 'npm:qrcode-reader-vue3@3.1.4', /GHSA-9q69-8j7m-ppmh/],
+    ['npx -y @wppconnect-team/wppconnect@2.4.1', 'npm:@wppconnect-team/wppconnect@2.4.1', /GHSA-cxc9-87g6-qrj9/]
+  ]) {
+    const [item] = await evaluate(command, {}, { calls, policy });
+    assert.deepEqual([item.name, item.action, item.signals], [name, 'block', ['known-malicious-release']], command);
+    assert.match(item.reasons[0], advisory);
+  }
+  assert.deepEqual(calls, []);
+
+  const latest = npmDoc('@wppconnect/server', { version: '2.10.82', published: daysAgo(1), history: [['2.10.81', daysAgo(3), 'owner']] });
+  let [item] = await evaluate('npm i @wppconnect/server', { [NPM('@wppconnect/server')]: latest });
+  assert.deepEqual([item.name, item.action, item.signals], ['npm:@wppconnect/server@2.10.82', 'block', ['known-malicious-release']]);
+
+  const doc = npmDoc('vant', { version: '4.9.16', published: daysAgo(1), history: [['4.9.10', daysAgo(30), 'owner'], ['4.9.11', daysAgo(10), 'owner']] });
+  [item] = await evaluate('npm i vant@^4.9.0', { [NPM('vant')]: doc });
+  assert.deepEqual(item.signals, ['recent-release']);
+  assert.match(item.reasons[0], /vant@4\.9\.10 instead/);
+
+  [item] = await evaluate('npm i vant@4.9.15', { [NPM('vant')]: npmDoc('vant', { version: '4.9.15' }) });
+  assert.equal(item.action, 'allow');
+});
+
 test('PyPI advice blocks an affected registry selection and skips it in fallback recommendations', async () => {
   const name = 'agent-framework';
   const affected = pypiDoc(name, { version: '1.26.2' });
