@@ -191,6 +191,13 @@ test('a tool scope that hides behind formatting is still reported', async () => 
   for (const header of ['tags: [a,\nallowed-tools: "*"', 'tags: [a,\n  b\n allowed_tools: Bash(*)']) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('wildcard-tool-scope'), header);
   }
+  // A colon inside a list item is not a new key, so the list is still read in full.
+  const colon = inspectSkillText('---\nallowed-tools: [Read,\n  mcp:search]\n---\nbody\n');
+  assert.deepEqual(colon.signals.filter((signal) => signal.endsWith('tool-scope')), []);
+  assert.ok(inspectSkillText('---\nallowed-tools: [Read,\n  mcp:search,\n  Bash(*)]\n---\nbody\n')
+    .signals.includes('wildcard-tool-scope'));
+  assert.ok(inspectSkillText('---\ntags: [a,\nallowed-tools:"*"\n---\nbody\n').signals
+    .some((signal) => signal.endsWith('tool-scope')));
   for (const header of ['allowed-tools: |\n  *', 'allowed-tools:\n  nested:\n    - "*"', 'allowed-tools: [Read,']) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
   }

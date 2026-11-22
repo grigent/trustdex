@@ -44,9 +44,14 @@ function frontmatterEntries(text) {
     let raw = match[2];
     let unsupported = /^[>|]/.test(raw.trim());
     if (raw.trim().startsWith('[')) {
-      // An unterminated list must not swallow the keys that follow it.
-      while (!/\]\s*(?:#.*)?$/.test(raw) && i + 1 < lines.length &&
-        !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:/.test(lines[i + 1])) raw += ` ${lines[i += 1]}`;
+      // A list continues only up to the next `key: value` line, and an unterminated
+      // list consumes nothing, so it cannot swallow the keys that follow it.
+      const start = i;
+      let joined = raw;
+      while (!/\]\s*(?:#.*)?$/.test(joined) && i + 1 < lines.length &&
+        !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:(?:\s|$)/.test(lines[i + 1])) joined += ` ${lines[i += 1]}`;
+      if (/\]\s*(?:#.*)?$/.test(joined)) raw = joined;
+      else i = start;
       raw = raw.replace(/\]\s*#.*$/, ']');
       if (!raw.trim().endsWith(']')) unsupported = true;
     }
