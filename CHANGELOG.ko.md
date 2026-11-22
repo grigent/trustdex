@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.20.2 - 2026-11-22
+
 - `inspect-gemini-settings`: Gemini CLI가 끔으로 처리하는 문자열 `"false"`, `"0"`인 `tools.sandbox`를 이제 `disabled`로 분류하고 `gemini-sandbox-disabled`(최소 `ASK`)와 `sandboxConfigured: false`를 보고합니다. 이전에는 `enabled`로 보고했습니다. 파일의 `false`가 다른 계층보다 우선한다는 설명을 바로잡았습니다. `sandboxSetting`은 검사한 파일의 설정이며, 실제 값은 상위 설정 계층, `GEMINI_SANDBOX`, `--sandbox`에 따라 달라질 수 있습니다.
 
 ## 0.20.1 - 2026-11-22

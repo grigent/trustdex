@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.20.2 - 2026-11-22
+
 - `inspect-gemini-settings`: `tools.sandbox` set to the string `"false"` or `"0"` is now `disabled` with `gemini-sandbox-disabled` (at least `ASK`) and `sandboxConfigured: false`, as Gemini CLI treats both as off; before, they were reported as `enabled`. The docs no longer say that a file's `false` overrides other layers: `sandboxSetting` describes the inspected file, and other settings layers, `GEMINI_SANDBOX`, or `--sandbox` can change the runtime value.
 
 ## 0.20.1 - 2026-11-22
