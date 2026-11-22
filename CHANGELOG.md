@@ -6,7 +6,7 @@
 
 ## Unreleased
 
-- `inventory-codex-mcp-status`: convert responses to `mcpServerStatus/list`, captured from the documented `codex app-server` protocol, into a value-free runtime tool inventory (server names and tool counts only). TrustDex reads the file you pass; it does not start Codex or contact MCP servers. The capture is refused when a page is missing, a server has no settled thread status, tool discovery failed for a connected server, or a server name appears twice.
+- `inventory-codex-mcp-status`: convert a captured `mcpServerStatus/list` exchange (each request with its response) from the documented `codex app-server` protocol into a value-free runtime tool inventory (server names and tool counts only). TrustDex reads the file you pass; it does not start Codex or contact MCP servers. The capture is refused when a page is missing (the first request must start the list and each later one must continue from the previous cursor), a request names no thread or selects a single server, a server has no settled thread status, tool discovery failed for a connected server, or a server name appears twice.
 
 ## 0.18.0 - 2026-11-22
 

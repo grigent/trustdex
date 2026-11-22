@@ -218,9 +218,10 @@ TrustDex는 파일만 읽습니다. Claude를 실행하거나, 세션 상태를 
 ## 문서화된 MCP 상태 목록으로 Codex 인벤토리 만들기
 
 `codex app-server`는 스레드의 MCP 서버와 도구를 돌려주는 `mcpServerStatus/list` 요청을
-문서화하고 있습니다. 사용자의 클라이언트가 그 응답을 캡처하면 TrustDex가 값 없는
-인벤토리로 변환합니다. 확인하려는 세션의 `threadId`로 요청을 보내고, `nextCursor`가
-`null`이 될 때까지 이어서 요청한 뒤, 모든 응답을 한 줄에 JSON 문서 하나씩 저장하세요.
+문서화하고 있습니다. 사용자의 클라이언트가 그 요청과 응답을 캡처하면 TrustDex가 값 없는
+인벤토리로 변환합니다. 확인하려는 세션의 `threadId`를 넣고 `serverName` 없이 요청을
+보내고, `nextCursor`가 `null`이 될 때까지 이어서 요청한 뒤, 모든 요청과 그 응답을 차례로
+한 줄에 JSON 문서 하나씩 저장하세요.
 
 ```bash
 node ./bin/trustdex.mjs inventory-codex-mcp-status ./codex-mcp-status.jsonl \
@@ -232,15 +233,20 @@ TrustDex는 파일만 읽습니다. Codex를 실행하거나, app-server 프로�
 스키마, 오리진, 플러그인 식별자, 리소스, 상태 문구는 버립니다. `capturedAt`은 변환
 시각이므로 캡처 직후에 변환하고 서명하세요.
 
-다음 경우에는 추측하지 않고 입력을 거부합니다. 문서가 `mcpServerStatus/list` 응답이 아닐
-때, 페이지가 빠졌거나 순서가 틀릴 때(마지막 페이지만 `nextCursor`가 없어야 함), 서버에
+응답만으로는 첫 페이지가 들어 있는지, 목록이 서버 하나로 좁혀지지 않았는지 알 수
+없으므로 요청도 캡처에 포함합니다. 다음 경우에는 추측하지 않고 입력을 거부합니다. 파일이
+`mcpServerStatus/list` 요청과 같은 `id`의 응답이 차례로 이어진 형태가 아닐 때, 요청에
+`threadId`가 없거나 서로 다르거나 `serverName` 또는 `environmentId`가 있을 때, 첫 요청에
+`cursor`가 있거나 이후 요청이 직전 응답의 `nextCursor`를 쓰지 않거나 마지막 응답에
+`nextCursor`가 남아 있을 때, 서버에
 `runtimeStatus`가 없거나 `notStarted`, `starting`, 또는 TrustDex가 모르는 상태일 때,
 `connected` 서버의 도구 탐색이 실패했을 때(`toolsError`), 같은 서버 이름이 두 번 나올
 때입니다. `failed`, `cancelled`, `disabled`, `authenticationRequired` 서버는 유지되므로,
 설정된 차단 대상 소스는 여전히 결과를 차단합니다. 플러그인·앱 서버처럼 Codex가 스스로
 추가한 서버도 응답에 들어 있으며, `config.toml` 바인딩에 없는 서버로 나타납니다.
 
-한계: 파일은 그것을 만든 주체만큼만 신뢰할 수 있습니다. 공개된 응답 스키마의 픽스처로
+한계: 파일은 그것을 만든 주체만큼만 신뢰할 수 있습니다. 위 검사는 불완전한 캡처를
+잡아낼 뿐 위조된 캡처를 잡지는 못하며, 그 역할은 서명된 증명이 맡습니다. 공개된 응답 스키마의 픽스처로
 테스트하며 Codex 릴리스로 테스트하지는 않습니다. 출처:
 [Codex app-server](https://developers.openai.com/codex/app-server),
 [`ListMcpServerStatusResponse` 스키마](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ListMcpServerStatusResponse.json).

@@ -1,6 +1,6 @@
-// Converts captured responses to the `mcpServerStatus/list` request that Codex
-// documents for `codex app-server` into a value-free runtime tool inventory.
-// The user captures the response pages and passes the file; TrustDex does not start
+// Converts a captured `mcpServerStatus/list` exchange, the request Codex documents
+// for `codex app-server`, into a value-free runtime tool inventory.
+// The user captures each request with its response and passes the file; TrustDex does not start
 // Codex, read session state, or contact MCP servers. Only server names and per-server
 // tool counts leave this module. Tool names, schemas, origins, plugin ids, and every
 // other field are dropped. Anything that would make a count a guess is an error.
@@ -22,7 +22,7 @@ function pages(text) {
     documents = Array.isArray(parsed) ? parsed : [parsed];
   } catch {
     const lines = source.split(/\r?\n/).filter((line) => line.trim());
-    if (lines.length > MAX_PAGES) throw new Error('Codex capture has too many lines.');
+    if (lines.length > MAX_PAGES * 2) throw new Error('Codex capture has too many lines.');
     documents = lines.map((line) => {
       try {
         return JSON.parse(line);
@@ -31,30 +31,46 @@ function pages(text) {
       }
     });
   }
-  if (documents.length === 0 || documents.length > MAX_PAGES) {
-    throw new Error('Codex capture must hold between 1 and 1000 mcpServerStatus/list responses.');
+  if (documents.length === 0 || documents.length % 2 !== 0 || documents.length > MAX_PAGES * 2) {
+    throw new Error('Codex capture must hold each mcpServerStatus/list request followed by its response.');
   }
-  // Every document must be a response page. Other app-server messages are refused
-  // rather than skipped, so an unrelated list is never read as the inventory.
-  return documents.map((document) => {
-    const page = isObject(document) && isObject(document.result) ? document.result : document;
-    if (!isObject(page) || !Array.isArray(page.data) ||
-        !(page.nextCursor === undefined || page.nextCursor === null || typeof page.nextCursor === 'string')) {
-      throw new Error('Codex capture contains something that is not an mcpServerStatus/list response.');
+  // Responses alone cannot show that the first page is present or that the list was
+  // not narrowed to one server, so each response is read with the request that
+  // produced it. Other app-server messages are refused rather than skipped.
+  const captured = [];
+  let threadId;
+  for (let index = 0; index < documents.length; index += 2) {
+    const request = documents[index];
+    const response = documents[index + 1];
+    const params = isObject(request) && request.params === undefined ? {} : request?.params;
+    if (!isObject(request) || request.method !== 'mcpServerStatus/list' || !isObject(params) ||
+        !(typeof request.id === 'string' || typeof request.id === 'number') ||
+        !isObject(response) || response.id !== request.id || !isObject(response.result) ||
+        !Array.isArray(response.result.data) ||
+        !(response.result.nextCursor === undefined || response.result.nextCursor === null ||
+          (typeof response.result.nextCursor === 'string' && response.result.nextCursor))) {
+      throw new Error('Codex capture contains something that is not an mcpServerStatus/list request followed by its response.');
     }
-    return page;
-  });
+    if (typeof params.threadId !== 'string' || !params.threadId || (index > 0 && params.threadId !== threadId) ||
+        !(params.serverName === undefined || params.serverName === null) ||
+        !(params.environmentId === undefined || params.environmentId === null)) {
+      throw new Error('Every mcpServerStatus/list request must name the same threadId and must not select a single server.');
+    }
+    threadId = params.threadId;
+    // The first request starts the list; each later one continues from the cursor the
+    // previous response returned. The last response has no cursor.
+    const expectedCursor = index === 0 ? null : captured[captured.length - 1].nextCursor;
+    const last = index === documents.length - 2;
+    if ((params.cursor ?? null) !== expectedCursor || (typeof response.result.nextCursor === 'string') === last) {
+      throw new Error('Codex capture is not a complete, ordered set of pages; capture every request and response from the first page to the one without nextCursor.');
+    }
+    captured.push({ data: response.result.data, nextCursor: response.result.nextCursor ?? null });
+  }
+  return captured;
 }
 
 export function codexMcpStatusToRuntimeInventory(text, options = {}) {
   const captured = pages(text);
-  // The last page has no cursor; a page that still has one means more servers exist.
-  captured.forEach((page, index) => {
-    const more = typeof page.nextCursor === 'string';
-    if (more !== (index < captured.length - 1)) {
-      throw new Error('Codex capture is not a complete, ordered set of pages; capture every page up to the one without nextCursor.');
-    }
-  });
   const servers = captured.flatMap((page) => page.data).map((server) => {
     if (!isObject(server) || typeof server.name !== 'string' || !server.name.trim() ||
         !isObject(server.tools) || typeof server.authStatus !== 'string' ||

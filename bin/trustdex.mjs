@@ -148,7 +148,7 @@ Usage:
       [--trust-store trust-store.json] [--pack ...]
   trustdex diff-bindings <before.json> <after.json> [--json]
   trustdex inventory-claude-init <stream.jsonl> --out inventory.json
-  trustdex inventory-codex-mcp-status <responses.jsonl> --out inventory.json
+  trustdex inventory-codex-mcp-status <exchange.jsonl> --out inventory.json
   trustdex snapshot-runtime-tools <bindings.json> <inventory.json> --out runtime.json
       [--attestation attestation.json (--public key.pem | --keyset keyset.json)]
       [--max-age-seconds n]
@@ -854,7 +854,7 @@ async function main() {
     const responsesPath = args[1];
     const out = getFlag(args, '--out');
     if (!responsesPath || !out) {
-      throw new Error('inventory-codex-mcp-status requires <responses.jsonl> and --out <inventory.json>.');
+      throw new Error('inventory-codex-mcp-status requires <exchange.jsonl> and --out <inventory.json>.');
     }
     const inventory = codexMcpStatusToRuntimeInventory(await fs.readFile(responsesPath, 'utf8'));
     await writeFileSafe(out, `${JSON.stringify(inventory, null, 2)}\n`);

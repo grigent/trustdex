@@ -233,10 +233,10 @@ shape with fixtures, not against Claude Code releases. Sources:
 ## Build a Codex inventory from the documented MCP status list
 
 `codex app-server` documents an `mcpServerStatus/list` request that returns the MCP
-servers of a thread with their tools. If your own client captures the responses, TrustDex
-can turn them into the value-free inventory. Send the request with the `threadId` of the
-session you are checking, follow `nextCursor` until it is `null`, and save every response,
-one JSON document per line:
+servers of a thread with their tools. If your own client captures that exchange, TrustDex
+can turn it into the value-free inventory. Send the request with the `threadId` of the
+session you are checking and without `serverName`, follow `nextCursor` until it is `null`,
+and save every request followed by its response, one JSON document per line:
 
 ```bash
 node ./bin/trustdex.mjs inventory-codex-mcp-status ./codex-mcp-status.jsonl \
@@ -248,17 +248,22 @@ contact MCP servers. The inventory keeps server names and per-server tool counts
 names and schemas, origins, plugin identifiers, resources, and status text are dropped.
 `capturedAt` is the time of the conversion, so convert and sign right after capturing.
 
-The command refuses the input instead of guessing when: a document is not an
-`mcpServerStatus/list` response; a page is missing or out of order (only the last page may
-lack `nextCursor`); a server has no `runtimeStatus`, or is `notStarted`, `starting`, or in
+Responses alone cannot show that the first page is there or that the list was not
+narrowed to one server, which is why the requests are part of the capture. The command
+refuses the input instead of guessing when: the file is not `mcpServerStatus/list`
+requests each followed by the response with the same `id`; a request has no `threadId`,
+a different `threadId`, or a `serverName` or `environmentId`; the first request has a
+`cursor`, a later request does not use the `nextCursor` of the response before it, or the
+last response still has a `nextCursor`; a server has no `runtimeStatus`, or is `notStarted`, `starting`, or in
 a status TrustDex does not know; tool discovery failed (`toolsError`) for a `connected`
 server; or the same server name appears twice. A server that is `failed`, `cancelled`,
 `disabled`, or `authenticationRequired` is kept, so a blocked source that is configured
 still blocks the result. Servers that Codex adds itself, such as plugin or app servers,
 are in the response and appear as servers your `config.toml` bindings do not cover.
 
-Limits: the file is as trustworthy as whoever produced it. This is tested against the
-published response schema with fixtures, not against Codex releases. Sources:
+Limits: the file is as trustworthy as whoever produced it; the checks above catch an
+incomplete capture, not a forged one, which is what the signed attestation is for. This is
+tested against the published response schema with fixtures, not against Codex releases. Sources:
 [Codex app-server](https://developers.openai.com/codex/app-server) and the
 [`ListMcpServerStatusResponse` schema](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ListMcpServerStatusResponse.json).
 
