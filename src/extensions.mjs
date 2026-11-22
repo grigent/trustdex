@@ -84,10 +84,60 @@ export function parseFrontmatter(text) {
 // Claude Code runs `!`command`` and ```! blocks in SKILL.md while rendering the skill,
 // before the model sees it and without a permission prompt.
 const SKILL_SHELL_INJECTION_RE = /!`[^`\r\n]+`|^[ \t]*(?:`{3,}|~{3,})!/m;
-const SKILL_HOOKS_KEY_RE = new RegExp(
-  `(?:^[ \\t]*|[{,][ \\t]*)(?:[!&][^\\s,{}[\\]]*[ \\t]+)*` +
-  `(?:["']?hooks["']?|\\*[^\\s,{}[\\]:]+|"(?:[^"\\\\\\n]|\\\\.)*\\\\.(?:[^"\\\\\\n]|\\\\.)*")[ \\t]*:` +
-  `|^\\?(?:[ \\t]|$)`, 'im');
+// Finds a possible `hooks` key in YAML frontmatter in one linear pass. A key starts a line
+// or follows `{` or `,`, optionally after tags or anchors, and ends with `:`. Explicit (`?`),
+// alias, and escaped double-quoted keys cannot be read here, so they count as hooks.
+function hasSkillHooksKey(header) {
+  for (const line of String(header || '').split(/\r?\n/)) {
+    let i = 0;
+    let candidate = true;
+    while (i < line.length) {
+      if (!candidate) {
+        const ch = line[i++];
+        if (ch === '{' || ch === ',') candidate = true;
+        continue;
+      }
+      candidate = false;
+      while (line[i] === ' ' || line[i] === '\t') i++;
+      while (line[i] === '!' || line[i] === '&') {
+        let j = i + 1;
+        while (j < line.length && !/[\s,{}[\]]/.test(line[j])) j++;
+        if (line[j] !== ' ' && line[j] !== '\t') break;
+        while (line[j] === ' ' || line[j] === '\t') j++;
+        i = j;
+      }
+      const colonAt = (j) => {
+        while (line[j] === ' ' || line[j] === '\t') j++;
+        return line[j] === ':';
+      };
+      const ch = line[i];
+      if (ch === '?' && (i + 1 === line.length || /\s/.test(line[i + 1]))) return true;
+      if (ch === '*') {
+        let j = i + 1;
+        while (j < line.length && !/[\s,{}[\]:]/.test(line[j])) j++;
+        if (j > i + 1 && colonAt(j)) return true;
+        i = j;
+      } else if (ch === '"' || ch === "'") {
+        let j = i + 1;
+        let escaped = false;
+        let text = '';
+        while (j < line.length) {
+          if (ch === '"' && line[j] === '\\') { escaped = true; text += line.slice(j, j + 2); j += 2; continue; }
+          if (line[j] === ch) {
+            if (ch === "'" && line[j + 1] === "'") { text += "'"; j += 2; continue; }
+            break;
+          }
+          text += line[j++];
+        }
+        if (j < line.length && colonAt(j + 1) && (escaped || text === 'hooks')) return true;
+        i = j + 1;
+      } else if (/^hooks[ \t]*:/.test(line.slice(i, i + 64))) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
 const SHELL_TOOL_RE = /(?:^|[\s,[\]"'])(?:Bash|PowerShell)(?=$|[\s,(\]"'])/i;
 
 function isWildcard(tools) {
@@ -142,11 +192,7 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
   if (SHELL_INSTRUCTION_RE.test(value)) signals.add('shell-instructions');
   if (INSTALL_RE.test(value)) signals.add('install-instructions');
   // Skill hooks register commands for the rest of the session, however the key is written.
-  // A key starts a line or follows `{` or `,` in a flow map, optionally after YAML tags or
-  // anchors, and ends with `:`; prose that mentions hooks inside a value does not count.
-  // Alias, top-level explicit (`?`) and escaped double-quoted keys cannot be read here, so
-  // they count as hooks too.
-  if (SKILL_HOOKS_KEY_RE.test(entries.header || '')) signals.add('skill-hooks');
+  if (hasSkillHooksKey(entries.header)) signals.add('skill-hooks');
   if (SKILL_SHELL_INJECTION_RE.test(value)) signals.add('skill-shell-injection');
 
   return {
