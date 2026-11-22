@@ -3,11 +3,70 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { inspectCodexSettingsText } from '../src/codex-settings.mjs';
+import { inspectCodexSettingsText, inspectCodexSettingsStack } from '../src/codex-settings.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
+
+test('Codex approval aliases and restrictive policy are accepted without risk signals', () => {
+  for (const [value, expected] of [['untrusted', 'untrusted'], ['on-failure', 'on-request']]) {
+    const result = evaluate(`approval_policy = "${value}"`);
+    assert.equal(result.metadata.approvalPolicy, expected);
+    assert.deepEqual(result.signals, []);
+    assert.equal(result.action, 'ask');
+  }
+});
+
+test('Codex granular policies require effective mandatory fields and merge by key', () => {
+  const base = '[approval_policy.granular]\nsandbox_approval = true\nrules = false\nmcp_elicitations = false';
+  const result = inspectCodexSettingsStack([
+    { scope: 'user', text: base },
+    { scope: 'cli', text: '[approval_policy.granular]\nrules = true' }
+  ]);
+  assert.deepEqual(result.metadata.granularPromptCategories, ['rules', 'sandbox_approval']);
+  for (const text of ['', 'rules = true', 'sandbox_approval = true\nrules = true']) {
+    assert.throws(() => inspectCodexSettingsText(`[approval_policy.granular]\n${text}`), /missing required/);
+  }
+  for (const text of ['rules = "true"', 'unknown = true']) {
+    assert.throws(() => inspectCodexSettingsStack([{ scope: 'user', text: `[approval_policy.granular]\n${text}` }]));
+  }
+  assert.equal(inspectCodexSettingsStack([{ scope: 'user', text: base }, { scope: 'cli', text: 'approval_policy = "untrusted"' }]).metadata.approvalPolicy, 'untrusted');
+  assert.throws(() => inspectCodexSettingsStack([{ scope: 'user', text: 'approval_policy = "never"' }, { scope: 'cli', text: '[approval_policy.granular]\nrules = true' }]), /missing required/);
+});
+
+test('Codex stack reports both permission risks and the highest-layer selection', () => {
+  for (const [low, high, selection] of [
+    ['sandbox_mode = "danger-full-access"', 'default_permissions = ":workspace"', 'named'],
+    ['default_permissions = ":danger-full-access"', 'sandbox_mode = "workspace-write"', 'legacy']
+  ]) {
+    const result = inspectCodexSettingsStack([{ scope: 'user', text: low }, { scope: 'cli', text: high }]);
+    assert.equal(result.metadata.permissionSelection, selection);
+    assert.ok(result.signals.includes('codex-full-access'));
+    assert.ok(result.signals.includes('codex-workspace-write'));
+  }
+  const both = 'sandbox_mode = "danger-full-access"\ndefault_permissions = ":read-only"';
+  assert.throws(() => inspectCodexSettingsText(both));
+  assert.equal(inspectCodexSettingsStack([{ scope: 'cli', text: both }]).metadata.permissionSelection, 'named');
+  assert.equal(inspectCodexSettingsStack([{ scope: 'user', text: '' }]).metadata.permissionSelection, null);
+});
+
+test('Codex profile inheritance adds built-in capability signals without retaining names', () => {
+  for (const [parent, signal] of [[':danger-full-access', 'codex-full-access'], [':workspace', 'codex-workspace-write'], [':read-only', null], ['private-parent', null]]) {
+    const result = evaluate(`[permissions.private-profile]\nextends = "${parent}"`);
+    assert.ok(result.signals.includes('codex-custom-permissions'));
+    if (signal) assert.ok(result.signals.includes(signal));
+    assert.equal(JSON.stringify(result).includes('private-'), false);
+  }
+  assert.throws(() => inspectCodexSettingsText('[permissions.a]\nextends = false'));
+  assert.throws(() => inspectCodexSettingsText('[permissions.a]\nextends = ":unknown"'));
+});
+
+test('Codex legacy-managed is unique and overrides CLI and user sources', () => {
+  const layers = [{ scope: 'legacy-managed', text: 'sandbox_mode = "danger-full-access"' }, { scope: 'user', text: 'sandbox_mode = "read-only"' }, { scope: 'cli', text: 'sandbox_mode = "read-only"' }];
+  assert.equal(evaluateAll([inspectCodexSettingsStack(layers)], getPolicyPack('strict'))[0].action, 'block');
+  assert.throws(() => inspectCodexSettingsStack([layers[0], layers[0]]), /only one/);
+});
 
 function evaluate(text, pack = 'strict') {
   return evaluateAll([inspectCodexSettingsText(text)], getPolicyPack(pack))[0];
@@ -88,6 +147,7 @@ sandbox_mode = "read-only"
 [approval_policy.granular]
 sandbox_approval = true
 rules = false
+mcp_elicitations = false
 request_permissions = true
 `);
   assert.equal(result.metadata.approvalPolicy, 'granular');
@@ -124,7 +184,7 @@ enabled = true
 
 test('Codex settings parser fails closed on malformed security-relevant settings', () => {
   for (const text of [
-    'approval_policy = "untrusted"',
+    'approval_policy = "unknown"',
     'approval_policy = { granular = { future_prompt = true } }',
     'approvals_reviewer = "nobody"',
     'sandbox_mode = "future-mode"',

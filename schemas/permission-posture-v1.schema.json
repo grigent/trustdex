@@ -129,8 +129,9 @@
       "properties": {
         "approvalPolicy": {
           "type": ["string", "null"],
-          "enum": [null, "on-request", "never", "granular"]
+          "enum": [null, "untrusted", "on-request", "never", "granular"]
         },
+        "permissionSelection": { "enum": [null, "legacy", "named"] },
         "granularPromptCategories": {
           "type": "array",
           "uniqueItems": true,
