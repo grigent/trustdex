@@ -45,10 +45,15 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - TrustDex 0.17.3 compares npm build provenance with the repository a package declares
   when a source is trusted (`provenance npm`, `trust-source npm`), and adds registry-drift
   fixtures for ownership transfer, deleted releases, and yanked releases.
-- After 0.17.3: adversarial skill, plugin, and MCP JSON fixtures with the parser fixes they
-  exposed, a [compatibility matrix](COMPATIBILITY.md) checked by tests, [schema stability
-  rules](SCHEMAS.md), and [design notes](DESIGN_NOTES.md) for Sigstore verification and
-  runtime adapters.
+- TrustDex 0.18.0 verifies the Sigstore bundle of npm build provenance offline against a
+  pinned trust root when a source is trusted, adds adversarial skill, plugin, and MCP JSON
+  fixtures with the parser fixes they exposed, and adds `inventory-claude-init`, which turns
+  a captured Claude Code `system/init` event into a runtime inventory. It also publishes a
+  [compatibility matrix](COMPATIBILITY.md) checked by tests, [schema stability
+  rules](SCHEMAS.md), and [design notes](DESIGN_NOTES.md).
+- After 0.18.0: `inventory-codex-mcp-status` for a captured Codex `mcpServerStatus/list`
+  exchange, and MCP configuration adapters for [Devin CLI](DEVIN.md) and
+  [Gemini CLI](GEMINI.md).
 
 ## Now: harden the boundary
 
@@ -61,7 +66,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Next: strengthen effective-runtime evidence
 
-- ship concrete opt-in adapters only where a runtime exposes an authorized stable interface
+- ship concrete opt-in adapters only where a runtime exposes an authorized stable interface (Claude Code and Codex converters exist; Gemini CLI and Devin document no machine-readable session inventory, see [runtime evidence](RUNTIME_EVIDENCE.md))
 - document transport hardening around the message-level producer signature
 - extend effective evidence beyond MCP visibility while retaining value-free reports
 - extend the [compatibility matrix](COMPATIBILITY.md) to adapter/runtime versions once an adapter ships ([design notes](DESIGN_NOTES.md))
@@ -76,7 +81,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Later: expand interoperability
 
-- add adapters for additional agent runtimes and registries
+- add adapters for additional agent runtimes and registries (Devin CLI and Gemini CLI MCP configuration are covered; their settings and permission files are not)
 - extend the test-backed compatibility matrix to new runtimes and registries
 - explore organization-managed trust stores and review-key rotation
 

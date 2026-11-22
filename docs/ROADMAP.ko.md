@@ -43,9 +43,15 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 - TrustDex 0.17.3은 소스를 신뢰 등록할 때(`provenance npm`, `trust-source npm`) npm 빌드
   provenance를 패키지가 선언한 저장소와 비교하고, 소유권 이전·삭제된 릴리스·yank된
   릴리스용 레지스트리 드리프트 픽스처를 추가합니다.
-- 0.17.3 이후: 스킬·플러그인·MCP JSON 적대적 픽스처와 그 과정에서 드러난 파서 수정,
-  테스트로 확인하는 [호환성 매트릭스](COMPATIBILITY.ko.md), [스키마 안정성
-  규칙](SCHEMAS.ko.md), Sigstore 검증과 런타임 어댑터 [설계 노트](DESIGN_NOTES.ko.md).
+- TrustDex 0.18.0은 소스를 신뢰 등록할 때 npm 빌드 provenance의 Sigstore 번들을 고정된
+  신뢰 루트로 오프라인 검증하고, 스킬·플러그인·MCP JSON 적대적 픽스처와 그 과정에서
+  드러난 파서 수정을 추가하며, 캡처한 Claude Code `system/init` 이벤트를 런타임 인벤토리로
+  바꾸는 `inventory-claude-init`을 추가합니다. 테스트로 확인하는
+  [호환성 매트릭스](COMPATIBILITY.ko.md), [스키마 안정성 규칙](SCHEMAS.ko.md),
+  [설계 노트](DESIGN_NOTES.ko.md)도 함께 게시합니다.
+- 0.18.0 이후: 캡처한 Codex `mcpServerStatus/list` 요청·응답용
+  `inventory-codex-mcp-status`, [Devin CLI](DEVIN.ko.md)와 [Gemini CLI](GEMINI.ko.md)용
+  MCP 설정 어댑터.
 
 ## 현재: 경계 강화
 
@@ -58,7 +64,7 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 
 ## 다음: 실제 런타임 증거 강화
 
-- 런타임이 권한 있는 안정적 인터페이스를 제공할 때만 구체적인 옵트인 어댑터 게시
+- 런타임이 권한 있는 안정적 인터페이스를 제공할 때만 구체적인 옵트인 어댑터 게시 (Claude Code와 Codex 변환기가 있음. Gemini CLI와 Devin은 기계 판독형 세션 인벤토리를 문서화하지 않음, [런타임 증거](RUNTIME_EVIDENCE.ko.md) 참고)
 - 메시지 수준 생성자 서명 주변의 전송 보호 문서화
 - 값 없는 보고서를 유지하면서 MCP 표시 범위 밖으로 실제 증거 확장
 - 어댑터가 출시되면 [호환성 매트릭스](COMPATIBILITY.ko.md)를 어댑터/런타임 버전까지 확장 ([설계 노트](DESIGN_NOTES.ko.md))
@@ -73,7 +79,7 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 
 ## 향후: 상호 운용성 확장
 
-- 추가 에이전트 런타임 및 레지스트리용 어댑터 추가
+- 추가 에이전트 런타임 및 레지스트리용 어댑터 추가 (Devin CLI와 Gemini CLI의 MCP 설정은 지원함. 두 런타임의 설정·권한 파일은 아직 아님)
 - 테스트 기반 호환성 매트릭스를 새 런타임과 레지스트리로 확장
 - 조직 관리형 신뢰 저장소 및 검토 키 교체 탐색
 
