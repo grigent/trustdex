@@ -37,19 +37,23 @@ function frontmatterEntries(text) {
   if (!/^---[ \t]*\r?\n/.test(value)) return [];
   const lines = value.split(/\r?\n/);
   const entries = [];
+  const end = lines.findIndex((line, index) => index > 0 && /^(?:---|\.\.\.)\s*$/.test(line));
+  entries.header = lines.slice(1, end < 0 ? lines.length : end).join('\n');
   for (let i = 1; i < lines.length; i += 1) {
     if (/^(?:---|\.\.\.)\s*$/.test(lines[i])) break;
-    const match = lines[i].match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+    const match = lines[i].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:\s*(.*)$/);
     if (!match) continue;
     let raw = match[2];
     let unsupported = /^[>|]/.test(raw.trim());
     if (raw.trim().startsWith('[')) {
-      // A list continues only up to the next `key: value` line, and an unterminated
-      // list consumes nothing, so it cannot swallow the keys that follow it.
+      // A list continues only up to the next `key: value` line or tool-scope key (however
+      // it is spaced), and an unterminated list consumes nothing, so a list cannot
+      // swallow a scope that follows it.
       const start = i;
       let joined = raw;
       while (!/\]\s*(?:#.*)?$/.test(joined) && i + 1 < lines.length &&
-        !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:(?:\s|$)/.test(lines[i + 1])) joined += ` ${lines[i += 1]}`;
+        !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:(?:\s|$)/.test(lines[i + 1]) &&
+        !TOOL_SCOPE_KEYS.has((lines[i + 1].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:/)?.[1] || '').toLowerCase())) joined += ` ${lines[i += 1]}`;
       if (/\]\s*(?:#.*)?$/.test(joined)) raw = joined;
       else i = start;
       raw = raw.replace(/\]\s*#.*$/, ']');
@@ -82,12 +86,22 @@ function isWildcard(tools) {
   return typeof tools === 'string' && /(?:^|[,\s])(?:[A-Za-z0-9_-]+\(\s*\*\s*\)|\*)(?=$|[,\s])/.test(tools);
 }
 
+// Brackets, braces, or quotes left in a parsed scope mean the value was not fully read.
+function hasStraySyntax(value) {
+  return [value].flat().some((item) => typeof item === 'string' && /[[\]{}"']/.test(item));
+}
+
 // Every tool-scope key counts, in any letter case and however often it is repeated.
 function toolScopeSignals(entries) {
   const scopes = entries.filter((entry) => TOOL_SCOPE_KEYS.has(entry.key.toLowerCase()));
+  // A scope name the header mentions more often than it was read as a key sits in syntax
+  // this parser does not read (a quoted or nested key, a flow map, inside another value).
+  const mentioned = (entries.header || '').match(/allowed[-_]?tools/gi)?.length || 0;
+  const read = scopes.filter((entry) => /^allowed[-_]?tools$/i.test(entry.key)).length;
   return [
     ...(scopes.some((entry) => isWildcard(entry.value)) ? ['wildcard-tool-scope'] : []),
-    ...(scopes.some((entry) => entry.unsupported) ? ['uninspected-tool-scope'] : [])
+    ...(scopes.some((entry) => entry.unsupported || hasStraySyntax(entry.value)) || mentioned > read
+      ? ['uninspected-tool-scope'] : [])
   ];
 }
 

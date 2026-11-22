@@ -198,6 +198,18 @@ test('a tool scope that hides behind formatting is still reported', async () => 
     .signals.includes('wildcard-tool-scope'));
   assert.ok(inspectSkillText('---\ntags: [a,\nallowed-tools:"*"\n---\nbody\n').signals
     .some((signal) => signal.endsWith('tool-scope')));
+  for (const header of ['tags: [a,\nallowed-tools:["*"]', 'tags: [a,\n  Allowed-Tools:[Bash(*)]\n  ]']) {
+    assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('wildcard-tool-scope'), header);
+  }
+  // A scope key written in syntax the parser does not read is never treated as absent.
+  for (const header of ['"tools": "*"', "'allowed_tools': \"*\"", 'tags: [a,\n"allowed-tools": "*"\n]']) {
+    assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('wildcard-tool-scope'), header);
+  }
+  for (const header of ['tags: [a,\n"allowed-tools": "*"]', 'allowed-tools: "*"]', 'tools: {a: "*"}', '? allowed-tools\n: "*"',
+    '{allowed-tools: "*"}', 'meta:\n  allowed-tools: "*"', 'tags: [a,\n"allowed-tools": "*"]']) {
+    assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
+  }
+  assert.deepEqual(inspectSkillText('---\nname: x\nallowed-tools: Read\n---\nallowed-tools in the body\n').signals, []);
   for (const header of ['allowed-tools: |\n  *', 'allowed-tools:\n  nested:\n    - "*"', 'allowed-tools: [Read,']) {
     assert.ok(inspectSkillText(`---\n${header}\n---\nbody\n`).signals.includes('uninspected-tool-scope'), header);
   }
