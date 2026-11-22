@@ -189,6 +189,12 @@ test('npm skips a deprecated or engine-incompatible default tag the way npm-pick
   assert.equal(resolveNpmVersion(doc({ engines: { npm: '>=11' } }), bare, node22), undefined, 'TrustDex cannot see the npm version');
   assert.equal(resolveNpmVersion(doc({ engines: { node: '>=20 !x' } }), bare, node22), undefined);
   assert.equal(resolveNpmVersion(doc({}, { '1.9.0': { engines: { npm: '>=11' } } }), bare, node22), '2.0.0', 'uncertainty that cannot change the pick is ignored');
+  const unknownNpm = { engines: { npm: '>=11' } };
+  assert.equal(resolveNpmVersion(doc({}, { '1.0.0': unknownNpm, '1.9.0': unknownNpm }), { kind: 'range', value: '^1' }, node22), undefined, 'a mix of unknown engines can change the pick');
+  assert.equal(resolveNpmVersion(doc({ engines: { npm: '>=11' } }, { '1.0.0': unknownNpm, '1.9.0': unknownNpm }), bare, node22), undefined);
+  assert.equal(resolveNpmVersion(doc({}, { '1.9.0': unknownNpm }), { kind: 'range', value: '^1' }, node22), undefined);
+  assert.equal(resolveNpmVersion(doc({}, { '1.0.0': unknownNpm }), { kind: 'range', value: '^1' }, node22), '1.9.0');
+  assert.equal(resolveNpmVersion({ 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': unknownNpm } }, bare, node22), '1.0.0', 'a lone candidate is the pick whatever its engines');
   assert.equal(resolveNpmVersion(doc({}), bare, { ...node22, defaultTag: 'beta' }), '1.9.0-beta.1', '--tag changes the default tag');
   assert.equal(resolveNpmVersion(doc({}), { kind: 'range', value: '^1' }, { ...node22, defaultTag: 'beta' }), '1.9.0');
   assert.equal(resolveNpmVersion(doc({}), bare, { ...node22, defaultTag: 'missing' }), null);

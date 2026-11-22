@@ -270,9 +270,13 @@ export function resolveNpmVersion(doc, selector, options = {}) {
   if (!satisfies) return undefined;
   const nodeVersion = options.nodeVersion ?? process.versions.node;
   const engine = new Map(versions.map((version) => [version, npmEngineOk(doc.versions[version], nodeVersion)]));
-  const assumeOk = pickNpmRange(doc, range, satisfies, defaultTag, (version) => engine.get(version) !== false);
-  const assumeBad = pickNpmRange(doc, range, satisfies, defaultTag, (version) => engine.get(version) === true);
-  return assumeOk === assumeBad ? assumeOk : undefined;
+  // Each candidate ranks on its own fields, so a pick that wins with every unknown engine
+  // treated as compatible, and still wins when its own unknown engine is not, wins every case.
+  const pick = pickNpmRange(doc, range, satisfies, defaultTag, (version) => engine.get(version) !== false);
+  if (pick === null || engine.get(pick) !== null) return pick;
+  const withoutPick = pickNpmRange(doc, range, satisfies, defaultTag,
+    (version) => version !== pick && engine.get(version) !== false);
+  return withoutPick === pick ? pick : undefined;
 }
 
 // ---------------------------------------------- name similarity (typosquats)
