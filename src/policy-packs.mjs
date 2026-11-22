@@ -85,6 +85,7 @@ const BASE_SIGNALS = {
   'gemini-hooks': 'block',
   'gemini-sandbox-relaxed': 'ask',
   'gemini-sandbox-disabled': 'ask',
+  'gemini-sandbox-unresolved': 'ask',
   'gemini-persistent-approvals': 'ask',
   'gemini-folder-trust-disabled': 'ask',
   'gemini-env-redaction-bypass': 'ask',

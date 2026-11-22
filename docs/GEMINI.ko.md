@@ -103,6 +103,7 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 | `general.defaultApprovalMode`가 `auto_edit` | `gemini-auto-edit` | 최소 `ASK` |
 | `tools.sandboxAllowedPaths` 또는 `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | 최소 `ASK` |
 | `tools.sandbox`가 `false`, `"false"`, `"0"`(이 파일이 샌드박스를 끔) | `gemini-sandbox-disabled` | 최소 `ASK` |
+| `tools.sandbox`에 환경 변수 참조(`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`)가 있음 | `gemini-sandbox-unresolved` | 최소 `ASK` |
 | `security.enablePermanentToolApproval` 또는 `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | 최소 `ASK` |
 | `security.folderTrust.enabled`가 `false` | `gemini-folder-trust-disabled` | 최소 `ASK` |
 | `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | 최소 `ASK` |
@@ -117,11 +118,19 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 
 `metadata.sandboxSetting`은 `omitted`(생략), `disabled`(Gemini CLI가 끔으로 처리하는 `false`,
 `"false"`, `"0"`), `enabled`(`true`, `"true"`, `"1"`, 또는 Gemini CLI가 지원하는 샌드박스 명령
-`docker`, `podman`, `sandbox-exec`, `runsc`, `lxc`, `windows-native`. 명령은 보고하지 않음) 중 하나여서 생략된 샌드박스와 꺼진 샌드박스를 구분합니다. `metadata.sandboxConfigured`는
+`docker`, `podman`, `sandbox-exec`, `runsc`, `lxc`, `windows-native`. 명령은 보고하지 않음),
+`unresolved` 중 하나여서 생략된 샌드박스와 꺼진 샌드박스를 구분합니다. `metadata.sandboxConfigured`는
 `enabled`일 때만 `true`입니다. 두 값은 검사한 파일에 기록된 설정을 나타냅니다. 실제 실행 시
 적용되는 샌드박스는 상위 설정 계층, `GEMINI_SANDBOX` 환경 변수, `--sandbox` CLI 옵션에 따라
-달라질 수 있습니다. Gemini CLI가 설정 오류로 처리하는 그 밖의 `tools.sandbox` 문자열은
-거부하며, 오류나 보고서에 값이 나타나지 않습니다.
+달라질 수 있습니다.
+
+Gemini CLI는 설정을 검증하기 전에 `$VAR`, `${VAR}`, `${VAR:-DEFAULT}` 참조를 환경 변수 값으로
+치환합니다. TrustDex는 환경 변수를 읽지 않으므로, 이런 참조가 들어 있는 `tools.sandbox` 문자열은
+`unresolved`로 보고하고 `gemini-sandbox-unresolved` 신호를 추가합니다(최소 `ASK`. 파일의 다른
+신호에는 각각의 정책이 그대로 적용됨). 변수 이름, 기본값, 입력 문자열은 보고하지 않습니다.
+Gemini CLI가 설정 오류로 처리하는 그 밖의 `tools.sandbox` 문자열은 거부하며(`BLOCK`, 종료 코드 2),
+오류나 보고서에 값이 나타나지 않습니다. 빈 문자열도 거부합니다. Gemini CLI의 샌드박스 파서는 빈
+문자열을 꺼짐으로 처리하지만, TrustDex는 이를 명시적 설정으로 받아들이지 않습니다.
 보고서에는 승인 모드, 불리언, 개수만 들어갑니다. 도구 이름, 명령, 경로, 훅 내용, 확장
 패턴, 변수 이름, 검사하지 않는 설정의 이름은 들어가지 않습니다. 그래서 내용 지문이나
 서명된 검토 기록이 없고, 같은 분류 안에서 개수가 같은 변경은 감지하지 못합니다.
