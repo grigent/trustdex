@@ -6,6 +6,11 @@
 
 ## 미출시
 
+- 스킬(`inspect-skill`): Claude Code 스킬 문서와 대조했습니다. frontmatter의 `hooks`는 `skill-hooks`, `` !`command` ``와 ` ```! ` 블록은 `skill-shell-injection`을 추가하며, Claude Code가 확인 없이 실행하므로 둘 다 `BLOCK`입니다. `allowed-tools` 권한 부여는 모두 `skill-auto-approved-tools`(최소 `ASK`), `Bash`나 `PowerShell` 부여는 `skill-shell-auto-approve`(`BLOCK`)를 추가합니다. 이전에는 와일드카드만 보고했습니다.
+- 플러그인(`inspect-plugin`): Claude Code는 매니페스트에 없어도 플러그인 루트의 `hooks/hooks.json`, `.mcp.json`, `.lsp.json`, `monitors/monitors.json`, `bin/`을 불러오므로 모든 매니페스트에 `plugin-components-uninspected`(최소 `ASK`)가 붙습니다. `monitors`, `experimental.monitors`, `channels`도 `plugin-executable-components`로 봅니다.
+- 일반 MCP(`inspect`): TrustDex가 읽지 않는 서버 필드(예: `headers`, `envFile`, `cwd`, `stdio`/`http`/`sse`/`streamable-http` 외의 `type`)는 무시하지 않고 `uninspected-server-fields`(최소 `ASK`)를 추가합니다.
+- Codex MCP(`inspect-codex`): Codex 자체 검증에 맞춰 `default_tools_approval_mode`는 `auto`, `prompt`, `writes`, `approve`만, `env_vars`의 `source`는 `local`, `remote`만 허용합니다. `command` 서버의 HTTP 전용 키, `url` 서버의 `args`/`env`/`env_vars`/`cwd`, `command`와 `url`이 모두 없는 서버, 빈 `http_headers_helper`는 실패 처리(fail closed)합니다.
+
 ## 0.20.4 - 2026-11-22
 
 - `inspect-gemini-settings`: Gemini CLI가 검증 전에 치환하는 환경 변수 참조(`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`)가 들어 있는 `tools.sandbox` 문자열은 이제 거부하지 않고 `sandboxSetting: "unresolved"`와 `gemini-sandbox-unresolved` 신호(최소 `ASK`)로 보고합니다. 변수 이름, 기본값, 입력 문자열은 보고하지 않습니다. 지원하지 않는 명령 문자열과 빈 문자열은 기존대로 거부하며, Gemini CLI는 빈 문자열을 꺼짐으로 처리한다는 차이를 문서에 적었습니다.

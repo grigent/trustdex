@@ -6,6 +6,11 @@
 
 ## Unreleased
 
+- Skills (`inspect-skill`): checked against the Claude Code skills reference. A `hooks` frontmatter key adds `skill-hooks` and a `` !`command` `` or ` ```! ` block adds `skill-shell-injection`; both `BLOCK` because Claude Code runs them without a prompt. Any `allowed-tools` grant adds `skill-auto-approved-tools` (at least `ASK`), and a `Bash` or `PowerShell` grant adds `skill-shell-auto-approve` (`BLOCK`). Before, only wildcard grants were reported.
+- Plugins (`inspect-plugin`): every manifest adds `plugin-components-uninspected` (at least `ASK`), because Claude Code also loads `hooks/hooks.json`, `.mcp.json`, `.lsp.json`, `monitors/monitors.json`, and `bin/` from the plugin root without the manifest naming them. `monitors`, `experimental.monitors`, and `channels` now count as `plugin-executable-components`.
+- Generic MCP (`inspect`): a server field TrustDex does not read (for example `headers`, `envFile`, `cwd`, or a `type` other than `stdio`, `http`, `sse`, `streamable-http`) adds `uninspected-server-fields` (at least `ASK`) instead of being ignored.
+- Codex MCP (`inspect-codex`): following Codex's own validation, `default_tools_approval_mode` must be `auto`, `prompt`, `writes`, or `approve`; an `env_vars` `source` must be `local` or `remote`; HTTP-only keys on a `command` server, `args`/`env`/`env_vars`/`cwd` on a `url` server, a server with neither `command` nor `url`, and an empty `http_headers_helper` now fail closed.
+
 ## 0.20.4 - 2026-11-22
 
 - `inspect-gemini-settings`: a `tools.sandbox` string with an environment variable reference (`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`), which Gemini CLI expands before validating, is now reported as `sandboxSetting: "unresolved"` with the `gemini-sandbox-unresolved` signal (at least `ASK`) instead of failing closed. The variable name, default value, and string are not reported. Unsupported command strings and the empty string still fail closed; the docs now note that Gemini CLI treats an empty string as off.

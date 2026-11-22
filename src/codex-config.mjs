@@ -1,6 +1,10 @@
 import { decodeTomlValue, parseTomlStatements } from './toml-lite.mjs';
 
 const CODEX_MCP_NESTED_SECTIONS = new Set(['env', 'http_headers', 'env_http_headers']);
+const CODEX_APPROVAL_MODES = new Set(['auto', 'prompt', 'writes', 'approve']);
+// Codex rejects these keys on the other transport (McpServerConfig::try_from).
+const CODEX_HTTP_ONLY_KEYS = ['bearer_token_env_var', 'http_headers_helper', 'http_headers', 'env_http_headers'];
+const CODEX_STDIO_ONLY_KEYS = ['args', 'env', 'env_vars', 'cwd'];
 
 // env_vars entries are names, optionally objects with a name and a source. Each
 // entry is recorded with its source so moving a variable from a static value to
@@ -13,7 +17,9 @@ function envEntries(value) {
       for (const key of Object.keys(item)) {
         if (!['name', 'source'].includes(key)) throw new Error(`Unsupported Codex env_vars field "${key}".`);
       }
-      if (item.source !== undefined && typeof item.source !== 'string') throw new Error('Codex env_vars source must be a string.');
+      if (item.source !== undefined && !['local', 'remote'].includes(item.source)) {
+        throw new Error('Codex env_vars source must be "local" or "remote".');
+      }
       return { name: item.name, source: item.source === undefined ? 'host' : `host:${item.source}` };
     }
     throw new Error('Codex env_vars entries must be names or objects with a name.');
@@ -84,7 +90,7 @@ function applyAssignment(server, nested, key, value) {
   } else if (key === 'env_http_headers' && value && typeof value === 'object') {
     for (const [header, variable] of Object.entries(value)) recordEnvHeader(server, header, variable);
     if (Object.keys(value).length) signals.add('env-http-headers');
-  } else if (key === 'http_headers_helper' && typeof value === 'string') {
+  } else if (key === 'http_headers_helper' && typeof value === 'string' && value.trim()) {
     server._trustdexFingerprintData.httpHeadersHelper = value;
     signals.add('header-helper-command');
   } else if (key === 'enabled_tools' && Array.isArray(value)) {
@@ -92,7 +98,7 @@ function applyAssignment(server, nested, key, value) {
     if (value.some((item) => String(item) === '*')) signals.add('wildcard-tool-scope');
   } else if (key === 'disabled_tools' && Array.isArray(value)) {
     server._trustdexFingerprintData.disabledTools = value.map(String).sort();
-  } else if (key === 'default_tools_approval_mode' && typeof value === 'string') {
+  } else if (key === 'default_tools_approval_mode' && CODEX_APPROVAL_MODES.has(value)) {
     server._trustdexFingerprintData.defaultToolsApprovalMode = value;
     if (value === 'approve') signals.add('auto-approve-tools');
   } else if (key === 'enabled' && typeof value === 'boolean') {
@@ -143,6 +149,11 @@ export function parseCodexMcpTomlWithSpans(text) {
   const spans = [];
   const assigned = new Set();
   const declaredTables = new Set();
+  const serverKeys = new Map();
+  const keysOf = (name) => {
+    if (!serverKeys.has(name)) serverKeys.set(name, new Set());
+    return serverKeys.get(name);
+  };
 
   for (const statement of statements) {
     const span = { start: statement.start, end: statement.end };
@@ -160,6 +171,8 @@ export function parseCodexMcpTomlWithSpans(text) {
       if (declaredTables.has(tableId)) throw new Error('Unsupported Codex TOML: a server table is defined more than once.');
       declaredTables.add(tableId);
       if (!servers[name]) servers[name] = newServer();
+      const keys = keysOf(name);
+      if (nested !== undefined) keys.add(nested);
       spans.push({ name, header: true, ...span });
       continue;
     }
@@ -170,6 +183,7 @@ export function parseCodexMcpTomlWithSpans(text) {
     if (assigned.has(id)) throw new Error('Unsupported Codex TOML: a key is defined more than once.');
     assigned.add(id);
     spans.push({ name, ...span });
+    keysOf(name).add(keyPath[0]);
     const server = servers[name];
     if (keyPath.length === 1) {
       applyAssignment(server, '', keyPath[0], decodeTomlValue(statement.value));
@@ -179,6 +193,15 @@ export function parseCodexMcpTomlWithSpans(text) {
       applyAssignment(server, keyPath[0], keyPath[1], decodeTomlValue(statement.value));
     } else {
       throw new Error(`Unsupported Codex MCP subsection "${keyPath.slice(0, -1).join('.')}".`);
+    }
+  }
+
+  for (const [name, keys] of serverKeys) {
+    if (!keys.has('command') && !keys.has('url')) throw new Error('Codex MCP server must set command or url.');
+    const invalid = keys.has('command') ? CODEX_HTTP_ONLY_KEYS : keys.has('url') ? CODEX_STDIO_ONLY_KEYS : [];
+    const key = invalid.find((item) => keys.has(item));
+    if (key && !(keys.has('command') && keys.has('url'))) {
+      throw new Error(`Codex MCP key "${key}" is not supported for the ${keys.has('command') ? 'stdio' : 'HTTP'} transport.`);
     }
   }
 

@@ -3,6 +3,7 @@
     "kind": "skill",
     "action": "ask",
     "signals": [
+      "skill-auto-approved-tools",
       "wildcard-tool-scope"
     ]
   },
@@ -10,6 +11,7 @@
     "kind": "skill",
     "action": "ask",
     "signals": [
+      "skill-auto-approved-tools",
       "wildcard-tool-scope"
     ]
   },
@@ -17,13 +19,16 @@
     "kind": "skill",
     "action": "ask",
     "signals": [
+      "skill-auto-approved-tools",
       "wildcard-tool-scope"
     ]
   },
   "multiline-flow-list.SKILL.md": {
     "kind": "skill",
-    "action": "ask",
+    "action": "block",
     "signals": [
+      "skill-auto-approved-tools",
+      "skill-shell-auto-approve",
       "wildcard-tool-scope"
     ]
   },
@@ -31,6 +36,7 @@
     "kind": "skill",
     "action": "ask",
     "signals": [
+      "skill-auto-approved-tools",
       "uninspected-tool-scope"
     ]
   },
@@ -40,27 +46,31 @@
     "signals": [
       "install-instructions",
       "network-instructions",
-      "shell-instructions"
+      "shell-instructions",
+      "skill-auto-approved-tools"
     ]
   },
   "credential-paths.SKILL.md": {
     "kind": "skill",
     "action": "ask",
     "signals": [
-      "sensitive-path-instructions"
+      "sensitive-path-instructions",
+      "skill-auto-approved-tools"
     ]
   },
   "runner-install.SKILL.md": {
     "kind": "skill",
     "action": "ask",
     "signals": [
-      "install-instructions"
+      "install-instructions",
+      "skill-auto-approved-tools"
     ]
   },
   "hook-command.plugin.json": {
     "kind": "plugin",
     "action": "ask",
     "signals": [
+      "plugin-components-uninspected",
       "plugin-executable-components"
     ]
   },
@@ -68,6 +78,7 @@
     "kind": "plugin",
     "action": "ask",
     "signals": [
+      "plugin-components-uninspected",
       "plugin-executable-components"
     ]
   },
@@ -75,6 +86,7 @@
     "kind": "plugin",
     "action": "ask",
     "signals": [
+      "plugin-components-uninspected",
       "wildcard-tool-scope"
     ]
   },
@@ -82,7 +94,8 @@
     "kind": "plugin",
     "action": "ask",
     "signals": [
-      "missing-version"
+      "missing-version",
+      "plugin-components-uninspected"
     ]
   }
 }
