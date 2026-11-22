@@ -55,6 +55,20 @@
       "example": "examples/claude.mcp.json"
     },
     {
+      "id": "devin-mcp",
+      "commands": [
+        "inspect-devin",
+        "gate-devin",
+        "snapshot-devin",
+        "approve-devin",
+        "recheck-devin"
+      ],
+      "tests": [
+        "devin.test.mjs"
+      ],
+      "example": "examples/devin.mcp_config.json"
+    },
+    {
       "id": "claude-settings",
       "commands": [
         "inspect-claude-settings",

@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- `inspect-devin`, `gate-devin`, `snapshot-devin`, `approve-devin`, `recheck-devin`: inspect and gate a Devin CLI `mcp_config.json` before Devin CLI reads it. Unknown fields, the OAuth client fields, `${file:...}` expansion, and URL credentials or query values fail closed. A `disabled` server is decided like an enabled one, and enabling a server or unhiding a tool invalidates a signed review. See [docs/DEVIN.md](docs/DEVIN.md).
 - `inventory-codex-mcp-status`: convert a captured `mcpServerStatus/list` exchange (each request with its response) from the documented `codex app-server` protocol into a value-free runtime tool inventory (server names and tool counts only). TrustDex reads the file you pass; it does not start Codex or contact MCP servers. The capture is refused when a page is missing (the first request must start the list and each later one must continue from the previous cursor), a request names no thread or selects a single server, a server has no settled thread status, tool discovery failed for a connected server, or a server name appears twice.
 
 ## 0.18.0 - 2026-11-22

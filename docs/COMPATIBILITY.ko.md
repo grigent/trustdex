@@ -22,6 +22,7 @@
 | --- | --- | --- | --- |
 | 일반 MCP JSON (`mcpServers` / `servers`) | `inspect`, `gate`, `snapshot`, `diff`, `approve`, `recheck` | `test/policy.test.mjs`, `test/hardening.test.mjs`, `test/research-fixtures.test.mjs` | `mcp-json` |
 | Claude Code `.mcp.json` 및 Claude Desktop `mcpServers` | `inspect-claude`, `gate-claude`, `snapshot-claude`, `approve-claude`, `recheck-claude` | `test/claude.test.mjs` | `claude-mcp` |
+| Devin CLI `mcp_config.json` | `inspect-devin`, `gate-devin`, `snapshot-devin`, `approve-devin`, `recheck-devin` | `test/devin.test.mjs` | `devin-mcp` |
 | Claude Code 설정 파일 및 병합 스택 | `inspect-claude-settings`, `inspect-claude-settings-stack`, `snapshot-claude-settings`, `snapshot-claude-settings-stack`, `diff-permissions` | `test/claude-settings.test.mjs`, `test/settings-stack.test.mjs`, `test/posture.test.mjs` | `claude-settings` |
 | Claude Code `PreToolUse` 훅 | `claude-hook`, `init`, `allow-once` | `test/claude-hook.test.mjs`, `test/init.test.mjs` | `claude-hook` |
 | Codex `config.toml` MCP 서버 | `inspect-codex`, `gate-codex`, `snapshot-codex`, `approve-codex`, `recheck-codex` | `test/codex-toml.test.mjs`, `test/codex-review.test.mjs` | `codex-toml` |
@@ -36,7 +37,7 @@
 
 ## 여기서 "호환"의 의미
 
-- TrustDex는 이 저장소의 픽스처로 **설정 형식**을 테스트합니다. Claude Code, Claude Desktop, Codex, VS Code, Cursor의 릴리스를 대상으로 실행하지 않으므로, 특정 런타임 버전을 인증하지 않습니다.
+- TrustDex는 이 저장소의 픽스처로 **설정 형식**을 테스트합니다. Claude Code, Claude Desktop, Codex, Devin CLI, VS Code, Cursor의 릴리스를 대상으로 실행하지 않으므로, 특정 런타임 버전을 인증하지 않습니다.
 - 각 어댑터는 해당 문서에 나열된 필드만 받습니다. 그 밖의 필드, 전송 방식, 문법은 닫힌 쪽으로 실패합니다(오류 또는 ASK/BLOCK 신호). 런타임이 설정을 추가하면, 어댑터 릴리스가 이를 다룰 때까지 TrustDex는 거부하거나 표시합니다.
 - 런타임 증거는 권한 있는 통합이 제공한 인벤토리에서 런타임 이름 `claude`와 `codex`를 받습니다. TrustDex는 실행 중인 에이전트를 직접 읽는 어댑터를 제공하지 않습니다. `inventory-claude-init`은 Claude Code의 문서화된 `--output-format stream-json`에서 사용자가 직접 캡처한 `system/init` 이벤트를 변환합니다. 문서화된 이벤트 형태로 테스트하며 Claude Code 릴리스로 테스트하지는 않습니다. `inventory-codex-mcp-status`는 문서화된 `codex app-server` 프로토콜에서 사용자가 직접 캡처한 `mcpServerStatus/list` 요청·응답을 변환합니다. 공개된 응답 스키마로 테스트하며 Codex 릴리스로 테스트하지는 않습니다. Gemini CLI와 Devin은 세션의 MCP 서버·도구를 기계 판독형으로 내보내는 방법을 문서화하지 않으므로 변환기가 없습니다.
 - 온라인 어댑터는 `api.github.com`, `registry.npmjs.org`, `pypi.org`, MCP Registry의 공개 응답 형식에 의존합니다. 실제 요청이 아니라 응답 형태를 본뜬 픽스처로 테스트합니다.

@@ -101,6 +101,13 @@ function claudeServers() {
   };
 }
 
+function devinServers() {
+  return {
+    remote: { url: 'https://mcp.example.invalid/mcp', transport: 'http', headers: { Authorization: `Bearer ${canary()}`, 'X-Key': '${env:API_KEY}' }, disabledTools: [canary()] },
+    local: { command: 'node', args: ['server.js', `--token=${canary()}`], env: { API_TOKEN: canary(), OTHER: '${env:OTHER}' }, disabled: true, disabledTools: [canary()] }
+  };
+}
+
 function claudeSettings() {
   return {
     permissions: {
@@ -152,6 +159,7 @@ test('no command prints or stores a planted value', () => {
     mcp: write('in/mcp.json', { mcpServers: mcpServers() }),
     mcpChanged: write('in/mcp-changed.json', { mcpServers: { ...mcpServers(), extra: { command: 'npx', args: [`https://u:${canary()}@registry.example.invalid/new.tgz`] } } }),
     claude: write('in/claude.mcp.json', { mcpServers: claudeServers() }),
+    devin: write('in/devin.mcp_config.json', { mcpServers: devinServers() }),
     claudeHelper: write('in/claude-helper.mcp.json', { mcpServers: { h: { type: 'http', url: 'https://mcp.example.invalid/x', headersHelper: `print-token ${canary()}` } } }),
     settings: write('in/settings.json', claudeSettings()),
     settingsLocal: write('in/settings.local.json', claudeSettings()),
@@ -187,7 +195,7 @@ test('no command prints or stores a planted value', () => {
   const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
   const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject];
   const inspections = [
-    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper],
+    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper], ['inspect-devin', files.devin],
     ['inspect-claude-settings', files.settings], ['inspect-codex', files.codex], ['inspect-codex-settings', files.codexSettings],
     ['inspect-skill', files.skill], ['inspect-plugin', files.plugin], ['inspect-ide-extensions', files.ext],
     ['inspect-claude-settings-stack', ...claudeStack], ['inspect-codex-settings-stack', ...codexStack]
@@ -200,6 +208,7 @@ test('no command prints or stores a planted value', () => {
     ['diff', o('snapshot-before.json'), o('snapshot-after.json')],
     ['diff', o('snapshot-before.json'), o('snapshot-after.json'), '--json'],
     ['snapshot-claude', files.claude, '--out', o('snapshot-claude.json')],
+    ['snapshot-devin', files.devin, '--out', o('snapshot-devin.json')],
     ['snapshot-ide-extensions', files.ext, '--out', o('snapshot-ide.json')],
     ['snapshot-claude-settings', files.settings, '--out', o('posture-claude.json')],
     ['snapshot-codex-settings', files.codexSettings, '--out', o('posture-codex.json')],
@@ -215,6 +224,9 @@ test('no command prints or stores a planted value', () => {
     ['gate', files.mcp, '--out', path.join(dir, 'gated/mcp.json'), '--pack', 'development'],
     ['gate', files.mcp, '--out', path.join(dir, 'gated/mcp2.json'), '--pack', 'development', '--json'],
     ['gate-claude', files.claude, '--out', path.join(dir, 'gated/claude.json'), '--pack', 'development'],
+    ['gate-devin', files.devin, '--out', path.join(dir, 'gated/devin.json'), '--pack', 'development'],
+    ['approve-devin', files.devin, '--private', priv, '--dir', o('review-devin'), '--pack', 'development'],
+    ['recheck-devin', files.devin, '--review-dir', o('review-devin'), '--public', pub, '--json'],
     ['gate-codex', files.codex, '--out', path.join(dir, 'gated/config.toml'), '--pack', 'development'],
     ['approve', files.approvable, '--private', priv, '--dir', o('review'), '--pack', 'development'],
     ['recheck', files.approvable, '--review-dir', o('review'), '--public', pub],
@@ -320,6 +332,14 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'stdio', command: 'node', env: { T: canary() }, extra: canary() } } })],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'ws', url: `wss://x.invalid/${canary()}` } } })],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'http', url: 'https://x.invalid/', headers: { A: 5, B: canary() } } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: `https://x.invalid/?k=${canary()}` } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { command: 'node', env: { T: canary() }, extra: canary() } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', oauthClientSecret: canary() } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', headers: { A: `\${file:/${canary()}}` } } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', headers: { A: 5, B: canary() } } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', transport: canary() } } })],
+    ['inspect-devin', 'json', () => ({ mcpServers: { a: { command: 'node', disabledTools: [canary(), 5] } } })],
+    ['inspect-devin', 'raw', () => `{"mcpServers": {"a": {"env": {"T": ${canary()}}}}}`],
     ['inspect-claude-settings', 'json', () => ({ permissions: { allow: [`Bash(${canary()}`] } })],
     ['inspect-claude-settings', 'json', () => ({ permissions: { allow: [canary(), 5] } })],
     ['inspect-claude-settings', 'json', () => ({ permissions: { defaultMode: canary() } })],
