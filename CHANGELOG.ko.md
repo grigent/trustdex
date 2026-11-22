@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.19.0 - 2026-11-22
+
 - `inspect-gemini`, `gate-gemini`, `snapshot-gemini`, `approve-gemini`, `recheck-gemini`: Gemini CLI가 읽기 전에 `mcpServers`를 검사하고 게이트합니다. 모든 도구 호출 확인을 건너뛰는 `trust: true`에는 `auto-approve-tools` 신호가 붙고, 기본 제공 팩에서는 ALLOW가 되지 않습니다. 알 수 없는 필드, OAuth·Google 자격 증명 필드, `settings.json`의 다른 설정, URL의 자격 증명·쿼리 값은 거부합니다. `trust`, 도구 필터, 작업 디렉터리를 바꾸면 서명된 검토가 무효가 됩니다. [docs/GEMINI.ko.md](docs/GEMINI.ko.md)를 참고하세요.
 - `inspect-devin`, `gate-devin`, `snapshot-devin`, `approve-devin`, `recheck-devin`: Devin CLI가 읽기 전에 `mcp_config.json`을 검사하고 게이트합니다. 알 수 없는 필드, OAuth 클라이언트 필드, `${file:...}` 확장, URL의 자격 증명·쿼리 값은 거부합니다. `disabled` 서버도 활성 서버와 같은 결정을 받고, 서버를 켜거나 숨긴 도구를 다시 노출하면 서명된 검토가 무효가 됩니다. [docs/DEVIN.ko.md](docs/DEVIN.ko.md)를 참고하세요.
 - `inventory-codex-mcp-status`: 문서화된 `codex app-server` 프로토콜에서 캡처한 `mcpServerStatus/list` 요청·응답 쌍을 값 없는 런타임 도구 인벤토리(서버 이름과 도구 개수만)로 변환합니다. TrustDex는 전달받은 파일만 읽고, Codex를 실행하거나 MCP 서버에 접속하지 않습니다. 페이지가 빠졌거나(첫 요청은 목록의 처음부터, 이후 요청은 직전 응답의 커서에서 이어져야 함), 요청에 스레드가 없거나 서버 하나만 골랐거나, 서버의 스레드 상태가 확정되지 않았거나, 연결된 서버의 도구 탐색이 실패했거나, 같은 서버 이름이 두 번 나오면 캡처를 거부합니다.

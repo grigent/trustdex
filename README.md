@@ -28,7 +28,7 @@ TrustDex helps decide which MCP servers, skills, and plugins an AI agent should 
 Running Claude Code in auto or bypass mode? Add a checkpoint that stops risky actions before they run: packages released hours ago, reading SSH keys or tokens, changing agent settings, installing startup items, or sending secrets over SSH.
 
 ```bash
-npx trustdex@0.18.0 init
+npx trustdex@0.19.0 init
 ```
 
 It shows what it will change and asks for `yes`. It copies TrustDex to `~/.local/share/trustdex/<version>`, so the hook never downloads code at run time. It also backs up `~/.claude/settings.json` and keeps your other settings and hooks. Start a new Claude Code session afterwards. `--dry-run` only shows the plan, `--strict` denies risky actions instead of asking, and `trustdex init --uninstall` removes the hook. It sets up macOS and Linux; on Windows, see [the hook guide](docs/CLAUDE_HOOK.md).
@@ -109,8 +109,8 @@ Requires Node.js 20+.
 Run directly from npm:
 
 ```bash
-npx trustdex@0.18.0 --help
-npx trustdex@0.18.0 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+npx trustdex@0.19.0 --help
+npx trustdex@0.19.0 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
 ```
 
 Or work from a source checkout:
@@ -270,7 +270,7 @@ claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
 Check the gate's result before starting Claude. Only `ALLOW` entries are exposed by
 default; `ASK` entries require review. The adapter rejects settings it cannot
 inspect instead of silently trusting them. These commands are available in npm 0.5.0 and later, and from a source checkout.
-Use `npx trustdex@0.18.0` in place of `node ./bin/trustdex.mjs` to run the published CLI.
+Use `npx trustdex@0.19.0` in place of `node ./bin/trustdex.mjs` to run the published CLI.
 
 See [Using TrustDex with Claude](docs/CLAUDE.md) for supported settings, PowerShell
 error handling, signed review, and the Claude Desktop workflow.
@@ -592,7 +592,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
 ```yaml
 - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-- uses: grigent/trustdex@3f809c3ffb305d6ff2a0c51d104908c855f0d0a3
+- uses: grigent/trustdex@7e0a920af706c382f024a174d4bdd720fa83dd1e
   with:
     config: ./mcp.json
     pack: official-first
