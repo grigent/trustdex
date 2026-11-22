@@ -58,6 +58,8 @@
 
 ## 3. 다른 패키지 레지스트리의 출처 증명
 
+> 상태: 보류. 관리자가 2026-11-22에 이 항목을 미루기로 결정했으며 구현된 것은 없습니다.
+
 ### 현재
 
 `check-install`과 `claude-hook`은 `registry.npmjs.org`와 `pypi.org`의 공개 메타데이터를 읽습니다. 빌드 출처 증명(`provenance npm`, `trust-source npm`)은 npm에만 있습니다. PyPI 패키지는 수동 검토나 `--artifact` 무결성 증거로만 신뢰 저장소에 기록할 수 있습니다.
@@ -87,6 +89,8 @@ PyPI는 PEP 740을 구현하며, 릴리스 파일마다 `GET https://pypi.org/in
 남은 결정: PyPI만 먼저 할지, 릴리스의 모든 파일을 검증할지 설치 도구가 고를 파일만 검증할지, GitLab·Google Cloud publisher가 필요한지.
 
 ## 4. 조직 단위 신뢰 저장소
+
+> 상태: 보류. 관리자가 2026-11-22에 이 항목을 미루기로 결정했으며 구현된 것은 없습니다.
 
 ### 현재
 

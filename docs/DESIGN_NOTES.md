@@ -58,6 +58,8 @@ Open decisions: which runtime interface to target first; whether adapters live i
 
 ## 3. Provenance for other package registries
 
+> Status: deferred. The maintainer decided on 2026-11-22 to postpone this item; nothing is implemented.
+
 ### Today
 
 `check-install` and `claude-hook` read public metadata from `registry.npmjs.org` and `pypi.org`. Build provenance (`provenance npm`, `trust-source npm`) exists for npm only. A PyPI package can be recorded in a trust store only by manual review or `--artifact` integrity evidence.
@@ -87,6 +89,8 @@ Option A only. Rules:
 Open decisions: whether to start with PyPI only; whether to verify all files of a release or only the file that the installer would pick; whether GitLab and Google Cloud publishers are needed.
 
 ## 4. Organization-level trust store
+
+> Status: deferred. The maintainer decided on 2026-11-22 to postpone this item; nothing is implemented.
 
 ### Today
 
