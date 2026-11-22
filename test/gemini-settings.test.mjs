@@ -82,6 +82,31 @@ test('an explicit tools.sandbox false is ASK under every policy and differs from
   for (const policy of [permissive, getPolicyPack('development')]) assert.equal(evaluateAll([omitted], policy)[0].action, 'ask');
 });
 
+test('tools.sandbox "false" and "0" are disabled like false, as in Gemini CLI', () => {
+  const permissive = { version: 1, unknownAction: 'allow', localAction: 'allow', sensitiveAction: 'allow',
+    unpinnedAction: 'allow', shellAction: 'allow', verifiedPublisherAction: 'allow' };
+  const custom = { ...permissive, signalActions: { 'gemini-sandbox-disabled': 'allow' } };
+  for (const sandbox of [false, 'false', '0']) {
+    const settings = { tools: { sandbox } };
+    const result = inspectGeminiSettings(settings);
+    assert.deepEqual(result.signals, ['gemini-sandbox-disabled'], JSON.stringify(sandbox));
+    assert.equal(result.metadata.sandboxSetting, 'disabled');
+    assert.equal(result.metadata.sandboxConfigured, false);
+    for (const pack of ['strict', 'official-first', 'development']) assert.equal(evaluate(settings, pack).action, 'ask', pack);
+    for (const policy of [permissive, custom]) assert.equal(evaluateAll([result], policy)[0].action, 'ask');
+  }
+  for (const sandbox of [true, 'true', '1', 'docker']) {
+    const result = inspectGeminiSettings({ tools: { sandbox } });
+    assert.deepEqual(result.signals, [], JSON.stringify(sandbox));
+    assert.equal(result.metadata.sandboxSetting, 'enabled');
+    assert.equal(result.metadata.sandboxConfigured, true);
+    assert.equal(JSON.stringify(result).includes('docker'), false);
+  }
+  const omitted = inspectGeminiSettings({ tools: {} });
+  assert.equal(omitted.metadata.sandboxSetting, 'omitted');
+  assert.equal(omitted.metadata.sandboxConfigured, false);
+});
+
 test('a policy overlay cannot be needed to see a shell grant: every pack blocks it', () => {
   for (const pack of ['strict', 'official-first', 'development']) {
     assert.equal(evaluate({ tools: { allowed: ['run_shell_command'] } }, pack).action, 'block', pack);

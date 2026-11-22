@@ -104,7 +104,7 @@ Settings are classified by capability rather than echoed:
 | any other `tools.allowed` entry | `gemini-auto-approved-tools` | at least `ASK` |
 | `general.defaultApprovalMode` is `auto_edit` | `gemini-auto-edit` | at least `ASK` |
 | `tools.sandboxAllowedPaths` or `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | at least `ASK` |
-| `tools.sandbox` is `false` (turns the sandbox off, even if another layer enables it) | `gemini-sandbox-disabled` | at least `ASK` |
+| `tools.sandbox` is `false`, `"false"`, or `"0"` (this file turns the sandbox off) | `gemini-sandbox-disabled` | at least `ASK` |
 | `security.enablePermanentToolApproval` or `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | at least `ASK` |
 | `security.folderTrust.enabled` is `false` | `gemini-folder-trust-disabled` | at least `ASK` |
 | `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | at least `ASK` |
@@ -118,9 +118,12 @@ A settings file never reaches ALLOW, whatever the policy says. Restrictive setti
 an unsupported approval mode, and a file that is not plain JSON (including one with
 comments) fail closed.
 
-`metadata.sandboxSetting` is `omitted`, `disabled` (explicit `false`), or `enabled` (`true` or
-a sandbox command, which is not reported), so an omitted sandbox is distinguishable from one
-that is turned off. The report holds the approval mode, booleans, and counts. It does not hold tool names,
+`metadata.sandboxSetting` is `omitted`, `disabled` (`false`, `"false"`, or `"0"`, which Gemini
+CLI treats as off), or `enabled` (`true` or another string such as a sandbox command, which is
+not reported), so an omitted sandbox is distinguishable from one that is turned off.
+`metadata.sandboxConfigured` is `true` only for `enabled`. Both describe the value written in
+the inspected file. The sandbox that applies at runtime can differ: another settings layer,
+the `GEMINI_SANDBOX` environment variable, or the `--sandbox` CLI option can change it. The report holds the approval mode, booleans, and counts. It does not hold tool names,
 commands, paths, hook bodies, extension patterns, variable names, or the names of
 uninspected settings. It therefore has no content fingerprint or signed review record:
 a same-count change inside one category is not detected.

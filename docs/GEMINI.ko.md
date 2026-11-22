@@ -102,7 +102,7 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 | 그 밖의 `tools.allowed` 항목 | `gemini-auto-approved-tools` | 최소 `ASK` |
 | `general.defaultApprovalMode`가 `auto_edit` | `gemini-auto-edit` | 최소 `ASK` |
 | `tools.sandboxAllowedPaths` 또는 `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | 최소 `ASK` |
-| `tools.sandbox`가 `false`(다른 계층이 켜더라도 샌드박스를 끔) | `gemini-sandbox-disabled` | 최소 `ASK` |
+| `tools.sandbox`가 `false`, `"false"`, `"0"`(이 파일이 샌드박스를 끔) | `gemini-sandbox-disabled` | 최소 `ASK` |
 | `security.enablePermanentToolApproval` 또는 `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | 최소 `ASK` |
 | `security.folderTrust.enabled`가 `false` | `gemini-folder-trust-disabled` | 최소 `ASK` |
 | `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | 최소 `ASK` |
@@ -115,8 +115,12 @@ node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack s
 `security.disableAlwaysAllow`)은 신호를 추가하지 않습니다. 검사 대상 설정의 타입이
 틀리거나, 지원하지 않는 승인 모드이거나, 순수 JSON이 아닌 파일(주석 포함)은 거부합니다.
 
-`metadata.sandboxSetting`은 `omitted`(생략), `disabled`(명시적 `false`), `enabled`(`true` 또는
-샌드박스 명령. 명령은 보고하지 않음) 중 하나여서 생략된 샌드박스와 꺼진 샌드박스를 구분합니다.
+`metadata.sandboxSetting`은 `omitted`(생략), `disabled`(Gemini CLI가 끔으로 처리하는 `false`,
+`"false"`, `"0"`), `enabled`(`true` 또는 샌드박스 명령 같은 그 밖의 문자열. 값은 보고하지 않음)
+중 하나여서 생략된 샌드박스와 꺼진 샌드박스를 구분합니다. `metadata.sandboxConfigured`는
+`enabled`일 때만 `true`입니다. 두 값은 검사한 파일에 기록된 설정을 나타냅니다. 실제 실행 시
+적용되는 샌드박스는 상위 설정 계층, `GEMINI_SANDBOX` 환경 변수, `--sandbox` CLI 옵션에 따라
+달라질 수 있습니다.
 보고서에는 승인 모드, 불리언, 개수만 들어갑니다. 도구 이름, 명령, 경로, 훅 내용, 확장
 패턴, 변수 이름, 검사하지 않는 설정의 이름은 들어가지 않습니다. 그래서 내용 지문이나
 서명된 검토 기록이 없고, 같은 분류 안에서 개수가 같은 변경은 감지하지 못합니다.
