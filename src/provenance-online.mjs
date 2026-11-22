@@ -230,7 +230,8 @@ async function inspectNpmBuildProvenance(data, version, fetchImpl) {
   const workflow = predicate.buildDefinition?.externalParameters?.workflow;
   const configSource = predicate.invocation?.configSource;
   const sourceRepository = githubRepositorySlug(workflow?.repository ?? String(configSource?.uri || '').replace(/@[^@]*$/, ''));
-  const workflowPath = typeof (workflow?.path ?? configSource?.entryPoint) === 'string' ? (workflow?.path ?? configSource.entryPoint) : null;
+  const entryPoint = workflow?.path ?? configSource?.entryPoint;
+  const workflowPath = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(entryPoint) ? entryPoint : null;
   if (!sourceRepository) return unverifiable('unknown-source');
   const matched = sourceRepository === declared && (!previous || sourceRepository === previous);
   return { status: matched ? 'matched' : 'mismatch', sourceRepository, workflowPath, ...base };
