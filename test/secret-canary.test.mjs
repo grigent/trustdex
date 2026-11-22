@@ -169,6 +169,20 @@ test('no command prints or stores a planted value', () => {
     claude: write('in/claude.mcp.json', { mcpServers: claudeServers() }),
     devin: write('in/devin.mcp_config.json', { mcpServers: devinServers() }),
     gemini: write('in/gemini.mcpServers.json', { mcpServers: geminiServers() }),
+    geminiSettings: write('in/gemini.settings.json', {
+      [canary()]: canary(),
+      general: { defaultApprovalMode: 'auto_edit', [canary()]: canary() },
+      tools: {
+        allowed: [`run_shell_command(${canary()})`, canary()], core: [canary()], exclude: [canary()],
+        sandbox: canary(), sandboxAllowedPaths: [canary()], discoveryCommand: canary(), callCommand: canary()
+      },
+      mcp: { serverCommand: canary(), allowed: [canary()], excluded: [canary()] },
+      security: { allowedExtensions: [canary()], environmentVariableRedaction: { allowed: [canary()], blocked: [canary()] } },
+      hooksConfig: { disabled: [canary()] },
+      hooks: { [canary()]: [{ command: canary() }] },
+      policyPaths: [canary()],
+      mcpServers: { [canary()]: { command: canary(), env: { T: canary() } } }
+    }),
     claudeHelper: write('in/claude-helper.mcp.json', { mcpServers: { h: { type: 'http', url: 'https://mcp.example.invalid/x', headersHelper: `print-token ${canary()}` } } }),
     settings: write('in/settings.json', claudeSettings()),
     settingsLocal: write('in/settings.local.json', claudeSettings()),
@@ -204,7 +218,7 @@ test('no command prints or stores a planted value', () => {
   const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
   const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject];
   const inspections = [
-    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper], ['inspect-devin', files.devin], ['inspect-gemini', files.gemini],
+    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper], ['inspect-devin', files.devin], ['inspect-gemini', files.gemini], ['inspect-gemini-settings', files.geminiSettings],
     ['inspect-claude-settings', files.settings], ['inspect-codex', files.codex], ['inspect-codex-settings', files.codexSettings],
     ['inspect-skill', files.skill], ['inspect-plugin', files.plugin], ['inspect-ide-extensions', files.ext],
     ['inspect-claude-settings-stack', ...claudeStack], ['inspect-codex-settings-stack', ...codexStack]
@@ -371,6 +385,11 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-codex', 'toml', () => `[mcp_servers.a.env]\nT = "${canary()}"\nU = ${canary()}\n`],
     ['inspect-codex', 'toml', () => `[mcp_servers.a]\ncommand = "node"\nenv = { T "${canary()}" }\n`],
     ['inspect-codex', 'toml', () => `[mcp_servers.a]\ncommand = "node"\n"${canary()}"\n`],
+    ['inspect-gemini-settings', 'json', () => ({ general: { defaultApprovalMode: canary() } })],
+    ['inspect-gemini-settings', 'json', () => ({ tools: { allowed: [canary(), 5] } })],
+    ['inspect-gemini-settings', 'json', () => ({ [canary()]: [canary()], tools: { discoveryCommand: [canary()] } })],
+    ['inspect-gemini-settings', 'json', () => ({ hooks: { [canary()]: canary() } })],
+    ['inspect-gemini-settings', 'raw', () => `{"tools": {"allowed": [${canary()}]}}`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = "${canary()}"\n`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = ${canary()}\n`],
     ['inspect-codex-settings', 'toml', () => `sandbox_mode = "workspace-write"\n[sandbox_workspace_write]\nwritable_roots = "${canary()}"\n`],

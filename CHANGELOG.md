@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- `inspect-gemini-settings`: classify the permission settings of a Gemini CLI `settings.json` by capability. An auto-approved shell tool, a tool or MCP command setting, and hooks are `BLOCK`; other automatic grants, a relaxed sandbox, disabled folder trust, extra policy paths, and uninspected settings are at least `ASK`. A settings file never reaches ALLOW in a built-in pack, and the report holds only the approval mode, booleans, and counts. See [docs/GEMINI.md](docs/GEMINI.md).
 - `provenance npm` and `trust-source npm` also require the signing certificate to carry an embedded signed certificate timestamp (SCT) from a pinned certificate-transparency log. A certificate without one is `unverifiable`. No network request is added.
 - The pinned Sigstore trust root is now checked by a test against the upstream `trusted_root.json` it was derived from, and [docs/TRUST_ROOT.md](docs/TRUST_ROOT.md) describes how to refresh it.
 - `provenance npm` and `trust-source npm` also verify the Merkle inclusion proof of the Sigstore log entry, up to a tree head signed by the pinned log key. A bundle whose proof is missing or does not verify is `unverifiable` and is not recorded. Only a 2023 bundle in format 0.1 may carry the log's signed promise alone. No network request is added.

@@ -1,0 +1,8 @@
+{
+  "general": { "defaultApprovalMode": "auto_edit" },
+  "tools": {
+    "allowed": ["read_file", "run_shell_command(git status)"],
+    "sandboxAllowedPaths": ["../reviewed-shared"]
+  },
+  "security": { "disableYoloMode": true }
+}

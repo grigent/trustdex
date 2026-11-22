@@ -13,6 +13,7 @@ import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/code
 import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
 import { parseDevinMcpConfig } from '../src/devin-config.mjs';
 import { parseGeminiMcpConfig } from '../src/gemini-config.mjs';
+import { inspectGeminiSettings } from '../src/gemini-settings.mjs';
 import {
   inspectClaudeMcpPermissionBindings,
   inspectClaudeSettings,
@@ -128,6 +129,7 @@ Usage:
   trustdex approve-devin <mcp_config.json> --private key.pem --dir review [--pack ...]
   trustdex recheck-devin <mcp_config.json> --review-dir review
   trustdex inspect-gemini <mcpServers.json> [--pack ...] [--policy policy.json] [--json]
+  trustdex inspect-gemini-settings <settings.json> [--pack ...] [--policy policy.json] [--json]
   trustdex gate-gemini <mcpServers.json> --out gated.json [--pack ...] [--policy policy.json]
   trustdex snapshot-gemini <mcpServers.json> --out snapshot.json [--pack ...]
   trustdex approve-gemini <mcpServers.json> --private key.pem --dir review [--pack ...]
@@ -398,7 +400,7 @@ async function emitInspection(results, args, policy) {
 const DECISION_COMMANDS = new Set([
   'inspect', 'inspect-claude', 'inspect-devin', 'inspect-gemini', 'inspect-skill', 'inspect-plugin', 'inspect-codex',
   'inspect-claude-settings', 'inspect-claude-settings-stack',
-  'inspect-codex-settings', 'inspect-codex-settings-stack', 'inspect-ide-extensions'
+  'inspect-codex-settings', 'inspect-codex-settings-stack', 'inspect-gemini-settings', 'inspect-ide-extensions'
 ]);
 
 function setInspectExitCode(results) {
@@ -779,6 +781,18 @@ async function main() {
     if (!configPath) throw new Error('inspect-codex-settings requires a path to Codex config.toml.');
     const { policy, result } = await evaluateCodexSettings(configPath, args);
     await emitInspection([result], args, policy);
+    return;
+  }
+
+  if (command === 'inspect-gemini-settings') {
+    const settingsPath = args[1];
+    if (!settingsPath) throw new Error('inspect-gemini-settings requires a path to Gemini settings.json.');
+    let settings;
+    try { settings = await readJson(settingsPath); } catch (error) {
+      if (error instanceof SyntaxError) throw new Error('Invalid Gemini settings JSON.');
+      throw error;
+    }
+    await inspectSingle(inspectGeminiSettings(settings, settingsPath), args);
     return;
   }
 
