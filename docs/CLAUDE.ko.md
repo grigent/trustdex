@@ -75,7 +75,7 @@ node ./bin/trustdex.mjs inspect-claude-settings \
   --json
 ```
 
-어댑터는 문서화된 `permissions` 필드인 `allow`, `ask`, `deny`, `defaultMode`, `additionalDirectories`, `disableBypassPermissionsMode`, `disableAutoMode` 및 `blockReadsOutsideWorkingDirectories`를 검증합니다. 알 수 없는 권한 필드, 잘못된 규칙 배열, 빈 규칙, 지원하지 않는 모드, 고정되지 않은 와일드카드 허용 규칙 및 괄호가 있는 MCP 규칙은 안전하게 실패합니다.
+어댑터는 문서화된 `permissions` 필드인 `allow`, `ask`, `deny`, `defaultMode`, `additionalDirectories`, `disableBypassPermissionsMode`, `disableAutoMode`, `blockReadsOutsideWorkingDirectories`, `blockWritesOutsideWorkingDirectories`, `denyInsteadOfPrompting`을 검증합니다. 알 수 없는 권한 필드, 잘못된 규칙 배열, 빈 규칙, 지원하지 않는 모드, 고정되지 않은 와일드카드 허용 규칙 및 괄호가 있는 MCP 규칙은 안전하게 실패합니다.
 
 자동 권한은 값을 그대로 출력하는 대신 기능 종류에 따라 분류합니다.
 
@@ -87,10 +87,10 @@ node ./bin/trustdex.mjs inspect-claude-settings \
 | `bypassPermissions` 기본 모드 | `BLOCK` |
 | `auto` 또는 `acceptEdits` 기본 모드 | 최소 `ASK` |
 | 추가 디렉터리 또는 명시적으로 허용된 작업 디렉터리 외부 읽기 | 최소 `ASK` |
-| 훅 또는 API 키 도우미 | `BLOCK` |
+| 훅, 실행형 설정(상태 표시줄이나 인증 도우미 등), 또는 보호 훅을 끌 수 있는 설정 | `BLOCK` |
 | 환경, 샌드박스, 플러그인 또는 검사하지 않은 루트 설정 | 최소 `ASK` |
 
-`ask`와 `deny` 규칙은 제한적이므로 그 자체로 위험 신호를 추가하지 않습니다. 보고서에는 규칙 개수와 기능 범주가 포함되지만 명령 패턴, 경로, 도메인, 훅 본문, 도우미 명령, 디렉터리 값, 환경 값 또는 플러그인 식별자는 포함되지 않습니다. 같은 이유로 이 첫 번째 어댑터는 설정 파일용 콘텐츠 지문이나 서명된 검토 기록을 만들지 않습니다.
+`ask`와 `deny` 규칙은 제한적이므로 그 자체로 위험 신호를 추가하지 않습니다. 보고서에는 규칙 개수와 기능 범주가 포함되지만 명령 패턴, 경로, 도메인, 훅 본문, 도우미 명령, 디렉터리 값, 환경 값, 플러그인 식별자, 검사하지 않은 설정 이름은 포함되지 않습니다. 같은 이유로 이 어댑터는 설정 파일용 콘텐츠 지문이나 서명된 검토 기록을 만들지 않습니다.
 
 여러 활성 소스를 검토할 때는 스택 명령을 사용하세요.
 
@@ -104,9 +104,11 @@ node ./bin/trustdex.mjs inspect-claude-settings-stack \
   --pack strict --json
 ```
 
-TrustDex는 사용자, 공유 프로젝트, 프로젝트 로컬, 세션 및 관리형 우선순위를 적용합니다. 권한 목록은 결합하고 지원되는 스칼라 권한 제어는 가장 높은 유효 소스를 사용합니다. 문서화된 범위 제한에 맞춰 프로젝트 또는 로컬 소스의 `auto`와 `bypassPermissions` 기본 모드는 무시합니다. 보고서에는 고정된 소스 범위 이름과 개수만 저장하며 입력 경로나 설정 값은 저장하지 않습니다.
+TrustDex는 사용자, 공유 프로젝트, 프로젝트 로컬, 세션, 관리형 순으로 우선순위를 적용합니다. 권한 목록은 합치되, 관리형 소스에서 `allowManagedPermissionRulesOnly`를 켜면 해당 소스의 `allow`, `ask`, `deny` 목록만 사용합니다. 정책 도우미가 관리형 정책을 대체할 수 있으면 이 예외를 적용하지 않습니다.
 
-소스는 명시적으로 전달해야 합니다. TrustDex는 설정, 셸 환경 변수 재정의, 임베딩 호스트 정책 또는 서버 전달 관리형 설정을 자동으로 찾지 않습니다. `/status`로 로드된 소스를 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
+작업 디렉터리 밖 읽기·쓰기 제한은 어느 소스에서든 `true`면 유지합니다. `denyInsteadOfPrompting`은 사용자, 세션, 관리형 소스의 `true`만 반영합니다. 환경 변수 이름은 여러 소스에서 합칩니다. 현재 Claude Code 동작에 맞춰 프로젝트나 로컬의 `auto`와 `bypassPermissions` 기본 모드는 무시합니다. 단, v2.1.257 이전에는 프로젝트나 로컬의 `bypassPermissions`가 적용될 수 있었으므로, 버전에 관계없이 선언을 확인하려면 단일 파일 검사를 사용하세요. 스택 보고서에는 소스 경로나 민감한 값이 포함되지 않습니다.
+
+소스는 명시적으로 전달해야 합니다. TrustDex는 설정, 셸 환경 변수 재정의, 임베딩 호스트 정책 또는 서버 전달 관리형 설정을 자동으로 찾지 않습니다. `/status`로 로드된 소스를 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [설정 레퍼런스](https://code.claude.com/docs/en/settings-reference), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
 
 설정 파일이나 스택은 정책과 관계없이 ALLOW가 되지 않습니다. `localAction: "allow"`인
 정책에서도 ASK입니다.

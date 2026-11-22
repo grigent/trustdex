@@ -127,6 +127,14 @@ function claudeSettings() {
     },
     hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: `echo ${canary()}` }] }] },
     apiKeyHelper: `print ${canary()}`,
+    awsAuthRefresh: canary(),
+    awsCredentialExport: canary(),
+    gcpAuthRefresh: canary(),
+    otelHeadersHelper: canary(),
+    statusLine: { type: 'command', command: canary() },
+    fileSuggestion: { type: 'command', command: canary() },
+    policyHelper: { path: canary() },
+    [canary()]: canary(),
     env: { SECRET_ENV: canary() }
   };
 }
@@ -393,6 +401,8 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-claude-settings', 'json', () => ({ permissions: { allow: [canary(), 5] } })],
     ['inspect-claude-settings', 'json', () => ({ permissions: { defaultMode: canary() } })],
     ['inspect-claude-settings', 'json', () => ({ permissions: { additionalDirectories: canary() } })],
+    ['inspect-claude-settings', 'json', () => ({ permissions: { [canary()]: canary() } })],
+    ['inspect-claude-settings', 'json', () => ({ allowManagedPermissionRulesOnly: canary() })],
     ['inspect-codex', 'toml', () => `[mcp_servers.a]\ncommand = "node"\nenv = { T = "${canary()}" \n`],
     ['inspect-codex', 'toml', () => `[mcp_servers.a]\ncommand = "node"\nargs = ["${canary()}"\n`],
     ['inspect-codex', 'toml', () => `[mcp_servers.a.env]\nT = "${canary()}"\nU = ${canary()}\n`],

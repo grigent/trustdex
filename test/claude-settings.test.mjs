@@ -102,7 +102,7 @@ test('Claude settings inspection surfaces adjacent executable settings without v
     apiKeyHelper: secret,
     sandbox: { network: { allowedDomains: [secret] } },
     enabledPlugins: { [secret]: true },
-    futureSetting: secret
+    [secret]: secret
   });
 
   assert.equal(result.action, 'block');
@@ -116,8 +116,39 @@ test('Claude settings inspection surfaces adjacent executable settings without v
     'uninspected-claude-settings'
   ]) assert.ok(result.signals.includes(signal));
   assert.deepEqual(result.envKeys, ['API_TOKEN', 'SAFE_NAME']);
-  assert.deepEqual(result.metadata.uninspectedRootKeys, ['futureSetting']);
+  assert.equal(result.metadata.uninspectedRootKeyCount, 1);
   assert.equal(JSON.stringify(result).includes(secret), false);
+});
+
+test('Claude settings recognize executable helpers and restrictions without their values', () => {
+  const secret = 'INERT_EXECUTABLE_VALUE';
+  for (const key of ['awsAuthRefresh', 'awsCredentialExport', 'gcpAuthRefresh', 'otelHeadersHelper']) {
+    const result = evaluate({ [key]: secret });
+    assert.equal(result.action, 'block', key);
+    assert.deepEqual(result.signals, ['claude-credential-helper']);
+    assert.ok(!JSON.stringify(result).includes(secret));
+  }
+  for (const key of ['statusLine', 'fileSuggestion', 'policyHelper']) {
+    const result = evaluate({ [key]: { type: 'command', command: secret, path: secret } });
+    assert.equal(result.action, 'block', key);
+    assert.deepEqual(result.signals, ['claude-hooks']);
+    assert.ok(!JSON.stringify(result).includes(secret));
+  }
+  assert.deepEqual(evaluate({ allowManagedHooksOnly: true }).signals, ['claude-hooks-disabled']);
+  const result = evaluate({
+    disableAutoMode: 'disable',
+    permissions: { blockWritesOutsideWorkingDirectories: true, denyInsteadOfPrompting: true }
+  });
+  assert.equal(result.action, 'ask');
+  assert.equal(result.metadata.autoModeDisabled, true);
+  assert.equal(result.metadata.outsideWritesBlocked, true);
+  assert.equal(result.metadata.denyInsteadOfPrompting, true);
+});
+
+test('Claude settings report anchored MCP tool globs as wildcard grants', () => {
+  const result = evaluate({ permissions: { allow: ['mcp__demo__get_*__item'] } });
+  assert.equal(result.action, 'ask');
+  assert.ok(result.signals.includes('claude-mcp-wildcard'));
 });
 
 test('Claude settings parser fails closed on malformed or unsupported permission syntax', () => {
@@ -131,11 +162,20 @@ test('Claude settings parser fails closed on malformed or unsupported permission
     { permissions: { allow: ['Bash()'] } },
     { permissions: { allow: ['*'] } },
     { permissions: { allow: ['mcp__*'] } },
+    { permissions: { allow: ['mcp__demo*__get_item'] } },
+    { permissions: { allow: ['mcp__de*mo'] } },
     { permissions: { allow: ['mcp__demo__tool(param:value)'] } },
     { permissions: { defaultMode: 'futureMode' } },
     { permissions: { additionalDirectories: [1] } },
     { permissions: { disableBypassPermissionsMode: false } },
     { permissions: { blockReadsOutsideWorkingDirectories: 'true' } },
+    { permissions: { blockWritesOutsideWorkingDirectories: 'true' } },
+    { permissions: { denyInsteadOfPrompting: 'true' } },
+    { disableAutoMode: true },
+    { allowManagedPermissionRulesOnly: 'true' },
+    { allowManagedHooksOnly: 'true' },
+    { disableAllHooks: 'true' },
+    { env: { TOKEN: 123 } },
     { env: [] }
   ]) assert.throws(() => inspectClaudeSettings(settings));
 });
@@ -152,9 +192,9 @@ test('Claude settings CLI inspects the inert example and does not leak malformed
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'trustdex-settings-'));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const invalid = path.join(directory, 'invalid.json');
-  fs.writeFileSync(invalid, '{"permissions":{"allow":["Bash(INERT_SECRET)"],"bad":"INERT_SECRET"}}');
+  fs.writeFileSync(invalid, '{"permissions":{"allow":["Bash(INERT_SECRET)"],"INERT_KEY":"INERT_SECRET"}}');
   const failed = run('inspect-claude-settings', invalid, '--json');
   assert.equal(failed.status, 2);
   assert.match(failed.stderr, /Unsupported Claude permission setting/);
-  assert.equal(failed.stderr.includes('INERT_SECRET'), false);
+  assert.doesNotMatch(failed.stderr, /INERT_(KEY|SECRET)/);
 });

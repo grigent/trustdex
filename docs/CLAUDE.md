@@ -109,7 +109,8 @@ node ./bin/trustdex.mjs inspect-claude-settings \
 
 The adapter validates the documented `permissions` fields `allow`, `ask`, `deny`,
 `defaultMode`, `additionalDirectories`, `disableBypassPermissionsMode`,
-`disableAutoMode`, and `blockReadsOutsideWorkingDirectories`. Unknown permission
+`disableAutoMode`, `blockReadsOutsideWorkingDirectories`,
+`blockWritesOutsideWorkingDirectories`, and `denyInsteadOfPrompting`. Unknown permission
 fields, malformed rule arrays, empty rules, unsupported modes, unanchored wildcard
 allow rules, and parenthesized MCP rules fail closed.
 
@@ -123,13 +124,13 @@ Automatic grants are classified by capability rather than echoing their values:
 | `bypassPermissions` default mode | `BLOCK` |
 | `auto` or `acceptEdits` default mode | at least `ASK` |
 | additional directories or explicitly unblocked outside reads | at least `ASK` |
-| hooks or an API-key helper | `BLOCK` |
+| hooks, executable settings (such as a status line or credential helper), or settings that can suppress a hook guard | `BLOCK` |
 | environment, sandbox, plugin, or uninspected root settings | at least `ASK` |
 
 `ask` and `deny` rules are restrictive and do not add a risk signal by themselves.
 The report includes rule counts and capability categories, but not command patterns,
 paths, domains, hook bodies, helper commands, directory values, environment values,
-or plugin identifiers. For the same reason, this first adapter does not create a
+plugin identifiers, or names of uninspected settings. For the same reason, this adapter does not create a
 content fingerprint or signed review record for settings files.
 
 Use the stack command when reviewing multiple active sources:
@@ -144,16 +145,22 @@ node ./bin/trustdex.mjs inspect-claude-settings-stack \
   --pack strict --json
 ```
 
-TrustDex applies user, shared project, project-local, session, and managed precedence;
-permission lists combine, while supported scalar permission controls use the highest
-effective source. It also ignores `auto` and `bypassPermissions` defaults from project
-or local sources, matching the documented scope restriction. The report stores only
-fixed scope names and counts, never input paths or setting values.
+TrustDex applies user, shared project, project-local, session, and managed precedence.
+Permission lists combine unless the supplied managed source sets `allowManagedPermissionRulesOnly`;
+in that case only its `allow`, `ask`, and `deny` lists count. This exception does not
+apply when a policy helper may replace the supplied policy. A `true` file-access
+restriction is kept across scopes; `denyInsteadOfPrompting` also keeps `true`, but only
+from user, session, or managed sources. Environment keys combine across files.
+TrustDex ignores `auto` and `bypassPermissions` defaults from project or local sources
+as documented for current Claude Code; before v2.1.257, project or local
+`bypassPermissions` could take effect. Use single-file inspection to flag those
+declarations regardless of scope. The stack report omits source paths and sensitive values.
 
 Sources must be passed explicitly. TrustDex does not discover settings, shell environment
 overrides, embedded-host policy, or server-delivered managed settings, so confirm loaded
 sources with `/status` and use OS-level sandboxing for enforcement. Official references:
 [settings files and precedence](https://code.claude.com/docs/en/settings),
+[settings reference](https://code.claude.com/docs/en/settings-reference),
 [permissions](https://code.claude.com/docs/en/permissions), and
 [security](https://code.claude.com/docs/en/security).
 
