@@ -89,3 +89,28 @@ test('a bundle is not verified without a pinned root and log key valid at signin
   assert.equal(verifyNpmProvenanceBundle(bundle(), expected, { rekorLogs: [] }).reason, 'unknown-log');
   assert.equal(verifyNpmProvenanceBundle(bundle(), expected, { rekorLogs: ended(REKOR_LOGS) }).reason, 'log-key-validity');
 });
+
+test('an older bundle logged as an intoto 0.0.2 entry verifies, and altered copies do not', () => {
+  // The public bundle npm serves for the latest gauge release, logged in the older Rekor entry format.
+  const legacy = () => JSON.parse(fs.readFileSync(new URL('./fixtures/npm-provenance-bundle-gauge-intoto.json', import.meta.url), 'utf8'));
+  const rebody = (b, edit) => {
+    const entry = b.verificationMaterial.tlogEntries[0];
+    const body = JSON.parse(Buffer.from(entry.canonicalizedBody, 'base64').toString('utf8'));
+    edit(body);
+    entry.canonicalizedBody = Buffer.from(JSON.stringify(body)).toString('base64');
+  };
+  assert.deepEqual(verifyNpmProvenanceBundle(legacy(), { repository: 'npm/gauge' }), { verified: true });
+  assert.equal(verifyNpmProvenanceBundle(legacy(), { repository: 'npm/other' }).reason, 'certificate-repository');
+  for (const mutate of [
+    (b) => { b.dsseEnvelope.payload = flip(b.dsseEnvelope.payload, 40); },
+    (b) => { b.dsseEnvelope.signatures[0].sig = flip(b.dsseEnvelope.signatures[0].sig, 20); },
+    (b) => rebody(b, (body) => { body.apiVersion = '0.0.1'; }),
+    (b) => rebody(b, (body) => { body.kind = 'dsse'; }),
+    (b) => rebody(b, (body) => { body.spec.content.payloadHash.value = '0'.repeat(64); }),
+    (b) => { b.verificationMaterial.tlogEntries[0].integratedTime = '1'; }
+  ]) {
+    const altered = legacy();
+    mutate(altered);
+    assert.equal(verifyNpmProvenanceBundle(altered, { repository: 'npm/gauge' }).verified, false);
+  }
+});

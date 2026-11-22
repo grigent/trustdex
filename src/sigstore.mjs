@@ -165,15 +165,23 @@ export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
 
     // The logged entry must be for this payload, signature, and certificate.
     const logged = JSON.parse(body.toString('utf8'));
-    const loggedSignature = logged?.spec?.signatures;
-    if (logged?.kind !== 'dsse' || logged.apiVersion !== '0.0.1' ||
-        logged.spec?.payloadHash?.algorithm !== 'sha256' ||
-        logged.spec.payloadHash.value !== crypto.createHash('sha256').update(payload).digest('hex') ||
-        !Array.isArray(loggedSignature) || loggedSignature.length !== 1 ||
-        !decodeBase64(loggedSignature[0].signature).equals(signature)) {
+    const entryKind = `${logged?.kind} ${logged?.apiVersion}`;
+    // Rekor has logged npm provenance as `dsse` 0.0.1 and, for older releases, `intoto` 0.0.2,
+    // which base64-encodes the signature once more and nests the fields under `content`.
+    const spec = { 'dsse 0.0.1': logged?.spec, 'intoto 0.0.2': logged?.spec?.content }[entryKind];
+    const loggedSignature = entryKind === 'dsse 0.0.1' ? spec?.signatures : spec?.envelope?.signatures;
+    if (!spec || spec.payloadHash?.algorithm !== 'sha256' ||
+        spec.payloadHash.value !== crypto.createHash('sha256').update(payload).digest('hex') ||
+        !Array.isArray(loggedSignature) || loggedSignature.length !== 1) {
       return fail('log-entry-mismatch');
     }
-    const loggedCertificate = new crypto.X509Certificate(decodeBase64(loggedSignature[0].verifier));
+    const [loggedSig, loggedVerifier] = entryKind === 'dsse 0.0.1'
+      ? [decodeBase64(loggedSignature[0].signature), loggedSignature[0].verifier]
+      : [decodeBase64(decodeBase64(loggedSignature[0].sig).toString('latin1')), loggedSignature[0].publicKey];
+    if (!loggedSig.equals(signature) || (entryKind === 'intoto 0.0.2' && spec.envelope.payloadType !== payloadType)) {
+      return fail('log-entry-mismatch');
+    }
+    const loggedCertificate = new crypto.X509Certificate(decodeBase64(loggedVerifier));
     if (!loggedCertificate.raw.equals(leaf.raw)) return fail('log-entry-mismatch');
 
     if (!chainsToPinnedRoot(leaf, time, chains)) return fail('certificate-chain');
