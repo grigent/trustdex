@@ -7,7 +7,12 @@ const PERMISSION_KEYS = new Set([
   'additionalDirectories',
   'disableBypassPermissionsMode',
   'disableAutoMode',
-  'blockReadsOutsideWorkingDirectories'
+  'blockReadsOutsideWorkingDirectories',
+  'blockWritesOutsideWorkingDirectories',
+  'denyInsteadOfPrompting'
+]);
+const STICKY_PERMISSION_FLAGS = new Set([
+  'blockReadsOutsideWorkingDirectories', 'blockWritesOutsideWorkingDirectories', 'denyInsteadOfPrompting'
 ]);
 const MODES = new Set([
   'default',
@@ -18,7 +23,12 @@ const MODES = new Set([
   'bypassPermissions',
   'auto'
 ]);
-const NON_PERMISSION_ROOT_KEYS = new Set(['$schema', 'permissions']);
+const CREDENTIAL_HELPERS = ['apiKeyHelper', 'awsAuthRefresh', 'awsCredentialExport', 'gcpAuthRefresh', 'otelHeadersHelper'];
+const INSPECTED_ROOT_KEYS = new Set([
+  '$schema', 'permissions', 'disableAutoMode', 'env', 'hooks', 'disableAllHooks', 'allowManagedHooksOnly',
+  'allowManagedPermissionRulesOnly', 'statusLine', 'fileSuggestion', 'policyHelper', 'sandbox',
+  'enabledPlugins', 'extraKnownMarketplaces', ...CREDENTIAL_HELPERS
+]);
 const CLAUDE_SCOPE_RANK = Object.freeze({
   user: 0,
   project: 1,
@@ -50,18 +60,21 @@ function parseRule(rule, list) {
   if (specifier !== null && !specifier.trim()) {
     throw new Error(`Invalid empty specifier in Claude permissions.${list}.`);
   }
-  if (list === 'allow' && (tool === '*' || tool === 'mcp__*' || (!tool.startsWith('mcp__') && tool.includes('*')))) {
-    throw new Error('Claude ignores unanchored wildcard allow rules; use an explicit tool or MCP server rule.');
-  }
-  if (tool.startsWith('mcp__') && specifier !== null) {
+  const isMcp = tool.startsWith('mcp__');
+  if (isMcp && specifier !== null) {
     throw new Error('Claude skips MCP permission rules with parenthesized specifiers.');
+  }
+  if (list === 'allow' && tool.includes('*')) {
+    const separator = tool.indexOf('__', 5);
+    if (!isMcp || separator <= 5 || tool.slice(5, separator).includes('*')) {
+      throw new Error('Claude ignores unanchored wildcard allow rules; use a literal MCP server prefix.');
+    }
   }
 
   return {
     tool,
-    hasSpecifier: specifier !== null,
     matchesAll: specifier === null || specifier.trim() === '*' || specifier.trim() === 'domain:*',
-    mcpWildcard: tool.startsWith('mcp__') && (tool.endsWith('__*') || !tool.includes('__', 5))
+    mcpWildcard: isMcp && (tool.includes('*') || !tool.includes('__', 5))
   };
 }
 
@@ -79,7 +92,13 @@ function toolCategory(tool) {
 
 function validateDisable(value, field) {
   if (value !== undefined && value !== 'disable') {
-    throw new Error(`Claude permissions.${field} must be "disable" when present.`);
+    throw new Error(`Claude ${field} must be "disable" when present.`);
+  }
+}
+
+function validateBoolean(value, field) {
+  if (value !== undefined && typeof value !== 'boolean') {
+    throw new Error(`Claude ${field} must be a boolean.`);
   }
 }
 
@@ -88,7 +107,7 @@ function validatePermissions(value) {
   if (!isObject(value)) throw new Error('Claude settings permissions must be a JSON object.');
 
   for (const key of Object.keys(value)) {
-    if (!PERMISSION_KEYS.has(key)) throw new Error(`Unsupported Claude permission setting: ${key}`);
+    if (!PERMISSION_KEYS.has(key)) throw new Error('Unsupported Claude permission setting.');
   }
 
   const defaultMode = value.defaultMode;
@@ -96,12 +115,9 @@ function validatePermissions(value) {
     throw new Error('Unsupported Claude permissions.defaultMode value.');
   }
   const additionalDirectories = requireStringArray(value.additionalDirectories, 'additionalDirectories');
-  if (value.blockReadsOutsideWorkingDirectories !== undefined &&
-      typeof value.blockReadsOutsideWorkingDirectories !== 'boolean') {
-    throw new Error('Claude permissions.blockReadsOutsideWorkingDirectories must be a boolean.');
-  }
-  validateDisable(value.disableBypassPermissionsMode, 'disableBypassPermissionsMode');
-  validateDisable(value.disableAutoMode, 'disableAutoMode');
+  for (const key of STICKY_PERMISSION_FLAGS) validateBoolean(value[key], `permissions.${key}`);
+  validateDisable(value.disableBypassPermissionsMode, 'permissions.disableBypassPermissionsMode');
+  validateDisable(value.disableAutoMode, 'permissions.disableAutoMode');
 
   const rules = {};
   for (const list of ['allow', 'ask', 'deny']) {
@@ -130,6 +146,7 @@ export function inspectClaudeSettings(settings, sourceName = 'settings.json') {
   if (!isObject(settings)) throw new Error('Expected a Claude settings JSON object.');
 
   const { permissions, rules } = validatePermissions(settings.permissions);
+  validateDisable(settings.disableAutoMode, 'settings.disableAutoMode');
   const signals = new Set();
   inspectAllowRules(rules.allow, signals);
 
@@ -142,27 +159,31 @@ export function inspectClaudeSettings(settings, sourceName = 'settings.json') {
   let envKeys = [];
   if (settings.env !== undefined) {
     if (!isObject(settings.env)) throw new Error('Claude settings env must be a JSON object.');
+    if (Object.values(settings.env).some((value) => typeof value !== 'string')) {
+      throw new Error('Claude settings env must contain string values.');
+    }
     envKeys = Object.keys(settings.env).sort();
     signals.add('claude-environment');
     if (envKeys.some((key) => SECRET_KEY_RE.test(key))) signals.add('secret-env');
   }
-  if (settings.hooks !== undefined) signals.add('claude-hooks');
-  // A project or user settings file can switch off every hook, including a
-  // security gate installed at another scope.
-  if (settings.disableAllHooks !== undefined && settings.disableAllHooks !== false) signals.add('claude-hooks-disabled');
-  if (settings.apiKeyHelper !== undefined) signals.add('claude-credential-helper');
+  for (const key of ['disableAllHooks', 'allowManagedHooksOnly', 'allowManagedPermissionRulesOnly']) {
+    validateBoolean(settings[key], `settings.${key}`);
+  }
+  if (['hooks', 'statusLine', 'fileSuggestion', 'policyHelper'].some((key) => settings[key] !== undefined)) {
+    signals.add('claude-hooks');
+  }
+  // Both controls can suppress a guard installed in non-managed settings.
+  if (settings.disableAllHooks === true || settings.allowManagedHooksOnly === true) {
+    signals.add('claude-hooks-disabled');
+  }
+  if (CREDENTIAL_HELPERS.some((key) => settings[key] !== undefined)) signals.add('claude-credential-helper');
   if (settings.sandbox !== undefined) signals.add('claude-sandbox-settings');
   if (settings.enabledPlugins !== undefined || settings.extraKnownMarketplaces !== undefined) {
     signals.add('claude-extension-loading');
   }
 
-  const inspectedAdjacentKeys = new Set([
-    'env', 'hooks', 'disableAllHooks', 'apiKeyHelper', 'sandbox', 'enabledPlugins', 'extraKnownMarketplaces'
-  ]);
-  const uninspectedRootKeys = Object.keys(settings)
-    .filter((key) => !NON_PERMISSION_ROOT_KEYS.has(key) && !inspectedAdjacentKeys.has(key))
-    .sort();
-  if (uninspectedRootKeys.length) signals.add('uninspected-claude-settings');
+  const uninspectedRootKeyCount = Object.keys(settings).filter((key) => !INSPECTED_ROOT_KEYS.has(key)).length;
+  if (uninspectedRootKeyCount) signals.add('uninspected-claude-settings');
 
   const allowCategories = [...new Set(rules.allow.map((rule) => toolCategory(rule.tool)))].sort();
   return {
@@ -177,9 +198,12 @@ export function inspectClaudeSettings(settings, sourceName = 'settings.json') {
       allowCategories,
       additionalDirectoryCount: permissions.additionalDirectories?.length || 0,
       bypassDisabled: permissions.disableBypassPermissionsMode === 'disable',
-      autoModeDisabled: permissions.disableAutoMode === 'disable',
+      autoModeDisabled: settings.disableAutoMode === 'disable' || permissions.disableAutoMode === 'disable',
       outsideReadsBlocked: permissions.blockReadsOutsideWorkingDirectories === true,
-      uninspectedRootKeys
+      outsideWritesBlocked: permissions.blockWritesOutsideWorkingDirectories === true,
+      denyInsteadOfPrompting: permissions.denyInsteadOfPrompting === true,
+      managedPermissionRulesOnly: settings.allowManagedPermissionRulesOnly === true,
+      uninspectedRootKeyCount
     },
     signals: [...signals].sort(),
     envKeys
@@ -192,7 +216,7 @@ function normalizeClaudeLayers(layers) {
   }
   const seen = new Set();
   return layers.map((layer, index) => {
-    if (!isObject(layer) || !Object.hasOwn(CLAUDE_SCOPE_RANK, layer.scope)) {
+    if (!isObject(layer) || typeof layer.scope !== 'string' || !Object.hasOwn(CLAUDE_SCOPE_RANK, layer.scope)) {
       throw new Error('Unsupported Claude settings source scope.');
     }
     if (seen.has(layer.scope)) {
@@ -208,20 +232,30 @@ function normalizeClaudeLayers(layers) {
 }
 
 function mergeClaudeSettings(layers) {
-  const merged = {};
+  const merged = Object.create(null);
   const permissions = {};
+  const managed = layers.find(({ scope }) => scope === 'managed')?.settings;
+  const managedRulesOnly = managed?.allowManagedPermissionRulesOnly === true && managed.policyHelper === undefined;
 
   for (const { scope, settings } of layers) {
     for (const [key, value] of Object.entries(settings)) {
       if (key === 'permissions') continue;
-      if (Array.isArray(value) && Array.isArray(merged[key])) merged[key] = [...merged[key], ...value];
+      if (['allowManagedPermissionRulesOnly', 'allowManagedHooksOnly'].includes(key) && scope !== 'managed') continue;
+      if (key === 'env') merged.env = { ...merged.env, ...value };
+      else if (Array.isArray(value) && Array.isArray(merged[key])) merged[key] = [...merged[key], ...value];
       else merged[key] = value;
     }
 
     const current = settings.permissions || {};
     for (const [key, value] of Object.entries(current)) {
       if (MERGED_PERMISSION_LISTS.has(key)) {
+        if (managedRulesOnly && scope !== 'managed' && key !== 'additionalDirectories') continue;
         permissions[key] = [...(permissions[key] || []), ...value];
+        continue;
+      }
+      if (STICKY_PERMISSION_FLAGS.has(key)) {
+        if (key === 'denyInsteadOfPrompting' && ['project', 'local'].includes(scope)) continue;
+        permissions[key] = permissions[key] === true || value;
         continue;
       }
       if (key === 'defaultMode' && ['project', 'local'].includes(scope) &&
@@ -232,6 +266,7 @@ function mergeClaudeSettings(layers) {
     }
   }
 
+  if (managed?.policyHelper !== undefined) delete merged.allowManagedPermissionRulesOnly;
   if (Object.keys(permissions).length) merged.permissions = permissions;
   return merged;
 }
@@ -293,9 +328,9 @@ export function inspectClaudeMcpPermissionBindings(layers, serverNames) {
     const prefix = `mcp__${name}`;
     const tool = rule.tool === prefix ? '*' : rule.tool.slice(`${prefix}__`.length);
     grant.grantRuleCount += 1;
+    if (tool.includes('*') || !tool) grant.toolScopeWildcard = true;
     if (tool === '*' || !tool) {
       grant.automaticGrant = 'all';
-      grant.toolScopeWildcard = true;
     } else if (grant.automaticGrant === 'none') {
       grant.automaticGrant = 'scoped';
     }

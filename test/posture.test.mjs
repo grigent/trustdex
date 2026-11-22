@@ -10,6 +10,7 @@ import { inspectClaudeSettings } from '../src/claude-settings.mjs';
 import { inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
+import { sha256Json } from '../src/canonical.mjs';
 import {
   createPermissionPostureSnapshot,
   diffPermissionPostureSnapshots
@@ -95,6 +96,31 @@ test('Claude permission expansion requires review and restriction does not', () 
   assert.equal(restriction.summary.expansions, 0);
   assert.equal(restriction.summary.reviews, 0);
   assert.ok(restriction.summary.restrictions > 0);
+});
+
+test('Claude posture detects relaxed controls and reviews legacy snapshots without that evidence', () => {
+  const restricted = snapshot(evaluateClaude({ permissions: {
+    blockWritesOutsideWorkingDirectories: true, denyInsteadOfPrompting: true
+  } }));
+  const relaxed = snapshot(evaluateClaude({}));
+  const diff = diffPermissionPostureSnapshots(restricted, relaxed);
+  assert.equal(diff.status, 'needs-review');
+  assert.deepEqual(diff.changes.filter(({ impact }) => impact === 'expansion').map(({ field }) => field), [
+    'outsideWritesBlocked', 'denyInsteadOfPrompting'
+  ]);
+  assert.equal(diffPermissionPostureSnapshots(relaxed, restricted).status, 'restricted');
+
+  const managed = snapshot(evaluateClaude({ allowManagedPermissionRulesOnly: true }));
+  assert.equal(diffPermissionPostureSnapshots(relaxed, managed).status, 'needs-review');
+  assert.equal(diffPermissionPostureSnapshots(managed, relaxed).status, 'needs-review');
+
+  const { createdAt, digest, ...legacy } = structuredClone(relaxed);
+  for (const field of ['outsideWritesBlocked', 'denyInsteadOfPrompting', 'managedPermissionRulesOnly']) {
+    delete legacy.posture.metadata[field];
+  }
+  const legacyDiff = diffPermissionPostureSnapshots({ ...legacy, createdAt, digest: sha256Json(legacy) }, relaxed);
+  assert.equal(legacyDiff.status, 'needs-review');
+  assert.equal(legacyDiff.summary.reviews, 3);
 });
 
 test('Codex network, write, search, and subagent expansion requires review', () => {
@@ -280,6 +306,9 @@ test('versioned JSON schemas cover emitted posture and diff fields', () => {
   }
   for (const key of postureSchema.$defs.claudeMetadata.required) {
     assert.ok(Object.hasOwn(before.posture.metadata, key));
+  }
+  for (const key of Object.keys(before.posture.metadata)) {
+    assert.ok(Object.hasOwn(postureSchema.$defs.claudeMetadata.properties, key));
   }
   for (const key of diffSchema.required) assert.ok(Object.hasOwn(diff, key));
   for (const key of diffSchema.properties.summary.required) {

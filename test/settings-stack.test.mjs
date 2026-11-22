@@ -75,6 +75,75 @@ test('Claude project and local sources cannot activate auto or bypass default mo
   assert.equal(result.signals.includes('claude-auto-mode'), false);
 });
 
+test('Claude stack preserves sticky restrictions and merges environment evidence per variable', () => {
+  const result = inspectClaudeSettingsStack([
+    { scope: 'user', settings: { permissions: {
+      blockReadsOutsideWorkingDirectories: true,
+      blockWritesOutsideWorkingDirectories: true,
+      denyInsteadOfPrompting: true
+    }, env: { API_TOKEN: 'INERT_ENV_VALUE', ORDINARY: 'INERT_ENV_VALUE' } } },
+    { scope: 'managed', settings: { permissions: {
+      blockReadsOutsideWorkingDirectories: false,
+      blockWritesOutsideWorkingDirectories: false,
+      denyInsteadOfPrompting: false
+    }, env: { ORDINARY: 'INERT_ENV_OVERRIDE', MANAGED_NAME: 'INERT_ENV_VALUE' } } }
+  ]);
+  assert.equal(result.metadata.outsideReadsBlocked, true);
+  assert.equal(result.metadata.outsideWritesBlocked, true);
+  assert.equal(result.metadata.denyInsteadOfPrompting, true);
+  assert.deepEqual(result.envKeys, ['API_TOKEN', 'MANAGED_NAME', 'ORDINARY']);
+  assert.ok(result.signals.includes('secret-env'));
+  assert.ok(!result.signals.includes('claude-outside-read-access'));
+  assert.doesNotMatch(JSON.stringify(result), /INERT_ENV_/);
+});
+
+test('Claude stack honors managed-only rules but not a repository claim to managed controls', () => {
+  const project = { scope: 'project', settings: {
+    allowManagedPermissionRulesOnly: true,
+    allowManagedHooksOnly: true,
+    permissions: {
+      denyInsteadOfPrompting: true,
+      allow: ['Bash'], ask: ['Read'], deny: ['Write'], additionalDirectories: ['dir']
+    }
+  } };
+  const managed = { scope: 'managed', settings: {
+    allowManagedPermissionRulesOnly: true, allowManagedHooksOnly: true,
+    permissions: { allow: ['mcp__reviewed__fetch'] }
+  } };
+  const unlocked = inspectClaudeSettingsStack([project]);
+  assert.equal(unlocked.metadata.managedPermissionRulesOnly, false);
+  assert.equal(unlocked.metadata.denyInsteadOfPrompting, false);
+  assert.ok(!unlocked.signals.includes('claude-hooks-disabled'));
+  assert.ok(unlocked.signals.includes('claude-shell-auto-approve'));
+
+  const locked = inspectClaudeSettingsStack([project, managed]);
+  assert.equal(locked.metadata.managedPermissionRulesOnly, true);
+  assert.deepEqual(locked.metadata.allowCategories, ['mcp']);
+  assert.equal(locked.metadata.allowRuleCount, 1);
+  assert.equal(locked.metadata.askRuleCount, 0);
+  assert.equal(locked.metadata.denyRuleCount, 0);
+  assert.equal(locked.metadata.additionalDirectoryCount, 1);
+  assert.ok(locked.signals.includes('claude-hooks-disabled'));
+  assert.equal(evaluate(locked).action, 'block');
+
+  const helper = inspectClaudeSettingsStack([project, {
+    scope: 'managed', settings: { ...managed.settings, policyHelper: { path: 'INERT_HELPER' } }
+  }]);
+  assert.equal(helper.metadata.managedPermissionRulesOnly, false);
+  assert.ok(helper.signals.includes('claude-shell-auto-approve'));
+  assert.ok(helper.signals.includes('claude-hooks'));
+});
+
+test('Claude stack CLI rejects an unrecognized source flag instead of reading a partial stack', () => {
+  const example = fileURLToPath(new URL('../examples/claude.settings.json', import.meta.url));
+  const result = run('inspect-claude-settings-stack', '--user', example, '--INERT_KEY', example, '--decisions');
+  assert.equal(result.status, 2);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.decision, 'block');
+  assert.match(result.stderr, /Unexpected argument for Claude settings stack/);
+  assert.doesNotMatch(result.stdout + result.stderr, /INERT_KEY/);
+});
+
 test('Codex stack applies system-to-CLI precedence and closest project wins', () => {
   const result = inspectCodexSettingsStack([
     { scope: 'cli', text: 'approval_policy = "never"' },

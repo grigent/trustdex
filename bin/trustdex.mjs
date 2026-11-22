@@ -496,8 +496,23 @@ async function evaluateCodexSettings(configPath, args) {
 }
 
 async function evaluateClaudeSettingsStack(args) {
+  const scopes = ['user', 'project', 'local', 'session', 'managed'];
+  const valueFlags = new Set(['--pack', '--policy', ...scopes.map((scope) => `--${scope}`)]);
+  const switchFlags = new Set();
+  if (args[0] === 'snapshot-claude-settings-stack') valueFlags.add('--out');
+  else {
+    switchFlags.add('--json');
+    switchFlags.add('--decisions');
+  }
+  for (let index = 1; index < args.length; index += 1) {
+    const flag = args[index];
+    if (switchFlags.has(flag)) continue;
+    if (!valueFlags.has(flag)) throw new Error('Unexpected argument for Claude settings stack.');
+    const value = args[++index];
+    if (!value || value.startsWith('--')) throw new Error(`${flag} requires a value.`);
+  }
   const layers = [];
-  for (const scope of ['user', 'project', 'local', 'session', 'managed']) {
+  for (const scope of scopes) {
     for (const file of getFlags(args, `--${scope}`)) {
       let settings;
       try { settings = await readJson(file); } catch (error) {

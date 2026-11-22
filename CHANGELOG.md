@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- Claude Code settings inspection now blocks executable helpers and hook suppression, redacts unknown setting names, and follows documented merge rules for environment keys, managed-only permission lists, and outside-directory restrictions. Claude posture v1/v2 includes optional structural evidence for the write block, deny-instead-of-prompting, and managed-only rules. Comparing a snapshot without this evidence with one that has it requires review.
+
 ## 0.20.4 - 2026-11-22
 
 - `inspect-gemini-settings`: a `tools.sandbox` string with an environment variable reference (`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`), which Gemini CLI expands before validating, is now reported as `sandboxSetting: "unresolved"` with the `gemini-sandbox-unresolved` signal (at least `ASK`) instead of failing closed. The variable name, default value, and string are not reported. Unsupported command strings and the empty string still fail closed; the docs now note that Gemini CLI treats an empty string as off.

@@ -102,6 +102,9 @@
         "bypassDisabled": { "type": "boolean" },
         "autoModeDisabled": { "type": "boolean" },
         "outsideReadsBlocked": { "type": "boolean" },
+        "outsideWritesBlocked": { "type": "boolean" },
+        "denyInsteadOfPrompting": { "type": "boolean" },
+        "managedPermissionRulesOnly": { "type": "boolean" },
         "uninspectedRootKeyCount": { "$ref": "#/$defs/count" }
       }
     },
