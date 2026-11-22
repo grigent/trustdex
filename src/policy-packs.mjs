@@ -11,6 +11,7 @@ const BASE_SIGNALS = {
   'plugin-components-uninspected': 'ask',
   'skill-hooks': 'block',
   'skill-shell-injection': 'block',
+  'skill-frontmatter-uninspected': 'ask',
   'skill-auto-approved-tools': 'ask',
   'skill-shell-auto-approve': 'block',
   'uninspected-server-fields': 'ask',

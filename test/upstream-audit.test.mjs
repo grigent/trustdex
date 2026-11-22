@@ -17,28 +17,37 @@ test('skill hooks and injected shell commands block even when local skills are a
     '---\n"hooks": {PreToolUse: []}\n---\nbody\n',
     '---\n{name: x, hooks: {PreToolUse: []}}\n---\nbody\n',
     '---\nmeta: {"hooks": 1}\n---\nbody\n',
+    `---\nhooks${' '.repeat(200)}: {PreToolUse: []}\n---\nbody\n`,
+    '---\n{"description": "a, b", hooks: {PreToolUse: []}}\n---\nbody\n'
+  ]) {
+    const record = skill(text);
+    assert.ok(record.signals.includes('skill-hooks'), text);
+    assert.equal(action(record), 'block', text);
+  }
+  for (const text of [
     '---\n!!str hooks: {PreToolUse: []}\n---\nbody\n',
     '---\n&h hooks: {PreToolUse: []}\n---\nbody\n',
     '---\nname: &k hooks\n*k: {PreToolUse: []}\n---\nbody\n',
     '---\n? hooks\n: {PreToolUse: []}\n---\nbody\n',
     '---\n"\\x68ooks": {PreToolUse: []}\n---\nbody\n',
     '---\nmeta:\n  ? hooks\n  : {PreToolUse: []}\n---\nbody\n',
-    '---\n{name: x, ? hooks: {PreToolUse: []}}\n---\nbody\n',
-    "---\n'hooks': {PreToolUse: []}\n---\nbody\n"
+    '---\n{name: x, ? "\\x68ooks": {PreToolUse: []}}\n---\nbody\n',
+    '---\nname: x\ndescription: Explains React hooks: state and effects\n---\nbody\n'
   ]) {
     const record = skill(text);
-    assert.ok(record.signals.includes('skill-hooks'), text);
-    assert.equal(action(record), 'block', text);
+    assert.deepEqual(record.signals, ['skill-frontmatter-uninspected'], text);
+    assert.equal(action(record), 'ask', text);
   }
   for (const body of ['Changes: !`git diff HEAD`\n', '```!\nls\n```\n', '  ~~~!\nls\n~~~\n']) {
     const record = skill(`---\nname: x\n---\n${body}`);
     assert.ok(record.signals.includes('skill-shell-injection'), body);
     assert.equal(action(record), 'block', body);
   }
-  assert.deepEqual(skill('---\nname: x\ndescription: Explains React hooks: state and effects\n---\nbody\n').signals, []);
+  assert.deepEqual(skill('---\nname: x\ndescription: Is it fast, ? or small\n---\nbody\n').signals, []);
   assert.deepEqual(skill('---\nname: x\ndescription: Fast, *safe* and small\n---\nbody\n').signals, []);
   const started = Date.now();
   skill(`---\nname: x\ndescription: ${', "'.repeat(20000)}${'\\a'.repeat(20000)}\n---\nbody\n`);
+  skill(`---\nname: x\ndescription: ${'{'.repeat(40000)}\n---\nbody\n`);
   assert.ok(Date.now() - started < 2000, 'quoted frontmatter must not stall inspection');
   assert.deepEqual(skill('---\nname: x\ndescription:\n  **Bold** start of a long description\n---\nbody\n').signals, []);
   assert.deepEqual(skill('---\nname: x\n---\nUse hooks: carefully. Say hi!\n```js\nx\n```\n').signals, []);
