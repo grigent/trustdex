@@ -157,6 +157,9 @@ sources with `/status` and use OS-level sandboxing for enforcement. Official ref
 [permissions](https://code.claude.com/docs/en/permissions), and
 [security](https://code.claude.com/docs/en/security).
 
+A settings file or stack is never ALLOW, whatever the policy says: a policy with
+`localAction: "allow"` still gets ASK.
+
 ### Permission posture drift
 
 Create a baseline after review and compare a later settings state:
