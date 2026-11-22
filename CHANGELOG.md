@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `slack-approver`: the token file must contain exactly one bot-token-shaped value, so a `tokenFile` pointed at another file cannot send its contents to Slack, and requests to `slack.com` no longer follow redirects
+
 ## 0.17.3 - 2026-11-22
 
 - `provenance npm` and `trust-source npm` compare the latest version's npm build provenance with the repository the package declares now and declared before. `trust-source` refuses a release built from a different repository (`mismatch`), one that dropped provenance earlier versions had (`dropped`), or provenance it cannot match to the version's sha512 (`unverifiable`), and records the source repository and workflow in the claim when they match. The Sigstore signature is not verified, and `check-install` makes no new request
