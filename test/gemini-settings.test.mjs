@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { inspectGeminiSettings } from '../src/gemini-settings.mjs';
@@ -73,11 +76,10 @@ test('an explicit tools.sandbox false is ASK under every policy and differs from
   assert.deepEqual(omitted.signals, []);
   assert.equal(omitted.metadata.sandboxSetting, 'omitted');
   assert.equal(inspectGeminiSettings({}).metadata.sandboxSetting, 'omitted');
-  for (const sandbox of [true, 'docker', 'MARKER-VALUE']) {
+  for (const sandbox of [true, 'docker']) {
     const result = inspectGeminiSettings({ tools: { sandbox } });
     assert.deepEqual(result.signals, []);
     assert.equal(result.metadata.sandboxSetting, 'enabled');
-    assert.equal(JSON.stringify(result).includes('MARKER-VALUE'), false);
   }
   for (const policy of [permissive, getPolicyPack('development')]) assert.equal(evaluateAll([omitted], policy)[0].action, 'ask');
 });
@@ -107,6 +109,37 @@ test('tools.sandbox "false" and "0" are disabled like false, as in Gemini CLI', 
   assert.equal(omitted.metadata.sandboxConfigured, false);
 });
 
+test('only sandbox commands Gemini CLI supports are enabled; others fail closed without echoing the value', () => {
+  for (const sandbox of ['docker', 'podman', 'sandbox-exec', 'runsc', 'lxc', 'windows-native']) {
+    const result = inspectGeminiSettings({ tools: { sandbox } });
+    assert.deepEqual(result.signals, [], sandbox);
+    assert.equal(result.metadata.sandboxSetting, 'enabled');
+    assert.equal(result.metadata.sandboxConfigured, true);
+    assert.equal(JSON.stringify(result).includes(sandbox), false, sandbox);
+    assert.notEqual(evaluate({ tools: { sandbox } }, 'development').action, 'allow', sandbox);
+  }
+  const marker = 'MARKER-VALUE';
+  for (const sandbox of [marker, 'Docker', ' docker', 'true ', 'FALSE', 'yes', 'off', 'gvisor']) {
+    assert.throws(() => inspectGeminiSettings({ tools: { sandbox } }), (error) => {
+      assert.match(error.message, /Gemini tools\.sandbox/);
+      if (sandbox === marker) assert.equal(error.message.includes(marker), false);
+      return true;
+    }, JSON.stringify(sandbox));
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trustdex-gemini-sandbox-'));
+  try {
+    const file = path.join(dir, 'settings.json');
+    fs.writeFileSync(file, JSON.stringify({ tools: { sandbox: marker } }));
+    for (const flags of [[], ['--json'], ['--decisions']]) {
+      const run = spawnSync(process.execPath, [cli, 'inspect-gemini-settings', file, ...flags], { encoding: 'utf8' });
+      assert.equal(run.status, 2, flags.join(' '));
+      assert.equal(`${run.stdout}${run.stderr}`.includes(marker), false, flags.join(' '));
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('a policy overlay cannot be needed to see a shell grant: every pack blocks it', () => {
   for (const pack of ['strict', 'official-first', 'development']) {
     assert.equal(evaluate({ tools: { allowed: ['run_shell_command'] } }, pack).action, 'block', pack);
@@ -124,6 +157,8 @@ test('malformed Gemini settings fail closed', () => {
     { tools: { allowed: [5] } },
     { tools: { allowed: [''] } },
     { tools: { sandbox: 5 } },
+    { tools: { sandbox: '' } },
+    { tools: { sandbox: 'MARKER-VALUE' } },
     { tools: { sandboxNetworkAccess: 'true' } },
     { tools: { discoveryCommand: ['x'] } },
     { tools: { callCommand: '' } },
@@ -151,7 +186,7 @@ test('the report holds counts and enums, never tool names, commands, paths, or s
     general: { defaultApprovalMode: 'plan', [marker]: marker },
     tools: {
       allowed: [`run_shell_command(${marker})`, marker], core: [marker], exclude: [marker],
-      confirmationRequired: [marker], sandbox: marker, sandboxAllowedPaths: [marker],
+      confirmationRequired: [marker], sandbox: 'docker', sandboxAllowedPaths: [marker],
       discoveryCommand: marker, callCommand: marker
     },
     mcp: { serverCommand: marker, allowed: [marker], excluded: [marker] },
