@@ -187,15 +187,17 @@ async function inspectNpmBuildProvenance(data, version, fetchImpl) {
   const meta = data.versions[version];
   const declared = githubRepositorySlug(meta.repository ?? data.repository);
   const releasedAt = Date.parse(data.time?.[version]);
+  // A version without usable timestamps counts as earlier, so missing times cannot hide history.
+  const earlier = (other) => other !== version && !(Date.parse(data.time?.[other]) >= releasedAt);
   const previous = Object.keys(data.versions)
-    .filter((other) => other !== version && Date.parse(data.time?.[other]) < releasedAt)
+    .filter(earlier)
     .sort((a, b) => Date.parse(data.time[b]) - Date.parse(data.time[a]))
     .map((other) => githubRepositorySlug(data.versions[other]?.repository))
     .find(Boolean) || null;
   const base = { declaredRepository: declared, previousRepository: previous, signatureVerified: false };
   if (!meta.dist?.attestations?.provenance) {
-    const attestedBefore = Object.keys(data.versions).some((other) => other !== version &&
-      Date.parse(data.time?.[other]) < releasedAt && data.versions[other]?.dist?.attestations?.provenance);
+    const attestedBefore = Object.keys(data.versions).some((other) => earlier(other) &&
+      data.versions[other]?.dist?.attestations?.provenance);
     return { status: attestedBefore ? 'dropped' : 'absent', ...base };
   }
 

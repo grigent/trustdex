@@ -235,6 +235,11 @@ test('npm build provenance must come from the repository the package declares', 
     assert.throws(() => provenanceObservationToClaim(observation, 'Example Publisher'), /Refusing to trust an npm package/);
   }
 
+  const untimed = packument('example/agent', 'example/agent', false, true);
+  delete untimed.time;
+  observation = await lookup(untimed, undefined);
+  assert.equal(observation.evidence.buildProvenance.status, 'dropped');
+
   observation = await lookup(packument('example/agent', 'example/agent', false), undefined);
   assert.equal(observation.evidence.buildProvenance.status, 'absent');
   assert.equal(provenanceObservationToClaim(observation, 'Example Publisher').evidence.buildProvenance, undefined);
