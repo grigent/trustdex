@@ -13,6 +13,7 @@
 - MCP JSON: `malformed-server-fields` (BLOCK) when `command`, `args`, `env`, `url`, or `endpoint` has the wrong type, and `shell-execution` when a wrapper such as `env`, `sudo`, or `busybox` launches a shell, or the command is `dash` or `ksh`
 - new inert fixtures under `examples/adversarial/extensions/` and `examples/adversarial/mcp-evasion.json`
 - `slack-approver`: the token file must contain exactly one bot-token-shaped value, so a `tokenFile` pointed at another file cannot send its contents to Slack, and requests to `slack.com` no longer follow redirects
+- docs: a [compatibility matrix](docs/COMPATIBILITY.md) and [schema stability rules](docs/SCHEMAS.md), both checked by `test/compatibility.test.mjs`, [design notes](docs/DESIGN_NOTES.md) for Sigstore verification and runtime adapters (proposals, not implemented), and roadmap progress for 0.17.3
 
 ## 0.17.3 - 2026-11-22
 

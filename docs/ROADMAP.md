@@ -42,14 +42,21 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - TrustDex 0.17.2 starts the integrity work: `provenance-dropped` flags recent npm
   releases that lack the provenance earlier versions had, and bundled advisories block
   hijacked npm releases. Releases ship with checksums, an SBOM, and GitHub attestations.
+- TrustDex 0.17.3 compares npm build provenance with the repository a package declares
+  when a source is trusted (`provenance npm`, `trust-source npm`), and adds registry-drift
+  fixtures for ownership transfer, deleted releases, and yanked releases.
+- After 0.17.3: adversarial skill, plugin, and MCP JSON fixtures with the parser fixes they
+  exposed, a [compatibility matrix](COMPATIBILITY.md) checked by tests, [schema stability
+  rules](SCHEMAS.md), and [design notes](DESIGN_NOTES.md) for Sigstore verification and
+  runtime adapters.
 
 ## Now: harden the boundary
 
-- expand adversarial fixtures for MCP JSON, Codex TOML, skills, and plugin manifests
+- keep expanding adversarial fixtures for MCP JSON, Codex TOML, skills, and plugin manifests
 - keep expanding adversarial permission fixtures for both Claude Code and Codex
 - verify that all human-readable output remains free of secret values
 - improve cross-platform source and path normalization
-- document stable policy and snapshot schema rules
+- keep the [schema stability rules](SCHEMAS.md) current as formats change
 - keep CI, CodeQL, and release automation reproducible and reviewable
 
 ## Next: strengthen effective-runtime evidence
@@ -57,11 +64,12 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - ship concrete opt-in adapters only where a runtime exposes an authorized stable interface
 - document transport hardening around the message-level producer signature
 - extend effective evidence beyond MCP visibility while retaining value-free reports
-- publish a tested compatibility matrix for supported adapter/runtime versions
+- extend the [compatibility matrix](COMPATIBILITY.md) to adapter/runtime versions once an adapter ships ([design notes](DESIGN_NOTES.md))
 
 ## Then: prove integrity
 
 - verify immutable package artifacts when registries expose cryptographic hashes
+- verify the Sigstore signature on npm build provenance ([design notes](DESIGN_NOTES.md))
 - connect registry observations to exact package versions and repository identities
 - publish checksums or stronger provenance for TrustDex releases
 - add fixtures for ownership transfer, deleted releases, yanked packages, and registry drift
@@ -69,7 +77,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 ## Later: expand interoperability
 
 - add adapters for additional agent runtimes and registries
-- publish a compatibility matrix backed by tests
+- extend the test-backed compatibility matrix to new runtimes and registries
 - explore organization-managed trust stores and review-key rotation
 
 ## Adoption goals
