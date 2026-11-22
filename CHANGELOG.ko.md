@@ -6,6 +6,11 @@
 
 ## 미출시
 
+- 스킬 파일: 와일드카드 도구 범위가 YAML 블록 목록, 여러 줄 플로 목록, BOM이나 빈 줄 뒤, 다른 대소문자, 뒤따르는 주석, 반복된 키, `Bash(*)` 같은 제한 없는 지정자로 쓰여도 보고합니다. TrustDex가 해석하지 못하는 문법의 도구 범위는 좁다고 읽지 않고 `uninspected-tool-scope`(ASK)를 추가합니다
+- 스킬 파일: 더 많은 내려받아 실행 형태(`| zsh`, `| python`, `| iex`, `bash <(...)`, `bash -c "$(...)"`), 패키지 러너, 자격 증명 위치(`$HOME/.ssh`, `~/.gnupg`, `~/.kube`, `~/.npmrc` 등)가 기존 지시문 신호를 올립니다. 여전히 텍스트 휴리스틱입니다
+- 플러그인 매니페스트: 훅, MCP 서버, LSP 서버, 스크립트를 선언하면 `plugin-executable-components`(ASK)를 추가합니다. `permissions.allow: ["Bash(*)"]` 같은 중첩 와일드카드 권한을 보고하고, 64단계보다 깊게 중첩된 매니페스트는 거부합니다
+- MCP JSON: `command`, `args`, `env`, `url`, `endpoint`의 타입이 잘못되면 `malformed-server-fields`(BLOCK), `env`·`sudo`·`busybox` 같은 래퍼가 셸을 실행하거나 명령이 `dash`·`ksh`이면 `shell-execution`을 추가합니다
+- `examples/adversarial/extensions/`와 `examples/adversarial/mcp-evasion.json`에 비활성 픽스처를 추가했습니다
 - `slack-approver`: 토큰 파일에는 봇 토큰 형태의 값 하나만 있어야 합니다. `tokenFile`이 다른 파일을 가리켜도 그 내용이 Slack으로 전송되지 않으며, `slack.com` 요청은 더 이상 리디렉션을 따르지 않습니다
 - 문서: `test/compatibility.test.mjs`로 확인하는 [호환성 매트릭스](docs/COMPATIBILITY.ko.md)와 [스키마 안정성 규칙](docs/SCHEMAS.ko.md), Sigstore 검증과 런타임 어댑터 [설계 노트](docs/DESIGN_NOTES.ko.md)(제안이며 구현되지 않음), 0.17.3 로드맵 진행 현황
 

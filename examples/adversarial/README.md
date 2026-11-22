@@ -10,6 +10,8 @@ These files provide a reproducible defensive test of TrustDex's policy boundary.
 - `policy.json` explicitly trusts one fixture package and two fixture hosts so blocking signals can be tested independently of source allowlisting.
 - `expected.json` records the required decisions and minimum signals.
 - `drift-before.json` and `drift-after.json` model a reviewed package gaining a secret-bearing environment key.
+- `mcp-evasion.json` and `mcp-evasion.expected.json` cover MCP entries that hide a shell behind a wrapper or use fields of the wrong type.
+- `extensions/` holds skill files and plugin manifests that hide a wildcard tool scope, tell the agent to download and run code, or bundle executable components; `extensions/expected.json` records the signals and the strict decision for each file.
 - [`permissions/`](permissions/README.md) covers value-free Claude/Codex permission posture drift.
 - [`bindings/`](bindings/README.md) covers MCP provenance-to-automatic-grant bindings and explicit runtime inventory reconciliation.
 
