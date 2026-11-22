@@ -7,7 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { inspectClaudeSettings } from '../src/claude-settings.mjs';
-import { inspectCodexSettingsText } from '../src/codex-settings.mjs';
+import { inspectCodexSettingsText, inspectCodexSettingsStack } from '../src/codex-settings.mjs';
+import { sha256Json } from '../src/canonical.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
 import { sha256Json } from '../src/canonical.mjs';
@@ -17,6 +18,40 @@ import {
 } from '../src/posture.mjs';
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
+
+test('Codex untrusted approval and alias posture comparisons preserve autonomy ordering', () => {
+  const untrusted = snapshot(evaluateCodex('approval_policy = "untrusted"'));
+  const request = snapshot(evaluateCodex('approval_policy = "on-request"'));
+  assert.equal(diffPermissionPostureSnapshots(untrusted, request).status, 'needs-review');
+  assert.equal(diffPermissionPostureSnapshots(request, untrusted).status, 'restricted');
+  assert.equal(diffPermissionPostureSnapshots(request, snapshot(evaluateCodex('approval_policy = "on-failure"'))).status, 'unchanged');
+});
+
+test('older Codex stack snapshots retain their original digest projection', () => {
+  const policy = getPolicyPack('strict');
+  const make = (layers) => createPermissionPostureSnapshot(evaluateAll([inspectCodexSettingsStack(layers)], policy)[0], policy);
+  const current = make([{ scope: 'user', text: '' }]);
+  const old = structuredClone(current);
+  delete old.sources.sourceCounts['legacy-managed'];
+  delete old.posture.metadata.permissionSelection;
+  const { digest, createdAt, ...projection } = old;
+  old.digest = sha256Json(projection);
+  assert.equal(diffPermissionPostureSnapshots(old, current).status, 'unchanged');
+  const expanded = make([{ scope: 'user', text: '' }, { scope: 'legacy-managed', text: '' }]);
+  assert.equal(diffPermissionPostureSnapshots(old, expanded).status, 'needs-review');
+  old.sources.sourceCounts.user = 2;
+  assert.throws(() => diffPermissionPostureSnapshots(old, current));
+});
+
+test('Codex permission selection changes require posture review', () => {
+  const policy = getPolicyPack('strict');
+  const make = (reverse) => {
+    const texts = ['sandbox_mode = "read-only"', 'default_permissions = ":read-only"'];
+    if (reverse) texts.reverse();
+    return createPermissionPostureSnapshot(evaluateAll([inspectCodexSettingsStack(texts.map((text, index) => ({ scope: index ? 'cli' : 'user', text })))], policy)[0], policy);
+  };
+  assert.equal(diffPermissionPostureSnapshots(make(false), make(true)).status, 'needs-review');
+});
 
 function evaluateClaude(settings, policy = getPolicyPack('strict'), sourceName = 'settings.json') {
   return {

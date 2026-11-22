@@ -193,10 +193,9 @@ test('a byte-order mark and a subtable before its server table are accepted', ()
   assert.throws(() => parseCodexMcpToml('[mcp_servers.x.env]\nA = "1"\n[mcp_servers.x.env]\nB = "2"\n'), /more than once/);
 });
 
-test('an empty granular approval table is reported like its inline form', () => {
-  const table = inspectCodexSettingsText('[approval_policy.granular]\n');
-  const inline = inspectCodexSettingsText('approval_policy = { granular = {} }\n');
-  assert.deepEqual(table.metadata.approvalPolicy, inline.metadata.approvalPolicy);
+test('empty granular approval tables fail closed in both forms', () => {
+  assert.throws(() => inspectCodexSettingsText('[approval_policy.granular]\n'), /missing required/);
+  assert.throws(() => inspectCodexSettingsText('approval_policy = { granular = {} }\n'), /missing required/);
 });
 
 test('gating a file that starts with a byte-order mark keeps exact offsets', () => {

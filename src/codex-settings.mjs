@@ -1,6 +1,6 @@
 import { decodeTomlValue, parseTomlStatements } from './toml-lite.mjs';
 
-const APPROVAL_POLICIES = new Set(['on-request', 'never']);
+const APPROVAL_POLICIES = new Set(['untrusted', 'on-request', 'on-failure', 'never']);
 // guardian_subagent is the reviewer value written by Codex CLI releases that route
 // approvals to an automatic reviewer agent; it grants the same autonomy as auto_review.
 const APPROVAL_REVIEWERS = new Set(['user', 'auto_review', 'guardian_subagent']);
@@ -33,7 +33,8 @@ const CODEX_SCOPE_RANK = Object.freeze({
   user: 2,
   profile: 3,
   project: 4,
-  cli: 5
+  cli: 5,
+  'legacy-managed': 6
 });
 
 function isObject(value) {
@@ -52,10 +53,10 @@ function requireStringArray(value, key) {
   return value;
 }
 
-function parseApprovalPolicy(value) {
+function parseApprovalPolicy(value, partial = false) {
   if (typeof value === 'string') {
     if (!APPROVAL_POLICIES.has(value)) throw new Error('Unsupported Codex approval_policy value.');
-    return { mode: value, promptCategories: [] };
+    return { mode: value === 'on-failure' ? 'on-request' : value, promptCategories: [] };
   }
   if (!isObject(value) || !isObject(value.granular) || Object.keys(value).some((key) => key !== 'granular')) {
     throw new Error('Codex approval_policy must be "on-request", "never", or a granular policy.');
@@ -64,6 +65,9 @@ function parseApprovalPolicy(value) {
     if (!GRANULAR_KEYS.has(key) || typeof enabled !== 'boolean') {
       throw new Error(`Unsupported Codex granular approval setting: ${key}`);
     }
+  }
+  if (!partial && ['sandbox_approval', 'rules', 'mcp_elicitations'].some((key) => !Object.hasOwn(value.granular, key))) {
+    throw new Error('Codex granular approval policy is missing required settings.');
   }
   return {
     mode: 'granular',
@@ -80,6 +84,7 @@ function parseTomlAssignments(text) {
   const agents = Object.create(null);
   const approvalGranular = Object.create(null);
   const sections = new Set();
+  const permissionParents = [];
   let granularDeclared = false;
   const put = (target, key, value, label) => {
     if (Object.hasOwn(target, key)) throw new Error(`Duplicate Codex ${label} setting: ${key}`);
@@ -90,6 +95,20 @@ function parseTomlAssignments(text) {
   // a dotted key, or an inline table reaches the same setting as the plain form.
   const assign = (path, node, inTable) => {
     const [head, second, third, ...rest] = path;
+    if (head === 'permissions') {
+      if (path.length < 3 && node.kind === 'table') {
+        for (const entry of node.value) assign([...path, ...entry.path], entry.value, inTable);
+      } else if (path.length === 3 && third === 'extends') {
+        const parent = decodeTomlValue(node);
+        if (typeof parent !== 'string') throw new Error('Codex permission profile extends must be a string.');
+        if (parent.startsWith(':') && !BUILTIN_PERMISSIONS.has(parent)) {
+          throw new Error('Unsupported Codex built-in permission parent.');
+        }
+        permissionParents.push(parent);
+      }
+      sections.add('permissions');
+      return;
+    }
     if (head === 'sandbox_workspace_write') {
       if (second === undefined) {
         if (node.kind !== 'table') throw new Error('Unsupported Codex sandbox_workspace_write value.');
@@ -142,7 +161,7 @@ function parseTomlAssignments(text) {
       sections.add(section);
       continue;
     }
-    const inspected = ['sandbox_workspace_write', 'approval_policy', 'agents'].includes(statement.path[0]);
+    const inspected = ['sandbox_workspace_write', 'approval_policy', 'agents', 'permissions'].includes(statement.path[0]);
     if (statement.table.length && !inspected) continue;
     assign(statement.path, statement.value, statement.table.length > 0);
   }
@@ -154,7 +173,7 @@ function parseTomlAssignments(text) {
     root.approval_policy = { granular: approvalGranular };
   }
 
-  return { root, sandbox, agents, sections: [...sections].sort() };
+  return { root, sandbox, agents, permissionParents, sections: [...sections].sort() };
 }
 
 function validateSandbox(sandbox) {
@@ -169,13 +188,13 @@ function validateSandbox(sandbox) {
   }
 }
 
-function inspectParsedCodexSettings({ root, sandbox, agents, sections }, sourceName, kind) {
+function inspectParsedCodexSettings({ root, sandbox, agents, sections, permissionParents }, sourceName, kind, { partial = false, stack = false, permissionSelection } = {}) {
   validateSandbox(sandbox);
 
   const signals = new Set();
   let approval = { mode: null, promptCategories: [] };
   if (root.approval_policy !== undefined) {
-    approval = parseApprovalPolicy(root.approval_policy);
+    approval = parseApprovalPolicy(root.approval_policy, partial);
     if (approval.mode === 'never') signals.add('codex-no-approvals');
   }
 
@@ -198,7 +217,7 @@ function inspectParsedCodexSettings({ root, sandbox, agents, sections }, sourceN
     if (typeof root.default_permissions !== 'string' || !root.default_permissions.trim()) {
       throw new Error('Codex default_permissions must be a non-empty string.');
     }
-    if (root.sandbox_mode !== undefined || sections.includes('sandbox_workspace_write') || Object.keys(sandbox).length) {
+    if (!stack && (root.sandbox_mode !== undefined || sections.includes('sandbox_workspace_write') || Object.keys(sandbox).length)) {
       throw new Error('Codex default_permissions cannot be combined with sandbox_mode or sandbox_workspace_write.');
     }
     if (root.default_permissions === ':workspace') signals.add('codex-workspace-write');
@@ -233,6 +252,8 @@ function inspectParsedCodexSettings({ root, sandbox, agents, sections }, sourceN
   sectionKinds.delete('mcp_servers');
   if (!uninspectedAgentKeys.length) sectionKinds.delete('agents');
   if (sectionKinds.has('permissions')) signals.add('codex-custom-permissions');
+  if (permissionParents.includes(':danger-full-access')) signals.add('codex-full-access');
+  if (permissionParents.includes(':workspace')) signals.add('codex-workspace-write');
   if (sectionKinds.has('apps') || sectionKinds.has('plugins')) signals.add('codex-extension-settings');
   if (sectionKinds.size) signals.add('uninspected-codex-sections');
 
@@ -242,6 +263,7 @@ function inspectParsedCodexSettings({ root, sandbox, agents, sections }, sourceN
     source: { type: 'local', format: 'codex-settings', path: sourceName },
     metadata: {
       approvalPolicy: approval.mode,
+      permissionSelection: permissionSelection ?? (root.default_permissions !== undefined ? 'named' : root.sandbox_mode !== undefined ? 'legacy' : null),
       granularPromptCategories: approval.promptCategories,
       approvalsReviewer: root.approvals_reviewer || null,
       sandboxMode: root.sandbox_mode || null,
@@ -285,7 +307,7 @@ function normalizeCodexLayers(layers) {
     seen.add(layer.scope);
     if (typeof layer.text !== 'string') throw new Error('Codex config source must contain TOML text.');
     const parsed = parseTomlAssignments(layer.text);
-    inspectParsedCodexSettings(parsed, 'Codex settings source', 'codex-settings');
+    inspectParsedCodexSettings(parsed, 'Codex settings source', 'codex-settings', { partial: true, stack: true });
     return { ...layer, parsed, index };
   }).sort((left, right) =>
     CODEX_SCOPE_RANK[left.scope] - CODEX_SCOPE_RANK[right.scope] || left.index - right.index
@@ -298,15 +320,25 @@ export function inspectCodexSettingsStack(layers) {
     root: Object.create(null),
     sandbox: Object.create(null),
     agents: Object.create(null),
+    permissionParents: [],
     sections: []
   };
   const sections = new Set();
   const sourceCounts = Object.fromEntries(Object.keys(CODEX_SCOPE_RANK).map((scope) => [scope, 0]));
   let activeSourceCount = 0;
+  let permissionSelection = null;
 
   for (const layer of normalized) {
     sourceCounts[layer.scope] += 1;
+    const previousApproval = merged.root.approval_policy;
     Object.assign(merged.root, layer.parsed.root);
+    const nextApproval = layer.parsed.root.approval_policy;
+    if (isObject(previousApproval) && isObject(nextApproval)) {
+      merged.root.approval_policy = { granular: { ...previousApproval.granular, ...nextApproval.granular } };
+    }
+    if (layer.parsed.root.sandbox_mode !== undefined) permissionSelection = 'legacy';
+    if (layer.parsed.root.default_permissions !== undefined) permissionSelection = 'named';
+    merged.permissionParents.push(...layer.parsed.permissionParents);
     Object.assign(merged.sandbox, layer.parsed.sandbox);
     Object.assign(merged.agents, layer.parsed.agents);
     for (const section of layer.parsed.sections) sections.add(section);
@@ -320,7 +352,8 @@ export function inspectCodexSettingsStack(layers) {
   const result = inspectParsedCodexSettings(
     merged,
     'merged Codex settings',
-    'codex-settings-stack'
+    'codex-settings-stack',
+    { stack: true, permissionSelection }
   );
   return {
     ...result,

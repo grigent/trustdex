@@ -151,7 +151,8 @@ function codexToml() {
 function codexSettingsToml() {
   return [
     'approval_policy = "on-request"', 'sandbox_mode = "workspace-write"', '',
-    '[sandbox_workspace_write]', 'network_access = true', `writable_roots = ["/${canary()}"]`, ''
+    '[sandbox_workspace_write]', 'network_access = true', `writable_roots = ["/${canary()}"]`,
+    `[permissions."${canary()}"]`, 'extends = ":danger-full-access"', `description = "${canary()}"`, ''
   ].join('\n');
 }
 
@@ -237,7 +238,7 @@ test('no command prints or stores a planted value', () => {
   });
 
   const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
-  const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject];
+  const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject, '--legacy-managed', files.codexSettings];
   const inspections = [
     ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper], ['inspect-devin', files.devin], ['inspect-gemini', files.gemini], ['inspect-gemini-settings', files.geminiSettings], ['inspect-devin-settings', files.devinSettings],
     ['inspect-claude-settings', files.settings], ['inspect-codex', files.codex], ['inspect-codex-settings', files.codexSettings],

@@ -98,7 +98,7 @@ Usage:
   trustdex inspect-codex-settings <config.toml> [--pack ...] [--policy policy.json] [--json]
   trustdex snapshot-codex-settings <config.toml> --out posture.json [--pack ...]
   trustdex inspect-codex-settings-stack [--system file] [--managed file] [--user file]
-      [--profile file] [--project file ...] [--cli file] [--json]
+      [--profile file] [--project file ...] [--cli file] [--legacy-managed file] [--json]
   trustdex snapshot-codex-settings-stack [same source flags] --out posture.json
 
   trustdex gate <mcp.json> --out gated.json [--pack ...] [--policy policy.json]
@@ -530,7 +530,7 @@ async function evaluateClaudeSettingsStack(args) {
 
 async function evaluateCodexSettingsStack(args) {
   const layers = [];
-  for (const scope of ['system', 'managed', 'user', 'profile', 'project', 'cli']) {
+  for (const scope of ['system', 'managed', 'user', 'profile', 'project', 'cli', 'legacy-managed']) {
     for (const file of getFlags(args, `--${scope}`)) {
       layers.push({ scope, text: await fs.readFile(file, 'utf8') });
     }
