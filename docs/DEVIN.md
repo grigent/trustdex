@@ -100,12 +100,17 @@ node ./bin/trustdex.mjs inspect-devin-settings ./.devin/config.json --pack stric
 | a non-empty `hooks` event | `devin-hooks` | `BLOCK` |
 | `local_tools_bypass_permissions: true` | `devin-local-tools-bypass` | `ASK` |
 | a `mcpServers` key (read by older Devin CLI versions) | `devin-mcp-servers` | `ASK` |
+| `read_config_from` with a provider set to `true` (rules, skills, hooks, or MCP servers may be imported from that tool's files) | `devin-external-config` | `ASK` |
 | a setting TrustDex does not inspect, such as `proxy` | `uninspected-devin-settings` | `ASK` |
 
 A config file never reaches ALLOW, whatever the policy says. `ask` and `deny` rules are
 restrictive and add no signal. Documented settings that grant the agent no autonomy
-(`agent`, display options, `keymap`, `read_config_from`, `sandbox`, and similar) are
-skipped without reading their values.
+(`agent`, display options, `keymap`, `sandbox`, and similar) are
+skipped without reading their values. For `read_config_from`, only the number of providers
+set to `true` is reported (`metadata.externalConfigProviderCount`); provider names and the
+imported files are neither read nor reported. A missing `read_config_from`, or one whose
+providers are all `false`, adds no signal; a value that is not an object of booleans fails
+closed.
 
 A rule must have one of the documented forms: `Read(...)`, `Write(...)`, `Exec(...)`,
 `Fetch(...)`, the tool names `read`, `edit`, `grep`, `glob`, `exec`, or `mcp__*`,

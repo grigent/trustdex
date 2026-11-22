@@ -12,10 +12,10 @@ const MCP_RULE = /^mcp__(?:\*|[^*\s]+__(?:\*|[^*\s]+))$/;
 const NEUTRAL_ROOT_KEYS = new Set([
   'agent', 'theme_mode', 'show_path', 'unicode_mode', 'show_hints', 'include_gitignored_files',
   'respect_gitignore', 'attribution', 'subagents_enabled', 'keymap', 'auto_update', 'notify',
-  'read_config_from', 'sandbox'
+  'sandbox'
 ]);
 const INSPECTED_ROOT_KEYS = new Set([
-  'permissions', 'permission_mode', 'hooks', 'mcpServers', 'local_tools_bypass_permissions'
+  'permissions', 'permission_mode', 'hooks', 'mcpServers', 'local_tools_bypass_permissions', 'read_config_from'
 ]);
 
 function isObject(value) {
@@ -85,6 +85,18 @@ export function inspectDevinSettings(settings, sourceName = 'config.json') {
   if (typeof localBypass !== 'boolean') throw new Error('Devin local_tools_bypass_permissions must be a boolean.');
   if (localBypass) signals.add('devin-local-tools-bypass');
 
+  // read_config_from turns on providers whose rules, skills, hooks, and MCP servers Devin CLI
+  // imports. Only the number of enabled providers is kept; the imported files are not read.
+  let externalConfigProviderCount = 0;
+  if (Object.hasOwn(settings, 'read_config_from')) {
+    const providers = settings.read_config_from;
+    if (!isObject(providers) || Object.values(providers).some((value) => typeof value !== 'boolean')) {
+      throw new Error('Devin read_config_from must be an object of booleans.');
+    }
+    externalConfigProviderCount = Object.values(providers).filter(Boolean).length;
+  }
+  if (externalConfigProviderCount) signals.add('devin-external-config');
+
   if (uninspectedSettingCount) signals.add('uninspected-devin-settings');
 
   return {
@@ -104,6 +116,7 @@ export function inspectDevinSettings(settings, sourceName = 'config.json') {
       hookCount,
       mcpServerCount,
       localToolsBypassPermissions: localBypass,
+      externalConfigProviderCount,
       uninspectedSettingCount
     },
     signals: [...signals].sort(),

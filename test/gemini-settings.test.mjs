@@ -59,6 +59,29 @@ test('automatic grants and command-running settings are classified by capability
   }
 });
 
+test('an explicit tools.sandbox false is ASK under every policy and differs from an omitted sandbox', () => {
+  const permissive = { version: 1, unknownAction: 'allow', localAction: 'allow', sensitiveAction: 'allow',
+    unpinnedAction: 'allow', shellAction: 'allow', verifiedPublisherAction: 'allow' };
+  const disabled = inspectGeminiSettings({ tools: { sandbox: false } });
+  assert.deepEqual(disabled.signals, ['gemini-sandbox-disabled']);
+  assert.equal(disabled.metadata.sandboxSetting, 'disabled');
+  for (const pack of ['strict', 'official-first', 'development']) assert.equal(evaluate({ tools: { sandbox: false } }, pack).action, 'ask', pack);
+  const custom = { ...permissive, signalActions: { 'gemini-sandbox-disabled': 'allow' } };
+  for (const policy of [permissive, custom]) assert.equal(evaluateAll([disabled], policy)[0].action, 'ask');
+
+  const omitted = inspectGeminiSettings({ tools: {} });
+  assert.deepEqual(omitted.signals, []);
+  assert.equal(omitted.metadata.sandboxSetting, 'omitted');
+  assert.equal(inspectGeminiSettings({}).metadata.sandboxSetting, 'omitted');
+  for (const sandbox of [true, 'docker', 'MARKER-VALUE']) {
+    const result = inspectGeminiSettings({ tools: { sandbox } });
+    assert.deepEqual(result.signals, []);
+    assert.equal(result.metadata.sandboxSetting, 'enabled');
+    assert.equal(JSON.stringify(result).includes('MARKER-VALUE'), false);
+  }
+  for (const policy of [permissive, getPolicyPack('development')]) assert.equal(evaluateAll([omitted], policy)[0].action, 'ask');
+});
+
 test('a policy overlay cannot be needed to see a shell grant: every pack blocks it', () => {
   for (const pack of ['strict', 'official-first', 'development']) {
     assert.equal(evaluate({ tools: { allowed: ['run_shell_command'] } }, pack).action, 'block', pack);

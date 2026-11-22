@@ -96,11 +96,15 @@ node ./bin/trustdex.mjs inspect-devin-settings ./.devin/config.json --pack stric
 | 비어 있지 않은 `hooks` 이벤트 | `devin-hooks` | `BLOCK` |
 | `local_tools_bypass_permissions: true` | `devin-local-tools-bypass` | `ASK` |
 | `mcpServers` 키(예전 Devin CLI 버전이 읽음) | `devin-mcp-servers` | `ASK` |
+| `read_config_from`에 `true`인 제공자가 있음(그 도구의 파일에서 규칙, 스킬, 훅, MCP 서버를 가져올 수 있음) | `devin-external-config` | `ASK` |
 | `proxy`처럼 TrustDex가 검사하지 않는 설정 | `uninspected-devin-settings` | `ASK` |
 
 설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. `ask`와 `deny` 규칙은 제한하는
 규칙이라 신호를 추가하지 않습니다. 에이전트에 자율성을 주지 않는 문서화된 설정(`agent`,
-표시 옵션, `keymap`, `read_config_from`, `sandbox` 등)은 값을 읽지 않고 건너뜁니다.
+표시 옵션, `keymap`, `sandbox` 등)은 값을 읽지 않고 건너뜁니다. `read_config_from`은 `true`인
+제공자의 개수(`metadata.externalConfigProviderCount`)만 보고하며, 제공자 이름과 가져오는 파일은
+읽지도 보고하지도 않습니다. `read_config_from`이 없거나 모든 제공자가 `false`이면 신호가 없고,
+불리언 객체가 아닌 값은 거부합니다.
 
 규칙은 문서화된 형식이어야 합니다: `Read(...)`, `Write(...)`, `Exec(...)`, `Fetch(...)`,
 도구 이름 `read`, `edit`, `grep`, `glob`, `exec`, 또는 `mcp__*`, `mcp__server__*`,

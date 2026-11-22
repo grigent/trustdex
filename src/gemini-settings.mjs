@@ -96,6 +96,9 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
   if (sandbox !== undefined && typeof sandbox !== 'boolean' && (typeof sandbox !== 'string' || !sandbox.trim())) {
     throw new Error('Gemini tools.sandbox must be a boolean or a non-empty string.');
   }
+  const sandboxSetting = sandbox === undefined ? 'omitted' : sandbox === false ? 'disabled' : 'enabled';
+  // An explicit false turns the sandbox off even when another settings layer enables it.
+  if (sandboxSetting === 'disabled') signals.add('gemini-sandbox-disabled');
   const sandboxPaths = strings(tools, 'sandboxAllowedPaths', 'tools.sandboxAllowedPaths');
   const sandboxNetwork = boolean(tools, 'sandboxNetworkAccess', 'tools.sandboxNetworkAccess') === true;
   if (sandboxPaths.length || sandboxNetwork) signals.add('gemini-sandbox-relaxed');
@@ -169,6 +172,7 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
       autoApprovedToolCount: allowed.length,
       autoApprovedShellCount: shellGrants.length,
       sandboxConfigured: sandbox !== undefined && sandbox !== false,
+      sandboxSetting,
       sandboxAllowedPathCount: sandboxPaths.length,
       sandboxNetworkAccess: sandboxNetwork,
       commandSettingCount: commandSettings,

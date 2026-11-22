@@ -50,11 +50,13 @@ test('any altered part of the bundle fails verification', () => {
       (b) => { b.verificationMaterial.tlogEntries[0].canonicalizedBody = Buffer.from('{}').toString('base64'); },
       (b) => { b.verificationMaterial.tlogEntries[0].inclusionPromise.signedEntryTimestamp = flip(b.verificationMaterial.tlogEntries[0].inclusionPromise.signedEntryTimestamp, 20); }
     ],
-    'log-inclusion': [
+    'log-inclusion-proof-missing': [
       (b) => { delete b.verificationMaterial.tlogEntries[0].inclusionProof; },
       (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = null; },
       // Relabelling a current bundle as the 2023 format does not excuse the missing proof.
-      (b) => { delete b.verificationMaterial.tlogEntries[0].inclusionProof; b.mediaType = 'application/vnd.dev.sigstore.bundle+json;version=0.1'; },
+      (b) => { delete b.verificationMaterial.tlogEntries[0].inclusionProof; b.mediaType = 'application/vnd.dev.sigstore.bundle+json;version=0.1'; }
+    ],
+    'log-inclusion': [
       (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = {}; },
       (b) => { const p = proof(b); p.hashes[0] = flip(p.hashes[0]); },
       (b) => { proof(b).hashes.pop(); },
@@ -175,7 +177,13 @@ test('only a 2023 bundle in format 0.1 may carry the log promise without an incl
   for (const mutate of [
     (b) => { b.mediaType = 'application/vnd.dev.sigstore.bundle+json;version=0.2'; },
     (b) => { b.mediaType = 'application/vnd.dev.sigstore.bundle.v0.3+json'; },
-    (b) => { delete b.mediaType; },
+    (b) => { delete b.mediaType; }
+  ]) {
+    const altered = promiseOnly();
+    mutate(altered);
+    assert.deepEqual(verifyNpmProvenanceBundle(altered, repository), { verified: false, reason: 'log-inclusion-proof-missing' });
+  }
+  for (const mutate of [
     // A proof that is present must verify even in the old format.
     (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = proof(bundle()); },
     (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = {}; }
@@ -188,6 +196,28 @@ test('only a 2023 bundle in format 0.1 may carry the log promise without an incl
   const altered = promiseOnly();
   altered.verificationMaterial.tlogEntries[0].integratedTime = '1900000000';
   assert.equal(verifyNpmProvenanceBundle(altered, repository).reason, 'log-signature');
+});
+
+test('2024 bundles in format 0.1 without an inclusion proof are reported as such, not as a bad signature', () => {
+  // The public SLSA provenance bundles npm serves for sigstore@2.2.1 and @sigstore/sign@2.2.2:
+  // format 0.1, logged on 2024-02-08, no inclusion proof. TrustDex 0.19.0 reported them matched.
+  const repository = { repository: 'sigstore/sigstore-js' };
+  for (const name of ['sigstore-2.2.1', 'sigstore-sign-2.2.2']) {
+    const logged = fixture(name);
+    const entry = logged.verificationMaterial.tlogEntries[0];
+    assert.equal(logged.mediaType, 'application/vnd.dev.sigstore.bundle+json;version=0.1', name);
+    assert.equal(entry.inclusionProof, null, name);
+    assert.equal(new Date(Number(entry.integratedTime) * 1000).toISOString().slice(0, 10), '2024-02-08', name);
+    assert.deepEqual(verifyNpmProvenanceBundle(logged, repository), { verified: false, reason: 'log-inclusion-proof-missing' }, name);
+    // The proof check comes last: any other failure keeps its own reason.
+    assert.equal(verifyNpmProvenanceBundle(logged, { repository: 'sigstore/other' }).reason, 'certificate-repository', name);
+    const signature = fixture(name);
+    signature.dsseEnvelope.signatures[0].sig = flip(signature.dsseEnvelope.signatures[0].sig, 20);
+    assert.equal(verifyNpmProvenanceBundle(signature, repository).reason, 'envelope-signature', name);
+    const time = fixture(name);
+    time.verificationMaterial.tlogEntries[0].integratedTime = '1700000000';
+    assert.equal(verifyNpmProvenanceBundle(time, repository).reason, 'log-signature', name);
+  }
 });
 
 test('the certificate must carry an SCT signed by a pinned certificate-transparency log', () => {
