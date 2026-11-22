@@ -108,6 +108,14 @@ function devinServers() {
   };
 }
 
+function geminiServers() {
+  return {
+    remote: { httpUrl: 'https://mcp.example.invalid/mcp', headers: { Authorization: `Bearer ${canary()}` }, includeTools: [canary()], excludeTools: [canary()], trust: true },
+    sse: { url: 'https://mcp.example.invalid/sse', headers: { 'X-Key': canary() } },
+    local: { command: 'node', args: ['server.js', `--token=${canary()}`], env: { API_TOKEN: canary(), OTHER: '$OTHER' }, cwd: `/work/${canary()}`, timeout: 30000 }
+  };
+}
+
 function claudeSettings() {
   return {
     permissions: {
@@ -160,6 +168,7 @@ test('no command prints or stores a planted value', () => {
     mcpChanged: write('in/mcp-changed.json', { mcpServers: { ...mcpServers(), extra: { command: 'npx', args: [`https://u:${canary()}@registry.example.invalid/new.tgz`] } } }),
     claude: write('in/claude.mcp.json', { mcpServers: claudeServers() }),
     devin: write('in/devin.mcp_config.json', { mcpServers: devinServers() }),
+    gemini: write('in/gemini.mcpServers.json', { mcpServers: geminiServers() }),
     claudeHelper: write('in/claude-helper.mcp.json', { mcpServers: { h: { type: 'http', url: 'https://mcp.example.invalid/x', headersHelper: `print-token ${canary()}` } } }),
     settings: write('in/settings.json', claudeSettings()),
     settingsLocal: write('in/settings.local.json', claudeSettings()),
@@ -195,7 +204,7 @@ test('no command prints or stores a planted value', () => {
   const claudeStack = ['--user', files.settings, '--project', files.settings, '--local', files.settingsLocal, '--managed', files.settingsManaged];
   const codexStack = ['--user', files.codexSettings, '--project', files.codexSettingsProject];
   const inspections = [
-    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper], ['inspect-devin', files.devin],
+    ['inspect', files.mcp], ['inspect-claude', files.claude], ['inspect-claude', files.claudeHelper], ['inspect-devin', files.devin], ['inspect-gemini', files.gemini],
     ['inspect-claude-settings', files.settings], ['inspect-codex', files.codex], ['inspect-codex-settings', files.codexSettings],
     ['inspect-skill', files.skill], ['inspect-plugin', files.plugin], ['inspect-ide-extensions', files.ext],
     ['inspect-claude-settings-stack', ...claudeStack], ['inspect-codex-settings-stack', ...codexStack]
@@ -209,6 +218,7 @@ test('no command prints or stores a planted value', () => {
     ['diff', o('snapshot-before.json'), o('snapshot-after.json'), '--json'],
     ['snapshot-claude', files.claude, '--out', o('snapshot-claude.json')],
     ['snapshot-devin', files.devin, '--out', o('snapshot-devin.json')],
+    ['snapshot-gemini', files.gemini, '--out', o('snapshot-gemini.json')],
     ['snapshot-ide-extensions', files.ext, '--out', o('snapshot-ide.json')],
     ['snapshot-claude-settings', files.settings, '--out', o('posture-claude.json')],
     ['snapshot-codex-settings', files.codexSettings, '--out', o('posture-codex.json')],
@@ -225,6 +235,9 @@ test('no command prints or stores a planted value', () => {
     ['gate', files.mcp, '--out', path.join(dir, 'gated/mcp2.json'), '--pack', 'development', '--json'],
     ['gate-claude', files.claude, '--out', path.join(dir, 'gated/claude.json'), '--pack', 'development'],
     ['gate-devin', files.devin, '--out', path.join(dir, 'gated/devin.json'), '--pack', 'development'],
+    ['gate-gemini', files.gemini, '--out', path.join(dir, 'gated/gemini.json'), '--pack', 'development'],
+    ['approve-gemini', files.gemini, '--private', priv, '--dir', o('review-gemini'), '--pack', 'development'],
+    ['recheck-gemini', files.gemini, '--review-dir', o('review-gemini'), '--public', pub, '--json'],
     ['approve-devin', files.devin, '--private', priv, '--dir', o('review-devin'), '--pack', 'development'],
     ['recheck-devin', files.devin, '--review-dir', o('review-devin'), '--public', pub, '--json'],
     ['gate-codex', files.codex, '--out', path.join(dir, 'gated/config.toml'), '--pack', 'development'],
@@ -332,6 +345,15 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'stdio', command: 'node', env: { T: canary() }, extra: canary() } } })],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'ws', url: `wss://x.invalid/${canary()}` } } })],
     ['inspect-claude', 'json', () => ({ mcpServers: { a: { type: 'http', url: 'https://x.invalid/', headers: { A: 5, B: canary() } } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { httpUrl: `https://x.invalid/?k=${canary()}` } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', env: { T: canary() }, extra: canary() } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { httpUrl: 'https://x.invalid/', oauth: { clientSecret: canary() } } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', headers: { A: 5, B: canary() } } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', cwd: [canary()] } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', trust: canary() } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', includeTools: [canary(), 5] } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: {}, security: { [canary()]: canary() } })],
+    ['inspect-gemini', 'raw', () => `{"mcpServers": {"a": {"env": {"T": ${canary()}}}}}`],
     ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: `https://x.invalid/?k=${canary()}` } } })],
     ['inspect-devin', 'json', () => ({ mcpServers: { a: { command: 'node', env: { T: canary() }, extra: canary() } } })],
     ['inspect-devin', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', oauthClientSecret: canary() } } })],

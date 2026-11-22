@@ -585,7 +585,7 @@ node ./bin/trustdex.mjs verify .trustdex/trust-record.json \
   --snapshot .trustdex/baseline.json
 ```
 
-`approve`/`recheck` also exist per adapter: `approve-claude`/`recheck-claude` for Claude MCP JSON, `approve-devin`/`recheck-devin` for Devin CLI `mcp_config.json` (see [Devin](docs/DEVIN.md)), `approve-codex`/`recheck-codex` for Codex `config.toml` (see [Codex](docs/CODEX.md)), and `approve-ide-extensions`/`recheck-ide-extensions` for editor extensions.
+`approve`/`recheck` also exist per adapter: `approve-claude`/`recheck-claude` for Claude MCP JSON, `approve-devin`/`recheck-devin` for Devin CLI `mcp_config.json` (see [Devin](docs/DEVIN.md)), `approve-gemini`/`recheck-gemini` for Gemini CLI `mcpServers` (see [Gemini](docs/GEMINI.md)), `approve-codex`/`recheck-codex` for Codex `config.toml` (see [Codex](docs/CODEX.md)), and `approve-ide-extensions`/`recheck-ide-extensions` for editor extensions.
 
 ## GitHub Action
 
