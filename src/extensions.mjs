@@ -51,7 +51,7 @@ function frontmatterEntries(text) {
       if (!raw.trim().endsWith(']')) unsupported = true;
     }
     let parsed = parseScalar(raw);
-    if (parsed === '' || unsupported) {
+    if (parsed === '' || /^[>|]/.test(raw.trim())) {
       const items = [];
       while (i + 1 < lines.length && /^\s+\S|^-\s|^\s*$/.test(lines[i + 1]) && !/^(?:---|\.\.\.)\s*$/.test(lines[i + 1])) {
         const line = lines[i += 1];
