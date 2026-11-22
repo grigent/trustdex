@@ -1,6 +1,6 @@
 {
   "name": "trustdex",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "Guardrails for Claude Code and other AI coding agents: stops risky package installs, secret reads, agent-settings tampering and startup items before they run. Also gates MCP servers, skills and plugins.",
   "type": "module",
   "bin": {
