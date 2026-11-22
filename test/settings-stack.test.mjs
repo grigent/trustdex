@@ -6,8 +6,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { inspectClaudeSettingsStack } from '../src/claude-settings.mjs';
-import { inspectCodexSettingsStack } from '../src/codex-settings.mjs';
+import { inspectClaudeSettings, inspectClaudeSettingsStack } from '../src/claude-settings.mjs';
+import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
 import {
@@ -209,3 +209,27 @@ test('stack CLI writes sanitized Claude and Codex posture snapshots', t => {
   }
 });
 
+
+test('no policy can make a permission settings file or stack ALLOW', () => {
+  const permissive = {
+    version: 1, unknownAction: 'allow', localAction: 'allow', sensitiveAction: 'allow',
+    unpinnedAction: 'allow', shellAction: 'allow', verifiedPublisherAction: 'allow'
+  };
+  const items = [
+    inspectClaudeSettings({}),
+    inspectClaudeSettingsStack([{ scope: 'user', settings: {} }]),
+    inspectCodexSettingsText(''),
+    inspectCodexSettingsStack([{ scope: 'user', text: '' }]),
+    { name: 'settings.json', kind: 'gemini-settings', source: { type: 'local' }, signals: [], envKeys: [] }
+  ];
+  for (const item of items) {
+    assert.deepEqual(item.signals, [], item.kind);
+    for (const extra of [{}, { provenance: { status: 'verified' } }]) {
+      const result = evaluateAll([{ ...item, ...extra }], permissive)[0];
+      assert.equal(result.action, 'ask', item.kind);
+      assert.ok(result.reasons.includes('permission settings always require review'), item.kind);
+    }
+  }
+  // Other local sources keep following the policy.
+  assert.equal(evaluateAll([{ name: 'x', kind: 'mcp-server', source: { type: 'local' }, signals: [], envKeys: [] }], permissive)[0].action, 'allow');
+});

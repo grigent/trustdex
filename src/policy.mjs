@@ -29,6 +29,10 @@ function raise(current, next) {
   return rank[next] > rank[current] ? next : current;
 }
 
+const SETTINGS_KINDS = new Set([
+  'claude-settings', 'claude-settings-stack', 'codex-settings', 'codex-settings-stack', 'gemini-settings'
+]);
+
 function signalAction(policy, signal, fallback = null) {
   const configured = policy?.signalActions?.[signal];
   if (!configured) return fallback;
@@ -142,6 +146,13 @@ export function evaluateServer(server, policy = {}) {
       action = raise(action, next);
       reasons.push(`signal policy: ${signal} -> ${next}`);
     }
+  }
+
+  // A permission settings file grants autonomy to the agent itself, so no policy may
+  // approve one without a person looking at it.
+  if (SETTINGS_KINDS.has(server.kind) && action === 'allow') {
+    action = 'ask';
+    reasons.push('permission settings always require review');
   }
 
   const sortedSignals = [...new Set(signals)].sort();

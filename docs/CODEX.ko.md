@@ -107,6 +107,9 @@ node ./bin/trustdex.mjs inspect-codex-settings-stack \
 
 스택은 시스템부터 CLI 우선순위까지 지원되는 보안 필드별로 병합됩니다. 높은 소스가 재정의하더라도 어떤 소스에 지원하지 않는 구문이 있으면 안전하게 실패합니다. 보고서에는 고정된 소스 범위 개수만 남고 설정 경로나 관련 없는 값은 남지 않습니다. 소스는 명시적 입력이며 신뢰된 프로젝트, 활성 프로필, 클라우드 관리 기본값, 요구사항 또는 CLI 플래그를 자동으로 찾지 않습니다. 이는 정적 증거이며 Codex 샌드박스 자체가 아닙니다. 클라이언트에서 활성 권한 프로필을 확인하세요. 공식 OpenAI 문서는 샌드박스 경계와 승인 처리를 구분합니다. [설정 레퍼런스](https://developers.openai.com/codex/config-reference)와 [설정 우선순위](https://developers.openai.com/codex/config-basic)를 참고하세요.
 
+설정 파일이나 스택은 정책과 관계없이 ALLOW가 되지 않습니다. `localAction: "allow"`인
+정책에서도 ASK입니다.
+
 ### 권한 상태 드리프트
 
 검토한 구조적 기준 상태를 생성해 커밋한 뒤 CI에서 현재 스냅샷을 만들고

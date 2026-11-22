@@ -108,6 +108,9 @@ TrustDex는 사용자, 공유 프로젝트, 프로젝트 로컬, 세션 및 관�
 
 소스는 명시적으로 전달해야 합니다. TrustDex는 설정, 셸 환경 변수 재정의, 임베딩 호스트 정책 또는 서버 전달 관리형 설정을 자동으로 찾지 않습니다. `/status`로 로드된 소스를 확인하고 강제 적용에는 운영체제 수준 샌드박싱을 사용하세요. 공식 참고 자료: [설정 파일 및 우선순위](https://code.claude.com/docs/en/settings), [권한](https://code.claude.com/docs/en/permissions), [보안](https://code.claude.com/docs/en/security).
 
+설정 파일이나 스택은 정책과 관계없이 ALLOW가 되지 않습니다. `localAction: "allow"`인
+정책에서도 ASK입니다.
+
 ### 권한 상태 드리프트
 
 검토 후 기준 상태를 만들고 나중의 설정 상태와 비교하세요.

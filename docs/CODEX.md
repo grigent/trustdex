@@ -125,6 +125,9 @@ in the client. The official OpenAI documentation distinguishes the sandbox bound
 from approval handling. See the [configuration reference](https://developers.openai.com/codex/config-reference)
 and [configuration precedence](https://developers.openai.com/codex/config-basic).
 
+A settings file or stack is never ALLOW, whatever the policy says: a policy with
+`localAction: "allow"` still gets ASK.
+
 ### Permission posture drift
 
 Create and commit a reviewed structural baseline, then generate a current snapshot in
