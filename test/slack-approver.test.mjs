@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { createApprovalStore } from '../src/approvals.mjs';
-import { APPROVE, REJECT, createSlackApprover, messageText, parseApproverConfig, readToken, terminalOnly } from '../src/slack-approver.mjs';
+import { APPROVE, REJECT, createSlackApprover, messageText, parseApproverConfig, readToken, slackClient, terminalOnly } from '../src/slack-approver.mjs';
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
 const CONFIG = parseApproverConfig({ tokenFile: '/tmp/token', teamId: 'T0TEAM0001', botUserId: 'U0BOT00001', ownerUserId: 'U0OWNER001', language: 'ko' });
@@ -157,4 +157,21 @@ test('the hook protects slack-approver.json next to the install policy', (t) => 
   const input = JSON.stringify({ tool_name: 'Write', tool_input: { file_path: path.join(dir, 'slack-approver.json'), content: '{}' } });
   const out = spawnSync(process.execPath, [cli, 'claude-hook', '--install-policy', policy, '--state-dir', path.join(dir, 'state')], { input, encoding: 'utf8' });
   assert.equal(JSON.parse(out.stdout).hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('only a value shaped like a bot token leaves the token file, and never across a redirect', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'trustdex-slack-token-'));
+  const file = path.join(dir, 'token');
+  for (const content of ['xoxb-1-2-3\nsecond line of another file', 'xoxb-1 2', 'xoxb-1\r\nX-Injected: 1', `xoxb-${'a'.repeat(300)}`, 'xoxb-']) {
+    fs.writeFileSync(file, content, { mode: 0o600 });
+    assert.throws(() => readToken(file), /bot token/, JSON.stringify(content.slice(0, 20)));
+  }
+  let seen;
+  const client = slackClient('xoxb-1-2-3', async (url, options) => {
+    seen = { url, options };
+    return { status: 200, json: async () => ({ ok: true }) };
+  });
+  await client.call('auth.test');
+  assert.equal(seen.url, 'https://slack.com/api/auth.test');
+  assert.equal(seen.options.redirect, 'error');
 });

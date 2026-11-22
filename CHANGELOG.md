@@ -11,6 +11,7 @@
 - plugin manifests: `plugin-executable-components` (ASK) when a manifest declares hooks, MCP servers, LSP servers, or scripts; nested wildcard permissions such as `permissions.allow: ["Bash(*)"]` are reported; a manifest nested deeper than 64 levels is rejected
 - MCP JSON: `malformed-server-fields` (BLOCK) when `command`, `args`, `env`, `url`, or `endpoint` has the wrong type, and `shell-execution` when a wrapper such as `env`, `sudo`, or `busybox` launches a shell, or the command is `dash` or `ksh`
 - new inert fixtures under `examples/adversarial/extensions/` and `examples/adversarial/mcp-evasion.json`
+- `slack-approver`: the token file must contain exactly one bot-token-shaped value, so a `tokenFile` pointed at another file cannot send its contents to Slack, and requests to `slack.com` no longer follow redirects
 
 ## 0.17.3 - 2026-11-22
 

@@ -90,7 +90,9 @@ export function readToken(file) {
       throw new Error('The Slack token file must be a regular file owned by you with mode 600.');
     }
     const token = fs.readFileSync(fd, 'utf8').trim();
-    if (!token.startsWith('xoxb-')) throw new Error('The Slack token must be a bot token (xoxb-).');
+    // Only a value shaped like a bot token is ever sent, so pointing tokenFile at another
+    // file cannot send that file's contents to Slack.
+    if (!/^xoxb-[A-Za-z0-9-]{1,250}$/.test(token)) throw new Error('The Slack token must be a bot token (xoxb-).');
     return token;
   } finally {
     fs.closeSync(fd);
@@ -105,6 +107,8 @@ export function slackClient(token, fetchImpl = globalThis.fetch) {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/x-www-form-urlencoded' },
         body,
+        // The token is only for slack.com; never follow a redirect with it.
+        redirect: 'error',
         signal: AbortSignal.timeout(15_000)
       });
       const data = await response.json().catch(() => ({}));

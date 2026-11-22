@@ -11,6 +11,7 @@
 - 플러그인 매니페스트: 훅, MCP 서버, LSP 서버, 스크립트를 선언하면 `plugin-executable-components`(ASK)를 추가합니다. `permissions.allow: ["Bash(*)"]` 같은 중첩 와일드카드 권한을 보고하고, 64단계보다 깊게 중첩된 매니페스트는 거부합니다
 - MCP JSON: `command`, `args`, `env`, `url`, `endpoint`의 타입이 잘못되면 `malformed-server-fields`(BLOCK), `env`·`sudo`·`busybox` 같은 래퍼가 셸을 실행하거나 명령이 `dash`·`ksh`이면 `shell-execution`을 추가합니다
 - `examples/adversarial/extensions/`와 `examples/adversarial/mcp-evasion.json`에 비활성 픽스처를 추가했습니다
+- `slack-approver`: 토큰 파일에는 봇 토큰 형태의 값 하나만 있어야 합니다. `tokenFile`이 다른 파일을 가리켜도 그 내용이 Slack으로 전송되지 않으며, `slack.com` 요청은 더 이상 리디렉션을 따르지 않습니다
 
 ## 0.17.3 - 2026-11-22
 
