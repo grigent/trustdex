@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import test from 'node:test';
 import { verifyNpmProvenanceBundle } from '../src/sigstore.mjs';
@@ -7,6 +8,24 @@ import { FULCIO_CHAINS, REKOR_LOGS } from '../src/sigstore-trust-root.mjs';
 // The public Sigstore bundle npm serves for trustdex@0.17.3 (no secrets; public log entry).
 const bundle = () => JSON.parse(fs.readFileSync(new URL('./fixtures/npm-provenance-bundle-trustdex-0.17.3.json', import.meta.url), 'utf8'));
 const expected = { repository: 'grigent/trustdex' };
+const fixture = (name) => JSON.parse(fs.readFileSync(new URL(`./fixtures/npm-provenance-bundle-${name}.json`, import.meta.url), 'utf8'));
+const proof = (b) => b.verificationMaterial.tlogEntries[0].inclusionProof;
+// Recomputes the root the (altered) audit path leads to, as an attacker would.
+const recomputedRoot = (b) => {
+  const hash = (...parts) => crypto.createHash('sha256').update(Buffer.concat(parts)).digest();
+  const p = proof(b);
+  let node = BigInt(p.logIndex);
+  let last = BigInt(p.treeSize) - 1n;
+  let current = hash(Buffer.from([0]), Buffer.from(b.verificationMaterial.tlogEntries[0].canonicalizedBody, 'base64'));
+  for (const sibling of p.hashes.map((value) => Buffer.from(value, 'base64'))) {
+    if (node % 2n === 1n || node === last) {
+      current = hash(Buffer.from([1]), sibling, current);
+      while (node % 2n === 0n && node !== 0n) { node >>= 1n; last >>= 1n; }
+    } else current = hash(Buffer.from([1]), current, sibling);
+    node >>= 1n; last >>= 1n;
+  }
+  return current.toString('base64');
+};
 const flip = (value, index = 12) => {
   const bytes = Buffer.from(value, 'base64');
   bytes[index] ^= 1;
@@ -30,6 +49,38 @@ test('any altered part of the bundle fails verification', () => {
       (b) => { b.verificationMaterial.tlogEntries[0].logIndex = '1'; },
       (b) => { b.verificationMaterial.tlogEntries[0].canonicalizedBody = Buffer.from('{}').toString('base64'); },
       (b) => { b.verificationMaterial.tlogEntries[0].inclusionPromise.signedEntryTimestamp = flip(b.verificationMaterial.tlogEntries[0].inclusionPromise.signedEntryTimestamp, 20); }
+    ],
+    'log-inclusion': [
+      (b) => { delete b.verificationMaterial.tlogEntries[0].inclusionProof; },
+      (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = null; },
+      // Relabelling a current bundle as the 2023 format does not excuse the missing proof.
+      (b) => { delete b.verificationMaterial.tlogEntries[0].inclusionProof; b.mediaType = 'application/vnd.dev.sigstore.bundle+json;version=0.1'; },
+      (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = {}; },
+      (b) => { const p = proof(b); p.hashes[0] = flip(p.hashes[0]); },
+      (b) => { proof(b).hashes.pop(); },
+      (b) => { const p = proof(b); p.hashes.push(p.hashes[0]); },
+      (b) => { proof(b).hashes = []; },
+      (b) => { proof(b).hashes[3] = Buffer.alloc(31).toString('base64'); },
+      (b) => { proof(b).hashes = Array.from({ length: 65 }, () => proof(bundle()).hashes[0]); },
+      (b) => { const p = proof(b); p.logIndex = String(BigInt(p.logIndex) + 1n); },
+      (b) => { const p = proof(b); p.logIndex = p.treeSize; },
+      (b) => { proof(b).logIndex = '-1'; },
+      (b) => { proof(b).logIndex = 12; },
+      (b) => { const p = proof(b); p.treeSize = String(BigInt(p.treeSize) + 1n); },
+      (b) => { proof(b).treeSize = '0'; },
+      (b) => { const p = proof(b); p.rootHash = flip(p.rootHash); },
+      // A root the proof reaches but the log never signed.
+      (b) => { const p = proof(b); p.hashes[0] = flip(p.hashes[0]); p.rootHash = recomputedRoot(b); },
+      (b) => { delete proof(b).checkpoint; },
+      (b) => { proof(b).checkpoint.envelope = 7; },
+      (b) => { const c = proof(b).checkpoint; c.envelope = c.envelope.replace('rekor.sigstore.dev - ', 'other.example - '); },
+      (b) => { const c = proof(b).checkpoint; c.envelope = c.envelope.replace(/\n\d+\n/, '\n1\n'); },
+      (b) => { const c = proof(b).checkpoint; c.envelope = c.envelope.slice(0, c.envelope.indexOf('\n\n') + 2); },
+      (b) => { const c = proof(b).checkpoint; c.envelope = c.envelope.replace(/\n\n\u2014 \S+ /, '\n\n\u2014 rekor.sigstore.dev AAAA'); },
+      (b) => { const c = proof(b).checkpoint; c.envelope = c.envelope.replace('\n\n', '\nextra line\n\n'); },
+      (b) => { const c = proof(b).checkpoint; c.envelope = c.envelope.replace('\n\n', '\n'); },
+      // The checkpoint of another tree head, validly signed, does not cover this proof.
+      (b) => { proof(b).checkpoint = proof(fixture('gauge-intoto')).checkpoint; }
     ],
     'unknown-log': [
       (b) => { b.verificationMaterial.tlogEntries[0].logId.keyId = Buffer.alloc(32, 7).toString('base64'); }
@@ -113,4 +164,28 @@ test('an older bundle logged as an intoto 0.0.2 entry verifies, and altered copi
     mutate(altered);
     assert.equal(verifyNpmProvenanceBundle(altered, { repository: 'npm/gauge' }).verified, false);
   }
+});
+
+test('only a 2023 bundle in format 0.1 may carry the log promise without an inclusion proof', () => {
+  // The public bundle npm serves for sigstore@1.3.0 (April 2023): format 0.1, no inclusion proof.
+  const promiseOnly = () => fixture('sigstore-1.3.0-promise-only');
+  const repository = { repository: 'sigstore/sigstore-js' };
+  assert.equal(promiseOnly().verificationMaterial.tlogEntries[0].inclusionProof, null);
+  assert.deepEqual(verifyNpmProvenanceBundle(promiseOnly(), repository), { verified: true });
+  for (const mutate of [
+    (b) => { b.mediaType = 'application/vnd.dev.sigstore.bundle+json;version=0.2'; },
+    (b) => { b.mediaType = 'application/vnd.dev.sigstore.bundle.v0.3+json'; },
+    (b) => { delete b.mediaType; },
+    // A proof that is present must verify even in the old format.
+    (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = proof(bundle()); },
+    (b) => { b.verificationMaterial.tlogEntries[0].inclusionProof = {}; }
+  ]) {
+    const altered = promiseOnly();
+    mutate(altered);
+    assert.deepEqual(verifyNpmProvenanceBundle(altered, repository), { verified: false, reason: 'log-inclusion' });
+  }
+  // The promise itself is still checked.
+  const altered = promiseOnly();
+  altered.verificationMaterial.tlogEntries[0].integratedTime = '1900000000';
+  assert.equal(verifyNpmProvenanceBundle(altered, repository).reason, 'log-signature');
 });

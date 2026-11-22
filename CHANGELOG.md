@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `provenance npm` and `trust-source npm` also verify the Merkle inclusion proof of the Sigstore log entry, up to a tree head signed by the pinned log key. A bundle whose proof is missing or does not verify is `unverifiable` and is not recorded. Only a 2023 bundle in format 0.1 may carry the log's signed promise alone. No network request is added.
+
 ## 0.19.0 - 2026-11-22
 
 - `inspect-gemini`, `gate-gemini`, `snapshot-gemini`, `approve-gemini`, `recheck-gemini`: inspect and gate Gemini CLI `mcpServers` before Gemini CLI reads them. `trust: true`, which skips every tool-call confirmation, adds `auto-approve-tools` and never reaches ALLOW in a built-in pack. Unknown fields, the OAuth and Google credential fields, other `settings.json` settings, and URL credentials or query values fail closed. Changing `trust`, a tool filter, or the working directory invalidates a signed review. See [docs/GEMINI.md](docs/GEMINI.md).
