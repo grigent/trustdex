@@ -1,10 +1,10 @@
-# 설계 노트: Sigstore 검증과 런타임 어댑터
+# 설계 노트: Sigstore 검증, 런타임 어댑터, 레지스트리, 조직 신뢰 저장소
 
 <p align="right">
   <a href="./DESIGN_NOTES.md">English</a> | <strong>한국어</strong>
 </p>
 
-이 문서는 논의를 위한 제안입니다. 여기 적힌 내용은 구현되어 있지 않으며, 각 항목은 `AGENTS.md`의 규칙(설계 논의 없이 새 의존성, 네트워크 호출, `child_process` 사용 금지)에 닿기 때문에 코드를 쓰기 전에 명시적인 결정이 필요합니다.
+이 문서는 논의를 위한 제안입니다. 상태 줄에 따로 적지 않은 한 여기 적힌 내용은 구현되어 있지 않으며, 각 항목은 `AGENTS.md`의 규칙(설계 논의 없이 새 의존성, 네트워크 호출, `child_process` 사용 금지)에 닿기 때문에 코드를 쓰기 전에 명시적인 결정이 필요합니다.
 
 ## 1. npm provenance의 Sigstore 서명 검증
 
@@ -55,3 +55,65 @@
 - 각 어댑터에는 문서화된 인터페이스에서 기록한 픽스처, 서버 누락·서버 추가·도구 수 변경 테스트, 비밀 값 카나리 테스트가 함께 들어갑니다.
 
 남은 결정: 어느 런타임 인터페이스를 먼저 대상으로 할지, 어댑터를 이 저장소의 `examples/` 아래에 둘지 별도 릴리스를 가진 패키지로 둘지, 개발자 기기에서 생성자 키를 누가 보관할지(에이전트가 읽을 수 있는 키는 아무것도 인증하지 못합니다).
+
+## 3. 다른 패키지 레지스트리의 출처 증명
+
+> 상태: 보류. 관리자가 2026-11-22에 이 항목을 미루기로 결정했으며 구현된 것은 없습니다.
+
+### 현재
+
+`check-install`과 `claude-hook`은 `registry.npmjs.org`와 `pypi.org`의 공개 메타데이터를 읽습니다. 빌드 출처 증명(`provenance npm`, `trust-source npm`)은 npm에만 있습니다. PyPI 패키지는 수동 검토나 `--artifact` 무결성 증거로만 신뢰 저장소에 기록할 수 있습니다.
+
+### PyPI가 문서화한 내용
+
+PyPI는 PEP 740을 구현하며, 릴리스 파일마다 `GET https://pypi.org/integrity/<project>/<version>/<filename>/provenance`로 provenance 객체를 제공합니다([Integrity API](https://docs.pypi.org/api/integrity/)). simple JSON 인덱스는 각 파일의 `provenance` 필드에 이 URL을 적습니다. 각 객체는 증명을 만든 Trusted Publisher별로 묶여 있습니다(GitHub의 경우 `repository`, `workflow`, `environment`). 각 증명은 Fulcio 인증서와 포함 증명이 있는 Rekor 항목을 가진 DSSE 봉투이며, 기본 predicate는 `https://docs.pypi.org/attestations/publish/v1`입니다. PyPI [보안 모델](https://docs.pypi.org/attestations/security-model/) 문서는 증명이 파일의 출처를 보여 줄 뿐 신뢰 여부를 알려 주지 않으며, 릴리스 사이에 Trusted Publisher가 바뀌면 탈취 신호일 수 있다고 적고 있습니다.
+
+### 선택지
+
+| 선택지 | 네트워크 | 주요 비용 |
+| --- | --- | --- |
+| A. `src/sigstore.mjs`를 재사용하는 `provenance pypi`, `trust-source pypi` | 이 두 명시적 명령에서 `pypi.org`만 | PEP 740 봉투 형태용 어댑터. 로그 항목 종류 `dsse` 0.0.1은 npm용으로 이미 지원함 |
+| B. `check-install`에서도 PyPI 출처 증명 확인 | 설치 검사마다 파일당 요청 1건 추가 | 일상 경로의 지연과 새 실패 원인. `check-install`을 가볍게 유지한다는 이전 결정과 충돌 |
+| C. RubyGems, crates.io, Go 모듈 | 새 호스트 | RubyGems는 gem 푸시용 Trusted Publishing은 문서화했지만 TrustDex가 검증할 파일별 증명 API는 문서화하지 않음. crates.io와 Go는 여기서 평가하지 않음. 각각 문서화된 인터페이스가 먼저 필요함 |
+
+### 권장안
+
+선택지 A만 진행합니다. 규칙:
+
+- 모든 증명을 고정된 신뢰 루트에 대해 기존 DSSE, Fulcio, CT, Rekor 포함 증명, 체크포인트 검사로 검증합니다. subject 다이제스트는 JSON API의 파일 SHA-256과 같아야 하고, 인증서의 저장소는 묶음의 `publisher.repository`와 같아야 합니다.
+- npm처럼 그 저장소를 프로젝트가 선언한 소스 URL과 비교합니다. 없음, 불일치, 확인 불가 결과는 npm과 마찬가지로 `trust-source`가 거부합니다.
+- 이전 릴리스와 다른 publisher는 새 신호(`pypi-publisher-changed`)가 되고, 증명이 있던 프로젝트의 새 릴리스에 증명이 없으면 `provenance-dropped`입니다. 둘 다 등록을 막습니다.
+- 처음에는 `GitHub` publisher만 받습니다. 다른 publisher 종류는 인증서 신원을 테스트하기 전까지 실패로 처리합니다.
+- sdist와 wheel은 각각 별도의 파일과 provenance를 가집니다. 명령은 정확한 버전을 받아 그 릴리스의 모든 파일을 검증하고, 하나라도 실패하면 실패합니다.
+
+남은 결정: PyPI만 먼저 할지, 릴리스의 모든 파일을 검증할지 설치 도구가 고를 파일만 검증할지, GitLab·Google Cloud publisher가 필요한지.
+
+## 4. 조직 단위 신뢰 저장소
+
+> 상태: 보류. 관리자가 2026-11-22에 이 항목을 미루기로 결정했으며 구현된 것은 없습니다.
+
+### 현재
+
+신뢰 저장소는 클레임을 담은 로컬 JSON 파일입니다. 팀이 저장소에 커밋할 수는 있지만, 누가 클레임을 썼는지 증명하지 못하고, 오래된 사본으로 바꿔치기할 수 있으며, 개발자는 검토된 저장소와 수정된 저장소를 구별할 수 없습니다. 검토 키는 이미 있습니다. 신뢰 기록은 Ed25519로 서명되고, 키셋([RUNTIME_EVIDENCE.ko.md](RUNTIME_EVIDENCE.ko.md))이 허용 키를 용도, 유효 기간, 폐기와 함께 나열합니다.
+
+### 목표
+
+조직이 저장소 하나를 게시하면 모든 개발자 기기와 CI 작업이 오프라인으로 검증할 수 있고, 노트북 한 대의 침해, 악성 PR, 오래된 사본으로는 신뢰 범위를 넓힐 수 없어야 합니다.
+
+### 제안
+
+- **서명된 문서.** 새 종류 `trustdex-org-trust-store`가 기존 클레임을 `organization`, `sequence`(증가만 하는 정수), `issuedAt`, `expiresAt`와 함께 감싸고, TrustDex가 신뢰 기록에 이미 쓰는 정규화 JSON에 Ed25519로 서명합니다.
+- **키 정책.** 검증에는 `review`, `runtime-producer`와 구별되는 새 용도 `trust-store`를 가진 키셋을 씁니다. 선택적으로 임계값(예: 키 3개 중 2개)을 두어 키 하나를 도난당해도 저장소를 게시할 수 없게 합니다.
+- **롤백과 동결 방지.** TrustDex는 받아들인 가장 높은 `sequence`를 상태 디렉터리에 저장하고 더 낮은 값을 거부합니다. 만료된 저장소는 건너뛰지 않고 거부해, 오래된 저장소가 옛 신뢰를 유지하지 못하게 합니다.
+- **로컬 계층.** 개발자의 로컬 저장소는 같은 대상에 대한 조직 클레임을 대체할 수 없습니다. 조직이 다루지 않는 대상의 로컬 클레임은 쓸 수 있지만 로컬로 표시되어, 정책으로 조직 클레임만 요구할 수 있습니다. 어느 저장소도 기능 BLOCK을 뒤집지 못합니다.
+- **배포.** 새 네트워크 코드는 없습니다. 조직이 자체 도구(저장소, MDM, CI 산출물)로 서명된 파일을 전달하고, TrustDex는 `--org-trust-store <file> --keyset <file>`로 읽습니다.
+- **출력.** 판정에는 저장소의 조직, sequence, 키 ID만 기록하고 클레임 증거 URL은 남기지 않습니다.
+
+### 채택하지 않은 대안
+
+- 검사 시점에 URL에서 저장소 가져오기: 네트워크 접근과 침해 대상 서버가 늘어납니다.
+- 저장소에 커밋된 신뢰 저장소를 서명 없이 신뢰하기: 병합된 PR 하나로 신뢰 범위를 넓힐 수 있게 됩니다.
+- `review` 키 재사용: 설정 검토에 서명하는 키가 조직 신뢰까지 다시 쓸 수 있게 됩니다.
+
+남은 결정: 조직 거부 항목을 추가할지(지금 클레임에는 `verified` 상태만 있음), 처음부터 임계값 서명을 요구할지, 요구할 기본 유효 기간(`expiresAt`), 깨끗한 기기에서 시작하는 CI 러너에서 받아들인 `sequence`를 어디에 저장할지.
+
