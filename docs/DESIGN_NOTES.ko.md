@@ -37,7 +37,7 @@
 
 ## 2. 런타임 어댑터
 
-> 상태: 변환기 하나가 있습니다. `inventory-claude-init`은 사용자가 Claude Code의 문서화된 스트림 출력에서 캡처한 `system/init` 이벤트를 인벤토리로 바꿉니다([RUNTIME_EVIDENCE.ko.md](RUNTIME_EVIDENCE.ko.md) 참고). 파일만 읽고 스스로 아무것도 관찰하지 않으므로 아래 제약은 그대로입니다. Codex용은 제공하지 않습니다. 문서화된 기계 판독형 Codex 세션 인벤토리를 찾지 못했기 때문입니다.
+> 상태: 변환기 두 개가 있습니다. `inventory-claude-init`은 사용자가 Claude Code의 문서화된 스트림 출력에서 캡처한 `system/init` 이벤트를 인벤토리로 바꾸고, `inventory-codex-mcp-status`는 문서화된 `codex app-server` 프로토콜의 `mcpServerStatus/list` 응답을 같은 방식으로 바꿉니다([RUNTIME_EVIDENCE.ko.md](RUNTIME_EVIDENCE.ko.md) 참고). 둘 다 파일만 읽고 스스로 아무것도 관찰하지 않으므로 아래 제약은 그대로입니다. Gemini CLI(`init` 스트림 이벤트에는 세션 ID와 모델만 있고, `gemini mcp list`는 사람이 읽는 텍스트)와 Devin은 기계 판독형 세션 인벤토리를 문서화하지 않으므로 제공하지 않습니다.
 
 ### 현재
 

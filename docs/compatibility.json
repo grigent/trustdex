@@ -127,6 +127,7 @@
       "id": "runtime-evidence",
       "commands": [
         "inventory-claude-init",
+        "inventory-codex-mcp-status",
         "snapshot-runtime-tools",
         "diff-runtime-tools",
         "sign-runtime-inventory",
@@ -134,6 +135,7 @@
       ],
       "tests": [
         "claude-runtime-inventory.test.mjs",
+        "codex-runtime-inventory.test.mjs",
         "runtime-evidence.test.mjs",
         "runtime-attestation.test.mjs",
         "keyset.test.mjs"

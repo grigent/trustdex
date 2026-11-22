@@ -214,3 +214,38 @@ TrustDex는 파일만 읽습니다. Claude를 실행하거나, 세션 상태를 
 테스트하지는 않습니다. 출처:
 [headless 출력](https://code.claude.com/docs/en/headless),
 [`SDKSystemMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage).
+
+## 문서화된 MCP 상태 목록으로 Codex 인벤토리 만들기
+
+`codex app-server`는 스레드의 MCP 서버와 도구를 돌려주는 `mcpServerStatus/list` 요청을
+문서화하고 있습니다. 사용자의 클라이언트가 그 응답을 캡처하면 TrustDex가 값 없는
+인벤토리로 변환합니다. 확인하려는 세션의 `threadId`로 요청을 보내고, `nextCursor`가
+`null`이 될 때까지 이어서 요청한 뒤, 모든 응답을 한 줄에 JSON 문서 하나씩 저장하세요.
+
+```bash
+node ./bin/trustdex.mjs inventory-codex-mcp-status ./codex-mcp-status.jsonl \
+  --out ./runtime-tool-inventory.json
+```
+
+TrustDex는 파일만 읽습니다. Codex를 실행하거나, app-server 프로토콜로 통신하거나, MCP
+서버에 접속하지 않습니다. 인벤토리에는 서버 이름과 서버별 도구 개수만 남고, 도구 이름과
+스키마, 오리진, 플러그인 식별자, 리소스, 상태 문구는 버립니다. `capturedAt`은 변환
+시각이므로 캡처 직후에 변환하고 서명하세요.
+
+다음 경우에는 추측하지 않고 입력을 거부합니다. 문서가 `mcpServerStatus/list` 응답이 아닐
+때, 페이지가 빠졌거나 순서가 틀릴 때(마지막 페이지만 `nextCursor`가 없어야 함), 서버에
+`runtimeStatus`가 없거나 `notStarted`, `starting`, 또는 TrustDex가 모르는 상태일 때,
+`connected` 서버의 도구 탐색이 실패했을 때(`toolsError`), 같은 서버 이름이 두 번 나올
+때입니다. `failed`, `cancelled`, `disabled`, `authenticationRequired` 서버는 유지되므로,
+설정된 차단 대상 소스는 여전히 결과를 차단합니다. 플러그인·앱 서버처럼 Codex가 스스로
+추가한 서버도 응답에 들어 있으며, `config.toml` 바인딩에 없는 서버로 나타납니다.
+
+한계: 파일은 그것을 만든 주체만큼만 신뢰할 수 있습니다. 공개된 응답 스키마의 픽스처로
+테스트하며 Codex 릴리스로 테스트하지는 않습니다. 출처:
+[Codex app-server](https://developers.openai.com/codex/app-server),
+[`ListMcpServerStatusResponse` 스키마](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ListMcpServerStatusResponse.json).
+
+Gemini CLI와 Devin용 변환기는 없습니다. Gemini CLI의 문서화된 `init` 스트림 이벤트에는
+세션 ID와 모델만 있고 `gemini mcp list`는 사람이 읽는 텍스트를 출력합니다. Devin은 세션의
+MCP 서버·도구 내보내기를 문서화하지 않습니다. 문서화되지 않은 출력을 해석하는 변환기는
+추측에 의존하게 되므로 제공하지 않습니다.

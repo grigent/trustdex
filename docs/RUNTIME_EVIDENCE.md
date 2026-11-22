@@ -229,3 +229,40 @@ in `mcp_servers` and so not in the inventory. This is tested against the documen
 shape with fixtures, not against Claude Code releases. Sources:
 [headless output](https://code.claude.com/docs/en/headless) and
 [`SDKSystemMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage).
+
+## Build a Codex inventory from the documented MCP status list
+
+`codex app-server` documents an `mcpServerStatus/list` request that returns the MCP
+servers of a thread with their tools. If your own client captures the responses, TrustDex
+can turn them into the value-free inventory. Send the request with the `threadId` of the
+session you are checking, follow `nextCursor` until it is `null`, and save every response,
+one JSON document per line:
+
+```bash
+node ./bin/trustdex.mjs inventory-codex-mcp-status ./codex-mcp-status.jsonl \
+  --out ./runtime-tool-inventory.json
+```
+
+TrustDex only reads the file. It does not start Codex, speak the app-server protocol, or
+contact MCP servers. The inventory keeps server names and per-server tool counts; tool
+names and schemas, origins, plugin identifiers, resources, and status text are dropped.
+`capturedAt` is the time of the conversion, so convert and sign right after capturing.
+
+The command refuses the input instead of guessing when: a document is not an
+`mcpServerStatus/list` response; a page is missing or out of order (only the last page may
+lack `nextCursor`); a server has no `runtimeStatus`, or is `notStarted`, `starting`, or in
+a status TrustDex does not know; tool discovery failed (`toolsError`) for a `connected`
+server; or the same server name appears twice. A server that is `failed`, `cancelled`,
+`disabled`, or `authenticationRequired` is kept, so a blocked source that is configured
+still blocks the result. Servers that Codex adds itself, such as plugin or app servers,
+are in the response and appear as servers your `config.toml` bindings do not cover.
+
+Limits: the file is as trustworthy as whoever produced it. This is tested against the
+published response schema with fixtures, not against Codex releases. Sources:
+[Codex app-server](https://developers.openai.com/codex/app-server) and the
+[`ListMcpServerStatusResponse` schema](https://github.com/openai/codex/blob/main/codex-rs/app-server-protocol/schema/json/v2/ListMcpServerStatusResponse.json).
+
+Gemini CLI and Devin have no converter. Gemini CLI's documented `init` stream event carries
+the session id and model only, and `gemini mcp list` prints text for people; Devin
+documents no export of a session's MCP servers and tools. A converter that parsed
+undocumented output would guess, so none is shipped.

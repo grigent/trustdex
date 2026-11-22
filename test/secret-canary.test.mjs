@@ -246,6 +246,30 @@ test('no command prints or stores a planted value', () => {
   const badInitArgs = ['inventory-claude-init', badInit, '--out', o('claude-inventory-bad.json')];
   assertNoLeak(badInitArgs, run(badInitArgs));
 
+  // Codex mcpServerStatus/list capture: tool names, origins, and other fields must not reach the inventory.
+  const codexServer = (extra = {}) => ({
+    name: 'reviewed', runtimeStatus: 'connected', pluginId: canary(), httpOrigin: `https://${canary()}.example.invalid`,
+    serverInfo: { name: canary(), version: canary() }, serverCapabilities: { [canary()]: {} }, toolListMeta: { token: canary() },
+    tools: { [canary()]: { name: canary(), description: canary(), inputSchema: { default: canary() } } }, toolsError: null,
+    resources: [{ uri: `file:///${canary()}` }], resourceTemplates: [], authStatus: 'bearerToken', environmentId: canary(), ...extra
+  });
+  const codexStatus = write('in/codex-status.json', JSON.stringify({ id: canary(), result: { data: [codexServer()], nextCursor: null } }));
+  const codexStatusArgs = ['inventory-codex-mcp-status', codexStatus, '--out', o('codex-inventory.json')];
+  const codexStatusResult = run(codexStatusArgs);
+  assert.equal(codexStatusResult.status, 0, codexStatusResult.stderr);
+  assertNoLeak(codexStatusArgs, codexStatusResult);
+  for (const [name, bad] of Object.entries({
+    status: { data: [codexServer({ runtimeStatus: canary() })] },
+    error: { data: [codexServer({ toolsError: canary() })] },
+    cursor: { data: [codexServer()], nextCursor: canary() },
+    shape: { [canary()]: canary() }
+  })) {
+    const badArgs = ['inventory-codex-mcp-status', write(`in/codex-status-${name}.json`, JSON.stringify(bad)), '--out', o(`codex-inventory-${name}.json`)];
+    const badResult = run(badArgs);
+    assert.notEqual(badResult.status, 0);
+    assertNoLeak(badArgs, badResult);
+  }
+
   // Changed-state paths: recheck after the reviewed input changes prints source drift.
   const changedApprovable = { mcpServers: {
     remote: { url: `https://mcp.example.invalid/other?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },

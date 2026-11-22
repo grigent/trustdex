@@ -37,7 +37,7 @@ Open decisions: who refreshes the pinned root and how a refresh is reviewed; whe
 
 ## 2. Runtime adapters
 
-> Status: one converter exists. `inventory-claude-init` turns a `system/init` event that the user captured from Claude Code's documented stream output into the inventory; see [RUNTIME_EVIDENCE.md](RUNTIME_EVIDENCE.md). It reads a file and observes nothing itself, so the constraint below still holds. No Codex equivalent is shipped: no documented, machine-readable Codex session inventory was found.
+> Status: two converters exist. `inventory-claude-init` turns a `system/init` event that the user captured from Claude Code's documented stream output into the inventory, and `inventory-codex-mcp-status` does the same for captured responses to the `mcpServerStatus/list` request of the documented `codex app-server` protocol; see [RUNTIME_EVIDENCE.md](RUNTIME_EVIDENCE.md). Both read a file and observe nothing themselves, so the constraint below still holds. Gemini CLI (`init` stream event: session id and model only; `gemini mcp list`: text for people) and Devin document no machine-readable session inventory, so none is shipped for them.
 
 ### Today
 

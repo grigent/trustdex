@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `inventory-codex-mcp-status`: convert responses to `mcpServerStatus/list`, captured from the documented `codex app-server` protocol, into a value-free runtime tool inventory (server names and tool counts only). TrustDex reads the file you pass; it does not start Codex or contact MCP servers. The capture is refused when a page is missing, a server has no settled thread status, tool discovery failed for a connected server, or a server name appears twice.
+
 ## 0.18.0 - 2026-11-22
 
 - `inventory-claude-init`: convert a `system/init` event captured from Claude Code's documented `--output-format stream-json` into a value-free runtime tool inventory (server names and tool counts only). TrustDex only reads the file; it does not start Claude or contact MCP servers. A pending server, an unknown status, or an MCP tool that does not belong to exactly one listed server is refused
