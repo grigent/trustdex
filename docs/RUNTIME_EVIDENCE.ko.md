@@ -182,3 +182,35 @@ TrustDex는 키셋 자체에 서명하지 않습니다.
 [`runtime-tool-inventory-attestation-v1.schema.json`](../schemas/runtime-tool-inventory-attestation-v1.schema.json),
 [`effective-runtime-tools-v2.schema.json`](../schemas/effective-runtime-tools-v2.schema.json),
 [`effective-runtime-tools-diff-v2.schema.json`](../schemas/effective-runtime-tools-diff-v2.schema.json)에 정의되어 있습니다.
+
+## 문서화된 init 이벤트로 Claude 인벤토리 만들기
+
+Claude Code는 `--output-format stream-json`의 일부로 `system/init` 이벤트를 문서화하고
+있으며, 이 이벤트에는 세션의 MCP 서버와 도구 목록이 들어 있습니다. 이 스트림을 직접
+캡처하면 TrustDex가 값 없는 인벤토리로 변환합니다.
+
+```bash
+claude -p "ok" --output-format stream-json --verbose \
+  --strict-mcp-config --mcp-config ./.trustdex/claude-mcp.json > ./claude-stream.jsonl
+
+node ./bin/trustdex.mjs inventory-claude-init ./claude-stream.jsonl \
+  --out ./runtime-tool-inventory.json
+```
+
+TrustDex는 파일만 읽습니다. Claude를 실행하거나, 세션 상태를 읽거나, MCP 서버에 접속하지
+않습니다. 인벤토리에는 서버 이름과 서버별 도구 개수만 남고, 도구 이름·경로·모델·세션
+식별자는 버립니다. 이벤트에 시각이 없으므로 `capturedAt`은 변환 시각입니다. 캡처 직후에
+변환하고 서명하세요.
+
+다음 경우에는 추측하지 않고 입력을 거부합니다. `system/init` 이벤트가 정확히 하나가
+아닐 때, 서버가 아직 `pending`이거나 TrustDex가 모르는 상태일 때, 두 서버 이름이 같은
+도구 접두사로 바뀔 때, `mcp__` 도구가 나열된 서버 중 정확히 하나에 속하지 않을 때입니다.
+`failed`, `needs-auth`, `disabled`로 표시된 서버는 이벤트에 보이는 도구 수와 함께
+유지되므로, 설정된 차단 대상 소스는 여전히 결과를 차단합니다.
+
+한계: 스트림 파일은 그것을 만든 주체만큼만 신뢰할 수 있고, 이벤트는 시작 시점의 세션을
+알려줍니다. 설정 검증에서 건너뛴 서버(`mcp_server_errors`)는 `mcp_servers`에 없으므로
+인벤토리에도 없습니다. 문서화된 이벤트 형태의 픽스처로 테스트하며 Claude Code 릴리스로
+테스트하지는 않습니다. 출처:
+[headless 출력](https://code.claude.com/docs/en/headless),
+[`SDKSystemMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage).

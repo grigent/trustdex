@@ -35,6 +35,8 @@
 
 ## 2. 런타임 어댑터
 
+> 상태: 변환기 하나가 있습니다. `inventory-claude-init`은 사용자가 Claude Code의 문서화된 스트림 출력에서 캡처한 `system/init` 이벤트를 인벤토리로 바꿉니다([RUNTIME_EVIDENCE.ko.md](RUNTIME_EVIDENCE.ko.md) 참고). 파일만 읽고 스스로 아무것도 관찰하지 않으므로 아래 제약은 그대로입니다. Codex용은 제공하지 않습니다. 문서화된 기계 판독형 Codex 세션 인벤토리를 찾지 못했기 때문입니다.
+
 ### 현재
 
 런타임 증거는 사용자가 제공합니다. TrustDex는 `claude`, `codex` 런타임에 대해 값이 없는 인벤토리(`agent-runtime-tool-inventory`, 서버 이름과 도구 수)를 받고, 생성자 키로 서명되어 있으면 그것을 확인한 뒤, 검토된 설정과 대조합니다. TrustDex는 MCP 서버를 시작하지 않고, 에이전트를 호출하지 않으며, 세션 파일을 읽지 않습니다.

@@ -6,6 +6,7 @@
 
 ## 미출시
 
+- `inventory-claude-init`: Claude Code의 문서화된 `--output-format stream-json`에서 캡처한 `system/init` 이벤트를 값 없는 런타임 도구 인벤토리(서버 이름과 도구 개수만)로 변환합니다. TrustDex는 파일만 읽으며 Claude를 실행하거나 MCP 서버에 접속하지 않습니다. 연결 대기 중인 서버, 알 수 없는 상태, 나열된 서버 중 정확히 하나에 속하지 않는 MCP 도구는 거부합니다
 - 스킬 파일: 와일드카드 도구 범위가 YAML 블록 목록, 여러 줄 플로 목록, BOM이나 빈 줄 뒤, 다른 대소문자, 뒤따르는 주석, 반복된 키, `Bash(*)` 같은 제한 없는 지정자로 쓰여도 보고합니다. TrustDex가 해석하지 못하는 문법의 도구 범위는 좁다고 읽지 않고 `uninspected-tool-scope`(ASK)를 추가합니다
 - 스킬 파일: 더 많은 내려받아 실행 형태(`| zsh`, `| python`, `| iex`, `bash <(...)`, `bash -c "$(...)"`), 패키지 러너, 자격 증명 위치(`$HOME/.ssh`, `~/.gnupg`, `~/.kube`, `~/.npmrc` 등)가 기존 지시문 신호를 올립니다. 여전히 텍스트 휴리스틱입니다
 - 플러그인 매니페스트: 훅, MCP 서버, LSP 서버, 스크립트를 선언하면 `plugin-executable-components`(ASK)를 추가합니다. `permissions.allow: ["Bash(*)"]` 같은 중첩 와일드카드 권한을 보고하고, 64단계보다 깊게 중첩된 매니페스트는 거부합니다

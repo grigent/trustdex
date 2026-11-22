@@ -195,3 +195,37 @@ The contracts are defined by
 [`effective-runtime-tools-v2.schema.json`](../schemas/effective-runtime-tools-v2.schema.json),
 and [`effective-runtime-tools-diff-v2.schema.json`](../schemas/effective-runtime-tools-diff-v2.schema.json).
 
+
+## Build a Claude inventory from the documented init event
+
+Claude Code documents a `system/init` event as part of `--output-format stream-json`. It
+lists the session's MCP servers and tools. If you capture that stream yourself, TrustDex
+can turn it into the value-free inventory:
+
+```bash
+claude -p "ok" --output-format stream-json --verbose \
+  --strict-mcp-config --mcp-config ./.trustdex/claude-mcp.json > ./claude-stream.jsonl
+
+node ./bin/trustdex.mjs inventory-claude-init ./claude-stream.jsonl \
+  --out ./runtime-tool-inventory.json
+```
+
+TrustDex only reads the file. It does not start Claude, read session state, or contact MCP
+servers. The inventory keeps server names and per-server tool counts; tool names, paths,
+the model, and the session identifier are dropped. `capturedAt` is the time of the
+conversion, because the event carries no timestamp, so convert and sign right after
+capturing.
+
+The command refuses the input instead of guessing when: there is not exactly one
+`system/init` event; a server is still `pending` or has a status TrustDex does not know;
+two server names map to the same tool prefix; or an `mcp__` tool does not belong to
+exactly one listed server. A server listed as `failed`, `needs-auth`, or `disabled` is kept
+with the tools the event shows for it, so a blocked source that is configured still
+blocks the result.
+
+Limits: the stream file is as trustworthy as whoever produced it, and the event reports
+the session at startup. Servers skipped by config validation (`mcp_server_errors`) are not
+in `mcp_servers` and so not in the inventory. This is tested against the documented event
+shape with fixtures, not against Claude Code releases. Sources:
+[headless output](https://code.claude.com/docs/en/headless) and
+[`SDKSystemMessage`](https://code.claude.com/docs/en/agent-sdk/typescript#sdksystemmessage).

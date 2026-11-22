@@ -35,6 +35,8 @@ Open decisions: who refreshes the pinned root and how a refresh is reviewed; whe
 
 ## 2. Runtime adapters
 
+> Status: one converter exists. `inventory-claude-init` turns a `system/init` event that the user captured from Claude Code's documented stream output into the inventory; see [RUNTIME_EVIDENCE.md](RUNTIME_EVIDENCE.md). It reads a file and observes nothing itself, so the constraint below still holds. No Codex equivalent is shipped: no documented, machine-readable Codex session inventory was found.
+
 ### Today
 
 Runtime evidence is supplied by the user. TrustDex accepts a value-free inventory (`agent-runtime-tool-inventory`, server names and tool counts) for the runtimes `claude` and `codex`, optionally signed by a producer key, and reconciles it with the reviewed configuration. TrustDex does not start MCP servers, call an agent, or read session files.

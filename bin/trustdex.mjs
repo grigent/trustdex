@@ -47,6 +47,7 @@ import {
   createEffectiveRuntimeEvidence,
   diffEffectiveRuntimeEvidence
 } from '../src/runtime-evidence.mjs';
+import { claudeInitToRuntimeInventory } from '../src/claude-runtime-inventory.mjs';
 import {
   createRuntimeInventoryAttestation,
   verifyRuntimeInventoryAttestation
@@ -145,6 +146,7 @@ Usage:
   trustdex snapshot-codex-bindings <config.toml> --out bindings.json
       [--trust-store trust-store.json] [--pack ...]
   trustdex diff-bindings <before.json> <after.json> [--json]
+  trustdex inventory-claude-init <stream.jsonl> --out inventory.json
   trustdex snapshot-runtime-tools <bindings.json> <inventory.json> --out runtime.json
       [--attestation attestation.json (--public key.pem | --keyset keyset.json)]
       [--max-age-seconds n]
@@ -830,6 +832,19 @@ async function main() {
     });
     await writeFileSafe(out, `${JSON.stringify(snapshot, null, 2)}\n`);
     console.log(`Wrote ${out}\nStatus: ${snapshot.status}\nDigest: ${snapshot.digest}`);
+    return;
+  }
+
+  if (command === 'inventory-claude-init') {
+    const streamPath = args[1];
+    const out = getFlag(args, '--out');
+    if (!streamPath || !out) {
+      throw new Error('inventory-claude-init requires <stream.jsonl> and --out <inventory.json>.');
+    }
+    const inventory = claudeInitToRuntimeInventory(await fs.readFile(streamPath, 'utf8'));
+    await writeFileSafe(out, `${JSON.stringify(inventory, null, 2)}\n`);
+    const toolCount = inventory.servers.reduce((total, server) => total + server.toolCount, 0);
+    console.log(`Wrote ${out}\nServers: ${inventory.servers.length}\nMCP tools: ${toolCount}`);
     return;
   }
 
