@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.18.0 - 2026-11-22
+
 - `inventory-claude-init`: convert a `system/init` event captured from Claude Code's documented `--output-format stream-json` into a value-free runtime tool inventory (server names and tool counts only). TrustDex only reads the file; it does not start Claude or contact MCP servers. A pending server, an unknown status, or an MCP tool that does not belong to exactly one listed server is refused
 - `provenance npm` and `trust-source npm` verify the Sigstore bundle of npm build provenance offline, with Node's built-in crypto and a pinned trust root (no new dependency or request). A match now requires a valid DSSE signature, a certificate that chains to the pinned Fulcio root and names the same GitHub repository, and a Rekor entry for that envelope with a valid signed timestamp; otherwise the release is `unverifiable` and `trust-source` refuses it. Not checked: SCT, Merkle inclusion proof, RFC 3161 timestamps, trust-root rotation
 - skill files: a wildcard tool scope is reported when it is written as a YAML block list, a multi-line flow list, after a byte-order mark or leading blank lines, with a different letter case, with a trailing comment, in a repeated key, or as an unrestricted specifier such as `Bash(*)`. A tool scope in syntax TrustDex does not parse adds `uninspected-tool-scope` (ASK) instead of being read as narrow
