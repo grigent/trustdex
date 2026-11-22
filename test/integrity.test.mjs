@@ -225,7 +225,7 @@ test('npm build provenance must come from the repository the package declares', 
     source: 'npm-registry-attestation', version: '2.0.0', sourceRepository: 'example/agent',
     workflowPath: '.github/workflows/publish.yml', signatureVerified: false
   });
-  parseTrustStore({ version: 1, claims: [claim] });
+  assert.deepEqual(parseTrustStore({ version: 1, claims: [claim] }).claims[0].evidence.buildProvenance, claim.evidence.buildProvenance);
 
   const refused = [
     [packument('attacker/agent', 'example/agent'), statement('https://github.com/attacker/agent'), 'mismatch'],
