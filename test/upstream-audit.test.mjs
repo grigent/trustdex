@@ -33,6 +33,8 @@ test('skill hooks and injected shell commands block even when local skills are a
     assert.equal(action(record), 'block', body);
   }
   assert.deepEqual(skill('---\nname: x\ndescription: Explains React hooks: state and effects\n---\nbody\n').signals, []);
+  assert.deepEqual(skill('---\nname: x\ndescription: Fast, *safe* and small\n---\nbody\n').signals, []);
+  assert.deepEqual(skill('---\nname: x\ndescription:\n  **Bold** start of a long description\n---\nbody\n').signals, []);
   assert.deepEqual(skill('---\nname: x\n---\nUse hooks: carefully. Say hi!\n```js\nx\n```\n').signals, []);
 });
 
