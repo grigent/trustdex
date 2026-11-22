@@ -51,7 +51,7 @@ BLOCK command:download-to-interpreter
 | `pipe-to-shell` | BLOCK | 내려받은 내용을 검토 없이 셸이나 해석기로 실행 |
 | `package-not-found` | BLOCK | 저장소에 그 이름의 패키지가 없음(오타, 지어낸 이름, 삭제된 패키지) |
 | `invalid-registry-metadata` | BLOCK | 이름 불일치, 게시 취소, npm SRI 무결성 없음, SHA-256 없는 PyPI 파일 |
-| `known-malicious-release` | BLOCK | 요청했거나 확인된 PyPI 버전이 내장 권고에서 악성으로 확인됨 |
+| `known-malicious-release` | BLOCK | 요청했거나 확인된 npm 또는 PyPI 버전이 내장 권고에서 악성으로 확인됨 |
 | `recent-release` | ASK | 설치될 버전이 `minReleaseAgeHours`(기본 48시간)보다 새로움. 탈취된 릴리스는 보통 이 기간 안에 발견되어 내려감 |
 | `new-package` | ASK | 패키지 자체가 `minPackageAgeDays`(기본 30일)보다 새로움 |
 | `install-scripts` | ASK | npm 버전에 `preinstall`/`install`/`postinstall` 스크립트나 네이티브 빌드(`gypfile`)가 있음 |
@@ -68,7 +68,17 @@ BLOCK command:download-to-interpreter
 
 TrustDex는 이름이 명시된 PyPI 패키지의 버전이 정확히 지정되었거나 PyPI 메타데이터에서 확인되면 내장 권고와 대조합니다. 버전이 정확히 지정된 명령은 사용자 지정 인덱스를 쓰더라도 오프라인으로 검사하고, 해당 버전은 이전 버전 추천에서 제외합니다. 패키지 내용, 로컬 파일, 전이 의존성은 권고 검사 범위 밖입니다.
 
-내장 권고는 `agent-framework`의 `1.26.1`, `1.26.2`에 적용됩니다. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
+내장 권고가 다루는 릴리스:
+
+| 패키지 | 버전 | 출처 |
+|---|---|---|
+| PyPI `agent-framework` | `1.26.1`, `1.26.2` | [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73) |
+| npm `vant` | `2.13.3`–`2.13.5`, `3.6.13`–`3.6.15`, `4.9.11`–`4.9.14` | [메인테이너 공지](https://github.com/youzan/vant/discussions/13273) |
+| npm `@wppconnect-team/wppconnect` | `2.4.1` | [GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9) |
+| npm `@wppconnect/server` | `2.10.82` | [메인테이너가 확인한 보고](https://github.com/wppconnect-team/wppconnect-server/issues/2734) |
+| npm `qrcode-reader-vue3` | `3.1.4` | [GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh) |
+
+이 목록은 기존 정상 패키지가 탈취돼 올라간 릴리스를 다룹니다. 처음부터 악성인 패키지는 보통 `package-not-found`, `new-package`, `similar-to-popular`로 걸립니다.
 
 ALLOW는 설정한 신호가 하나도 걸리지 않았다는 뜻입니다. `ignore-scripts`, 잠금 파일, 샌드박스와 함께 쓰세요.
 

@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- 탈취된 npm 릴리스를 `known-malicious-release`로 차단: `vant` 2.13.3–2.13.5, 3.6.13–3.6.15, 4.9.11–4.9.14 ([메인테이너 공지](https://github.com/youzan/vant/discussions/13273)), `@wppconnect-team/wppconnect` 2.4.1 ([GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9)), `@wppconnect/server` 2.10.82 ([메인테이너가 확인한 보고](https://github.com/wppconnect-team/wppconnect-server/issues/2734)), `qrcode-reader-vue3` 3.1.4 ([GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh)). 정확히 고정한 버전은 오프라인으로 검사하고, 해석된 버전도 차단하며, 대체 버전으로 추천하지 않습니다
+
 ## 0.17.1 - 2026-11-21
 
 - PyPI `agent-framework`의 `1.26.1`, `1.26.2`를 차단합니다. 버전을 정확히 지정한 명령은 오프라인으로 검사하고, 이전에 승인된 명령도 Claude Code 훅이 거부합니다. [GHSA-764m-3ppc-5m73](https://github.com/advisories/GHSA-764m-3ppc-5m73)
