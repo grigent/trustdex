@@ -169,7 +169,7 @@ const SLSA_V02 = 'https://slsa.dev/provenance/v0.2';
 export function githubRepositorySlug(value) {
   const raw = typeof value === 'string' ? value : value?.url;
   if (typeof raw !== 'string') return null;
-  const text = raw.trim().replace(/^git\+/, '').replace(/\.git$/, '').replace(/\/+$/, '');
+  const text = raw.trim().replace(/^git\+/, '').replace(/\/+$/, '').replace(/\.git$/, '');
   const match = /^(?:github:|(?:https?|git|ssh):\/\/(?:git@)?github\.com\/|git@github\.com:)?([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/.exec(text);
   return match ? `${match[1]}/${match[2]}`.toLowerCase() : null;
 }

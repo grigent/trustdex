@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  githubRepositorySlug,
   inspectNpmPackage,
   inspectMcpRegistryServer,
   provenanceObservationToClaim,
@@ -211,6 +212,11 @@ test('npm build provenance must come from the repository the package declares', 
       ? (attestation === undefined ? response({}, 404) : response(attestation))
       : response(doc)
   });
+
+  for (const [value, slug] of [
+    ['git+https://github.com/Example/Agent.git/', 'example/agent'], ['github:example/agent', 'example/agent'],
+    ['git@github.com:example/agent.git', 'example/agent'], ['https://gitlab.com/example/agent', null]
+  ]) assert.equal(githubRepositorySlug(value), slug, value);
 
   let observation = await lookup(packument('Example/Agent'), statement('https://github.com/example/agent'));
   assert.equal(observation.evidence.buildProvenance.status, 'matched');
