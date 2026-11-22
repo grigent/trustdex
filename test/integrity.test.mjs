@@ -242,6 +242,7 @@ test('npm build provenance must come from the repository the package declares', 
   }
 
   const untimed = packument('example/agent', 'example/agent', false, true);
+  untimed.versions['0.9.0'] = { ...untimed.versions['1.0.0'], version: '0.9.0' };
   delete untimed.time;
   observation = await lookup(untimed, undefined);
   assert.equal(observation.evidence.buildProvenance.status, 'dropped');

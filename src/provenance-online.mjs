@@ -191,7 +191,7 @@ async function inspectNpmBuildProvenance(data, version, fetchImpl) {
   const earlier = (other) => other !== version && !(Date.parse(data.time?.[other]) >= releasedAt);
   const previous = Object.keys(data.versions)
     .filter(earlier)
-    .sort((a, b) => Date.parse(data.time[b]) - Date.parse(data.time[a]))
+    .sort((a, b) => (Date.parse(data.time?.[b]) || 0) - (Date.parse(data.time?.[a]) || 0))
     .map((other) => githubRepositorySlug(data.versions[other]?.repository))
     .find(Boolean) || null;
   const base = { declaredRepository: declared, previousRepository: previous, signatureVerified: false };
