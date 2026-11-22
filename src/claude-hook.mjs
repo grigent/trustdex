@@ -30,7 +30,7 @@ export const HOOK_TOOLS =['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'Mult
 // exact package version, not the command around it.
 const ITEM_SCOPED_SIGNALS = new Set([
   'recent-release', 'new-package', 'install-scripts', 'source-build', 'publisher-changed',
-  'deprecated', 'yanked', 'similar-to-popular'
+  'provenance-dropped', 'deprecated', 'yanked', 'similar-to-popular'
 ]);
 
 // ASK-level guard findings about routine maintenance that one approval may cover

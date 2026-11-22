@@ -6,6 +6,7 @@
 
 ## 미출시
 
+- `provenance-dropped`(ASK) 추가: 이전 버전은 provenance와 함께 게시됐는데 최근 npm 릴리스에는 없을 때. 프로젝트 CI가 아닌 탈취한 토큰으로 올린 릴리스에서 흔한 모습입니다. 레지스트리가 provenance를 알려주는지만 비교하며 증명 자체는 검증하지 않습니다. 설치 정책 허용 목록으로 끌 수 없습니다
 - 탈취된 npm 릴리스를 `known-malicious-release`로 차단: `vant` 2.13.3–2.13.5, 3.6.13–3.6.15, 4.9.11–4.9.14 ([메인테이너 공지](https://github.com/youzan/vant/discussions/13273)), `@wppconnect-team/wppconnect` 2.4.1 ([GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9)), `@wppconnect/server` 2.10.82 ([메인테이너가 확인한 보고](https://github.com/wppconnect-team/wppconnect-server/issues/2734)), `qrcode-reader-vue3` 3.1.4 ([GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh)). 정확히 고정한 버전은 오프라인으로 검사하고, 해석된 버전도 차단하며, 대체 버전으로 추천하지 않습니다
 
 ## 0.17.1 - 2026-11-21

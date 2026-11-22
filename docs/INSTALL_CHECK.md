@@ -53,6 +53,7 @@ The version that would be installed is resolved the way the installer does for t
 | `install-scripts` | ASK | the npm version has `preinstall`/`install`/`postinstall` scripts or a native build (`gypfile`) |
 | `source-build` | ASK | the PyPI release has no wheel, so installing runs its build code |
 | `publisher-changed` | ASK | a release from the last `minPackageAgeDays` days was published by an npm account that never published an earlier version |
+| `provenance-dropped` | ASK | a release from the last `minPackageAgeDays` days has no npm provenance, although an earlier version had it. Only the presence of the registry's provenance metadata is compared; attestations are not verified |
 | `deprecated` / `yanked` | ASK | the version is deprecated on npm or yanked on PyPI |
 | `similar-to-popular` | ASK | the name is one or two edits away from a widely installed package, the same after removing `-_.`, or a popular name under another scope |
 | `unregistered-source` | ASK | git, URL, or tarball source with no registry metadata |
@@ -95,7 +96,7 @@ Pass it with `--install-policy policy.json`. Unknown keys are rejected.
 
 - `allowPackages` silences only `new-package` and `similar-to-popular` for those packages.
 - `allowInstallScripts` silences only `install-scripts` and `source-build`.
-- Neither list can silence BLOCK signals, `recent-release`, or `publisher-changed`.
+- Neither list can silence BLOCK signals, `recent-release`, `publisher-changed`, or `provenance-dropped`.
 - `manifestInstall: "allow"` treats lockfile and manifest installs as ALLOW (`local-source`). Use it when you trust the projects you work in. Their dependencies are not resolved by TrustDex.
 
 ## Claude Code hook

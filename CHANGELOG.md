@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- add `provenance-dropped` (ASK): a recent npm release without provenance, when an earlier version of the package was published with it. Releases pushed with a stolen token instead of the project's CI often look like this. TrustDex compares only whether the registry reports provenance; it does not verify the attestation. Install-policy allowlists cannot silence it
 - block hijacked npm releases with `known-malicious-release`: `vant` 2.13.3–2.13.5, 3.6.13–3.6.15, 4.9.11–4.9.14 ([maintainer notice](https://github.com/youzan/vant/discussions/13273)), `@wppconnect-team/wppconnect` 2.4.1 ([GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9)), `@wppconnect/server` 2.10.82 ([report confirmed by the maintainers](https://github.com/wppconnect-team/wppconnect-server/issues/2734)), and `qrcode-reader-vue3` 3.1.4 ([GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh)). Exact pins are checked offline, resolved versions are blocked, and affected versions are never suggested as alternatives
 
 ## 0.17.1 - 2026-11-21

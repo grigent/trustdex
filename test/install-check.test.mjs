@@ -287,6 +287,37 @@ test('a first-time publisher on a recent release needs review, old handovers do 
   assert.equal(item.action, 'allow');
 });
 
+test('a recent release without the provenance earlier releases had needs review', async () => {
+  const attested = { integrity: INTEGRITY, attestations: { url: 'https://registry.npmjs.org/-/npm/v1/attestations/x', provenance: { predicateType: 'https://slsa.dev/provenance/v1' } } };
+  const build = (published, latest = {}) => {
+    const doc = npmDoc('attested', { published, history: [['0.9.0', daysAgo(500), 'owner'], ['0.9.1', daysAgo(450), 'owner']] });
+    doc.versions['0.9.1'].dist = { ...attested };
+    doc.versions['1.0.0'].dist = { integrity: INTEGRITY, ...latest };
+    return { [NPM('attested')]: doc };
+  };
+  const policy = { minReleaseAgeHours: 0 };
+  let [item] = await evaluate('npm i attested@1.0.0', build(daysAgo(5)), { policy });
+  assert.deepEqual([item.action, item.signals], ['ask', ['provenance-dropped']]);
+  assert.doesNotMatch(item.reasons.join(' '), /registry\.npmjs\.org|slsa/);
+
+  [item] = await evaluate('npm i attested@1.0.0', build(daysAgo(5)), { policy: { ...policy, allowPackages: ['npm:attested'] } });
+  assert.deepEqual(item.signals, ['provenance-dropped']);
+
+  for (const latest of [{ attestations: {} }, { attestations: { provenance: {} } }, { attestations: { provenance: 'yes' } }]) {
+    [item] = await evaluate('npm i attested@1.0.0', build(daysAgo(5), latest), { policy });
+    assert.deepEqual(item.signals, ['provenance-dropped']);
+  }
+
+  [item] = await evaluate('npm i attested@1.0.0', build(daysAgo(5), { attestations: attested.attestations }), { policy });
+  assert.equal(item.action, 'allow');
+
+  [item] = await evaluate('npm i attested', build(daysAgo(120)));
+  assert.equal(item.action, 'allow');
+
+  [item] = await evaluate('npm i plain@1.0.0', { [NPM('plain')]: npmDoc('plain', { published: daysAgo(5), history: [['0.9.0', daysAgo(500), 'owner']] }) }, { policy });
+  assert.equal(item.action, 'allow');
+});
+
 test('broken or withdrawn registry metadata fails closed', async () => {
   const noIntegrity = npmDoc('broken');
   delete noIntegrity.versions['1.0.0'].dist.integrity;

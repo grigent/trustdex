@@ -7,7 +7,7 @@
 // two fixed public registry hosts. Only the parsed package name is sent.
 //
 // What the checks mean: they compare registry metadata (publish times, install
-// scripts, wheels, publishers, deprecation) with a local policy and check known
+// scripts, wheels, publishers, provenance presence, deprecation) with a local policy and check known
 // malicious npm and PyPI releases against bundled advisories. An ALLOW means no signal fired.
 
 import {
@@ -36,6 +36,7 @@ export const SIGNAL_ACTIONS = Object.freeze({
   'install-scripts': 'ask',
   'source-build': 'ask',
   'publisher-changed': 'ask',
+  'provenance-dropped': 'ask',
   deprecated: 'ask',
   yanked: 'ask',
   'similar-to-popular': 'ask',
@@ -384,10 +385,27 @@ async function checkNpm(item, parsed, context) {
     }
   }
 
+  // Provenance continuity: an established package that published earlier versions
+  // with npm provenance, then a recent version without it, matches releases pushed
+  // with a stolen token instead of the project's CI. Only the presence of the
+  // registry's provenance metadata is compared; attestations are not verified.
+  if (Number.isFinite(releasedAt) && now - releasedAt < policy.minPackageAgeDays * DAY && !hasNpmProvenance(meta)) {
+    const attestedEarlier = Object.keys(doc.versions)
+      .some((other) => other !== version && Date.parse(doc.time?.[other]) < releasedAt && hasNpmProvenance(doc.versions[other]));
+    if (attestedEarlier) {
+      item.signal('provenance-dropped', 'Earlier versions of this package were published with npm provenance, but this version has none.');
+    }
+  }
+
   const similar = similarPopularName('npm', parsed.name);
   if (similar && !policy.allowPackages.includes(ref)) {
     item.signal('similar-to-popular', `Name is one or two characters away from the popular package "${similar}".`);
   }
+}
+
+function hasNpmProvenance(meta) {
+  const provenance = meta?.dist?.attestations?.provenance;
+  return Boolean(provenance && typeof provenance === 'object' && typeof provenance.predicateType === 'string' && provenance.predicateType);
 }
 
 // The newest stable, non-deprecated version published before `cutoff`, within the
