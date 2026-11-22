@@ -229,6 +229,23 @@ test('no command prints or stores a planted value', () => {
   ];
   for (const args of steps) assertNoLeak(args, run(args));
 
+  // Claude init event: tool names, paths, and other fields must not reach the inventory.
+  const initStream = write('in/claude-stream.jsonl', JSON.stringify({
+    type: 'system', subtype: 'init', cwd: `/work/${canary()}`, model: canary(), session_id: canary(), apiKeySource: canary(),
+    tools: ['Read', `mcp__reviewed__${canary()}`, `Bash(${canary()})`],
+    mcp_servers: [{ name: 'reviewed', status: 'connected', source: canary() }],
+    plugins: [{ name: canary(), path: `/plugins/${canary()}` }]
+  }));
+  const initArgs = ['inventory-claude-init', initStream, '--out', o('claude-inventory.json')];
+  const initResult = run(initArgs);
+  assert.equal(initResult.status, 0, initResult.stderr);
+  assertNoLeak(initArgs, initResult);
+  const badInit = write('in/claude-stream-bad.jsonl', JSON.stringify({
+    type: 'system', subtype: 'init', tools: [`mcp__${canary()}__${canary()}`], mcp_servers: [{ name: 'reviewed', status: canary() }]
+  }));
+  const badInitArgs = ['inventory-claude-init', badInit, '--out', o('claude-inventory-bad.json')];
+  assertNoLeak(badInitArgs, run(badInitArgs));
+
   // Changed-state paths: recheck after the reviewed input changes prints source drift.
   const changedApprovable = { mcpServers: {
     remote: { url: `https://mcp.example.invalid/other?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },

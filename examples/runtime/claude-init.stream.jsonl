@@ -1,0 +1,3 @@
+{"type":"system","subtype":"hook_started","hook_name":"SessionStart"}
+{"type":"system","subtype":"init","session_id":"00000000-0000-4000-8000-000000000000","claude_code_version":"0.0.0-example","cwd":"/workspace/example","model":"example-model","permissionMode":"default","tools":["Read","Bash","mcp__reviewed__search","mcp__reviewed__fetch","mcp__plugin_example-plugin_docs__lookup"],"mcp_servers":[{"name":"reviewed","status":"connected"},{"name":"plugin:example-plugin:docs","status":"connected"},{"name":"offline","status":"failed"}]}
+{"type":"result","subtype":"success","is_error":false}

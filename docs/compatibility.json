@@ -126,12 +126,14 @@
     {
       "id": "runtime-evidence",
       "commands": [
+        "inventory-claude-init",
         "snapshot-runtime-tools",
         "diff-runtime-tools",
         "sign-runtime-inventory",
         "verify-runtime-inventory"
       ],
       "tests": [
+        "claude-runtime-inventory.test.mjs",
         "runtime-evidence.test.mjs",
         "runtime-attestation.test.mjs",
         "keyset.test.mjs"
