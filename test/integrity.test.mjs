@@ -238,6 +238,13 @@ test('npm build provenance must come from the repository the package declares', 
     assert.equal(observation.evidence.buildProvenance.signatureVerified, false);
     assert.throws(() => provenanceObservationToClaim(observation, 'Example Publisher'), /Refusing to trust an npm package/);
   }
+  // A bundle whose only failure is a missing inclusion proof gets its own reason.
+  observation = await lookup(packument('example/agent'), statement('https://github.com/example/agent'),
+    () => ({ verified: false, reason: 'log-inclusion-proof-missing' }));
+  assert.equal(observation.evidence.buildProvenance.status, 'unverifiable');
+  assert.equal(observation.evidence.buildProvenance.reason, 'inclusion-proof-missing');
+  assert.equal(observation.evidence.buildProvenance.signatureVerified, false);
+  assert.throws(() => provenanceObservationToClaim(observation, 'Example Publisher'), /Refusing to trust an npm package/);
   // A hand-built "matched" observation without a verified signature is refused too.
   observation = await lookup(packument('example/agent'), statement('https://github.com/example/agent'));
   observation.evidence.buildProvenance.signatureVerified = false;

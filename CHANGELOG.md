@@ -6,6 +6,11 @@
 
 ## Unreleased
 
+- `provenance npm` and `trust-source npm`: a Sigstore bundle whose only failure is a missing Rekor inclusion proof is now `unverifiable` with the reason `inclusion-proof-missing` instead of `signature-not-verified`. The verification policy and the 2024 cutoff for format 0.1 bundles are unchanged. Compatibility: bundles that 0.19.0 reported as `matched` and 0.20.0 refuses, such as the 2024-02-08 provenance of `sigstore@2.2.1` and `@sigstore/sign@2.2.2`, stay refused; see [docs/TRUST_STORE.md](docs/TRUST_STORE.md).
+- `inspect-gemini-settings`: an explicit `tools.sandbox: false` adds `gemini-sandbox-disabled` (at least `ASK`), and `metadata.sandboxSetting` tells an omitted sandbox (`omitted`) from a disabled (`disabled`) or enabled one.
+- `inspect-devin-settings`: `read_config_from` with a provider set to `true` adds `devin-external-config` (`ASK`), because Devin CLI may then import rules, skills, hooks, or MCP servers from that tool's files. Only the number of enabled providers is reported; the imported files are not read. A `read_config_from` that is not an object of booleans now fails closed.
+- Design notes: the deferred PyPI provenance design also requires the Fulcio Build Config URI to match `publisher.workflow` for GitHub Trusted Publishers. Documentation only.
+
 ## 0.20.0 - 2026-11-22
 
 - `inspect-devin-settings`: classify the permission settings of a Devin CLI `config.json` by capability. An auto-approved `Exec` rule, `permission_mode: "dangerous"`, and hooks are `BLOCK`; other `allow` rules, the `accept-edits` and `smart` modes, `local_tools_bypass_permissions`, a legacy `mcpServers` key, and uninspected settings are `ASK`. A config file never reaches ALLOW under any policy, a rule outside the documented forms fails closed, and the report holds only the permission mode, booleans, and counts. See [docs/DEVIN.md](docs/DEVIN.md).

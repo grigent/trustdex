@@ -104,6 +104,7 @@ Settings are classified by capability rather than echoed:
 | any other `tools.allowed` entry | `gemini-auto-approved-tools` | at least `ASK` |
 | `general.defaultApprovalMode` is `auto_edit` | `gemini-auto-edit` | at least `ASK` |
 | `tools.sandboxAllowedPaths` or `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | at least `ASK` |
+| `tools.sandbox` is `false` (turns the sandbox off, even if another layer enables it) | `gemini-sandbox-disabled` | at least `ASK` |
 | `security.enablePermanentToolApproval` or `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | at least `ASK` |
 | `security.folderTrust.enabled` is `false` | `gemini-folder-trust-disabled` | at least `ASK` |
 | `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | at least `ASK` |
@@ -117,7 +118,9 @@ A settings file never reaches ALLOW, whatever the policy says. Restrictive setti
 an unsupported approval mode, and a file that is not plain JSON (including one with
 comments) fail closed.
 
-The report holds the approval mode, booleans, and counts. It does not hold tool names,
+`metadata.sandboxSetting` is `omitted`, `disabled` (explicit `false`), or `enabled` (`true` or
+a sandbox command, which is not reported), so an omitted sandbox is distinguishable from one
+that is turned off. The report holds the approval mode, booleans, and counts. It does not hold tool names,
 commands, paths, hook bodies, extension patterns, variable names, or the names of
 uninspected settings. It therefore has no content fingerprint or signed review record:
 a same-count change inside one category is not detected.

@@ -570,6 +570,9 @@ function describeBuildProvenance(build) {
     case 'mismatch':
       return `built by ${repo(build.sourceRepository)}, but the package declares ${repo(build.declaredRepository)}${build.previousRepository && build.previousRepository !== build.declaredRepository ? ` (earlier versions: ${repo(build.previousRepository)})` : ''}.${refuse}`;
     default:
+      if (build.reason === 'inclusion-proof-missing') {
+        return `could not be checked (inclusion-proof-missing): the Sigstore log entry has no inclusion proof, and only bundles logged before 2024 may omit it. The signature and certificate are not the reported failure.${refuse}`;
+      }
       return `could not be checked (${build.reason || 'unknown'}).${refuse}`;
   }
 }

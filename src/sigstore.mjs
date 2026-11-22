@@ -335,13 +335,16 @@ export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
     // The signed timestamp is a promise to log the entry; the inclusion proof shows it
     // is in the log, under a tree head the log key signed.
     // Only a 2023 bundle in format 0.1 may lack the proof; a proof that is present must
-    // verify whatever the format says.
+    // verify whatever the format says. A missing proof is reported only after every other
+    // check passed, so its reason is not confused with a signature or identity failure.
     const proof = entry.inclusionProof ?? null;
-    let included = proof === null && bundle.mediaType === LEGACY_BUNDLE_WITHOUT_PROOF && time < LEGACY_BUNDLE_CUTOFF;
+    const proofMissing = proof === null &&
+      !(bundle.mediaType === LEGACY_BUNDLE_WITHOUT_PROOF && time < LEGACY_BUNDLE_CUTOFF);
     if (proof !== null) {
+      let included = false;
       try { included = inclusionProven(proof, body, logKey, entry.logId.keyId); } catch { included = false; }
+      if (!included) return fail('log-inclusion');
     }
-    if (!included) return fail('log-inclusion');
 
     // The logged entry must be for this payload, signature, and certificate.
     const logged = JSON.parse(body.toString('utf8'));
@@ -378,6 +381,7 @@ export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
         String(repository).toLowerCase() !== `https://github.com/${String(expected.repository).toLowerCase()}`) {
       return fail('certificate-repository');
     }
+    if (proofMissing) return fail('log-inclusion-proof-missing');
     return { verified: true };
   } catch {
     return fail('malformed-bundle');

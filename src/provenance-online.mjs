@@ -243,7 +243,10 @@ async function inspectNpmBuildProvenance(data, version, fetchImpl, verifyBundle 
   } catch {
     verification = null;
   }
-  if (verification?.verified !== true) return unverifiable('signature-not-verified');
+  if (verification?.verified !== true) {
+    // Everything else verified, but the log entry carries no inclusion proof.
+    return unverifiable(verification?.reason === 'log-inclusion-proof-missing' ? 'inclusion-proof-missing' : 'signature-not-verified');
+  }
   return { status: 'matched', sourceRepository, workflowPath, ...base, signatureVerified: true };
 }
 

@@ -6,6 +6,11 @@
 
 ## 미출시
 
+- `provenance npm`, `trust-source npm`: Rekor 포함 증명이 없다는 것만이 실패 원인인 Sigstore 번들은 이제 `signature-not-verified` 대신 `inclusion-proof-missing` 이유와 함께 `unverifiable`입니다. 검증 정책과 형식 0.1 번들의 2024년 기준은 그대로입니다. 호환성: 0.19.0에서 `matched`였고 0.20.0이 거부하는 번들(예: 2024-02-08에 기록된 `sigstore@2.2.1`, `@sigstore/sign@2.2.2`의 provenance)은 계속 거부됩니다. [docs/TRUST_STORE.ko.md](docs/TRUST_STORE.ko.md) 참고.
+- `inspect-gemini-settings`: `tools.sandbox: false`를 명시하면 `gemini-sandbox-disabled`(최소 `ASK`)를 추가하고, `metadata.sandboxSetting`으로 생략(`omitted`), 꺼짐(`disabled`), 켜짐(`enabled`)을 구분합니다.
+- `inspect-devin-settings`: `read_config_from`에 `true`인 제공자가 있으면 Devin CLI가 그 도구의 파일에서 규칙, 스킬, 훅, MCP 서버를 가져올 수 있으므로 `devin-external-config`(`ASK`)를 추가합니다. 켜진 제공자 개수만 보고하고 가져오는 파일은 읽지 않습니다. 불리언 객체가 아닌 `read_config_from`은 이제 거부합니다.
+- 설계 노트: 보류된 PyPI provenance 설계에서 GitHub Trusted Publisher는 Fulcio Build Config URI도 `publisher.workflow`와 일치해야 합니다. 문서만 바뀝니다.
+
 ## 0.20.0 - 2026-11-22
 
 - `inspect-devin-settings`: Devin CLI `config.json`의 권한 설정을 기능별로 분류합니다. `Exec` 자동 승인 규칙, `permission_mode: "dangerous"`, 훅은 `BLOCK`이고, 그 밖의 `allow` 규칙, `accept-edits`·`smart` 모드, `local_tools_bypass_permissions`, 예전 `mcpServers` 키, 검사하지 않는 설정은 `ASK`입니다. 설정 파일은 어떤 정책에서도 ALLOW가 되지 않고, 문서화된 형식이 아닌 규칙은 거부하며, 보고서에는 권한 모드, 불리언, 개수만 들어갑니다. [docs/DEVIN.ko.md](docs/DEVIN.ko.md)를 참고하세요.

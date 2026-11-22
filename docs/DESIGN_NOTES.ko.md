@@ -81,6 +81,7 @@ PyPI는 PEP 740을 구현하며, 릴리스 파일마다 `GET https://pypi.org/in
 선택지 A만 진행합니다. 규칙:
 
 - 모든 증명을 고정된 신뢰 루트에 대해 기존 DSSE, Fulcio, CT, Rekor 포함 증명, 체크포인트 검사로 검증합니다. subject 다이제스트는 JSON API의 파일 SHA-256과 같아야 하고, 인증서의 저장소는 묶음의 `publisher.repository`와 같아야 합니다.
+- GitHub Trusted Publisher는 저장소만이 아니라 두 신원 필드를 모두 인증서와 대조합니다. 인증서의 Build Config URI([Fulcio OID 1.3.6.1.4.1.57264.1.18](https://github.com/sigstore/fulcio/blob/main/docs/oid-info.md#13614157264118--build-config-uri))가 그 저장소와 `publisher.workflow`의 워크플로 파일을 가리켜야 합니다: `https://github.com/<publisher.repository>/.github/workflows/<publisher.workflow>@<ref>`. 저장소는 대소문자를 구분하지 않고, 워크플로 파일 이름은 정확히 같아야 합니다. 같은 저장소의 다른 워크플로가 받은 인증서나 Build Config URI가 없는 인증서는 실패로 처리합니다. `publisher.environment`가 있으면 기록하지만, Fulcio 인증서에 환경이 들어 있지 않으므로 아직 대조하지 않습니다.
 - npm처럼 그 저장소를 프로젝트가 선언한 소스 URL과 비교합니다. 없음, 불일치, 확인 불가 결과는 npm과 마찬가지로 `trust-source`가 거부합니다.
 - 이전 릴리스와 다른 publisher는 새 신호(`pypi-publisher-changed`)가 되고, 증명이 있던 프로젝트의 새 릴리스에 증명이 없으면 `provenance-dropped`입니다. 둘 다 등록을 막습니다.
 - 처음에는 `GitHub` publisher만 받습니다. 다른 publisher 종류는 인증서 신원을 테스트하기 전까지 실패로 처리합니다.

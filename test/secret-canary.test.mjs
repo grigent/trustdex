@@ -172,6 +172,7 @@ test('no command prints or stores a planted value', () => {
     devinSettings: write('in/devin.config.json', {
       [canary()]: canary(),
       permission_mode: 'smart',
+      read_config_from: { [canary()]: true, claude: false },
       agent: { model: canary() },
       sandbox: { allowed_domains: [canary()] },
       permissions: {

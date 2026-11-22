@@ -110,8 +110,31 @@ test('Devin settings inspection retains no rule scope, name, hook body, or setti
     permissionMode: null, allowRuleCount: 6, askRuleCount: 1, denyRuleCount: 1,
     autoApprovedExecCount: 1, autoApprovedWriteCount: 1, autoApprovedReadCount: 1,
     autoApprovedFetchCount: 1, autoApprovedMcpCount: 2, hookCount: 1, mcpServerCount: 1,
-    localToolsBypassPermissions: false, uninspectedSettingCount: 2
+    localToolsBypassPermissions: false, externalConfigProviderCount: 0, uninspectedSettingCount: 2
   });
+});
+
+test('read_config_from that enables a provider is ASK under every policy, unlike a missing or all-false one', () => {
+  const permissive = { version: 1, unknownAction: 'allow', localAction: 'allow', sensitiveAction: 'allow',
+    unpinnedAction: 'allow', shellAction: 'allow', verifiedPublisherAction: 'allow' };
+  const marker = 'MARKER-VALUE';
+  for (const config of [{ read_config_from: { claude: true } }, { read_config_from: { cursor: false, [marker]: true, windsurf: true } }]) {
+    const result = inspectDevinSettings(config);
+    assert.deepEqual(result.signals, ['devin-external-config']);
+    assert.equal(JSON.stringify(result).includes(marker), false);
+    for (const pack of ['strict', 'official-first', 'development']) assert.equal(evaluate(config, pack).action, 'ask', pack);
+    const custom = { ...permissive, signalActions: { 'devin-external-config': 'allow' } };
+    for (const policy of [permissive, custom]) assert.equal(evaluateAll([inspectDevinSettings(config)], policy)[0].action, 'ask');
+  }
+  assert.equal(inspectDevinSettings({ read_config_from: { a: true, b: false, c: true } }).metadata.externalConfigProviderCount, 2);
+  for (const config of [{}, { read_config_from: {} }, { read_config_from: { claude: false, cloud: false } }]) {
+    const result = inspectDevinSettings(config);
+    assert.deepEqual(result.signals, [], JSON.stringify(config));
+    assert.equal(result.metadata.externalConfigProviderCount, 0);
+  }
+  for (const value of [true, 'claude', ['claude'], null, { claude: 'true' }, { claude: 1 }, { claude: { path: marker } }]) {
+    assert.throws(() => inspectDevinSettings({ read_config_from: value }), /Devin read_config_from/, JSON.stringify(value));
+  }
 });
 
 test('Devin settings CLI inspects the inert example and refuses invalid input without echoing it', () => {
