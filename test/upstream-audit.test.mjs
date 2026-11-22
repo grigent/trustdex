@@ -13,7 +13,9 @@ const skill = (text) => inspectSkillText(text);
 test('skill hooks and injected shell commands block even when local skills are allowed', () => {
   for (const text of [
     '---\nname: x\nhooks:\n  PreToolUse:\n    - command: "echo hi"\n---\nbody\n',
-    '---\n"hooks": {PreToolUse: []}\n---\nbody\n'
+    '---\n"hooks": {PreToolUse: []}\n---\nbody\n',
+    '---\n{name: x, hooks: {PreToolUse: []}}\n---\nbody\n',
+    '---\nmeta: {"hooks": 1}\n---\nbody\n'
   ]) {
     const record = skill(text);
     assert.ok(record.signals.includes('skill-hooks'), text);
@@ -40,6 +42,8 @@ test('allowed-tools grants need review and shell grants block', () => {
     assert.equal(action(record), 'block', header);
   }
   assert.ok(!skill('---\nallowed-tools: Read\ntools: Bash\n---\nbody\n').signals.includes('skill-shell-auto-approve'));
+  const commented = skill('---\nallowed-tools: [Read, # not Bash\n  Grep]\n---\nbody\n');
+  assert.ok(!commented.signals.includes('skill-shell-auto-approve'), commented.signals.join());
   assert.ok(!skill('---\nallowed-tools: BashHistoryReader\n---\nbody\n').signals.includes('skill-shell-auto-approve'));
 });
 
@@ -74,6 +78,24 @@ test('generic MCP fields TrustDex does not read need review', () => {
   assert.ok(extra.signals.includes('uninspected-server-fields'));
   assert.ok(badType.signals.includes('uninspected-server-fields'));
   for (const server of [extra, badType]) assert.notEqual(action(server, getPolicyPack('development')), 'allow');
+});
+
+test('adapter metadata in a generic MCP file does not skip field review', async () => {
+  const config = { mcpServers: { a: { command: 'node', headers: { A: 'b' }, _trustdexFingerprintData: {} } } };
+  assert.ok(inspectMcpConfig(config, { generic: true })[0].signals.includes('uninspected-server-fields'));
+  const { execFileSync } = await import('node:child_process');
+  const fs = await import('node:fs/promises');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'trustdex-generic-'));
+  const file = path.join(dir, 'mcp.json');
+  await fs.writeFile(file, JSON.stringify(config));
+  let out = '';
+  try {
+    out = execFileSync(process.execPath, [new URL('../bin/trustdex.mjs', import.meta.url).pathname, 'inspect', file, '--json'],
+      { encoding: 'utf8' });
+  } catch (error) { out = error.stdout; }
+  assert.match(out, /uninspected-server-fields/);
 });
 
 test('Codex MCP values and transport fields follow upstream validation', () => {

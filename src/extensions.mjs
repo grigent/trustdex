@@ -113,7 +113,9 @@ function toolScopeSignals(entries) {
   const grants = scopes.filter((entry) => /^allowed[-_]?tools$/i.test(entry.key));
   const granted = grants.some((entry) => [entry.value].flat().some((item) => String(item ?? '').trim())) ||
     mentioned > read || grants.some((entry) => entry.unsupported);
-  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test([entry.value].flat().join(' '))) ||
+  // A YAML comment folded into a list item is not a grant.
+  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test([entry.value].flat()
+    .map((item) => String(item ?? '').replace(/(?:^|\s)#.*$/, '')).join(' '))) ||
     ((mentioned > read || grants.some((entry) => entry.unsupported || hasStraySyntax(entry.value))) &&
       SHELL_TOOL_RE.test(entries.header || ''));
   return [
@@ -136,7 +138,7 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
   if (SHELL_INSTRUCTION_RE.test(value)) signals.add('shell-instructions');
   if (INSTALL_RE.test(value)) signals.add('install-instructions');
   // Skill hooks register commands for the rest of the session, however the key is written.
-  if (/^\s*["']?hooks["']?\s*:/im.test(entries.header || '')) signals.add('skill-hooks');
+  if (/(?:^|[\s{,"'])hooks["']?\s*:/im.test(entries.header || '')) signals.add('skill-hooks');
   if (SKILL_SHELL_INJECTION_RE.test(value)) signals.add('skill-shell-injection');
 
   return {

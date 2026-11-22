@@ -423,7 +423,7 @@ async function evaluateMcp(configPath, args, options = {}) {
   }
   const inspectionConfig = isClaude ? parseClaudeMcpConfig(config) : isDevin ? parseDevinMcpConfig(config)
     : isGemini ? parseGeminiMcpConfig(config) : config;
-  const inspected = inspectMcpConfig(inspectionConfig);
+  const inspected = inspectMcpConfig(inspectionConfig, { generic: !isClaude && !isDevin && !isGemini });
   const store = await loadTrustStore(args);
   const withProvenance = store ? attachProvenanceAll(inspected, store) : inspected;
   const policy = await loadPolicy(args);
