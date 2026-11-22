@@ -16,7 +16,12 @@ test('skill hooks and injected shell commands block even when local skills are a
     '---\nname: x\nhooks:\n  PreToolUse:\n    - command: "echo hi"\n---\nbody\n',
     '---\n"hooks": {PreToolUse: []}\n---\nbody\n',
     '---\n{name: x, hooks: {PreToolUse: []}}\n---\nbody\n',
-    '---\nmeta: {"hooks": 1}\n---\nbody\n'
+    '---\nmeta: {"hooks": 1}\n---\nbody\n',
+    '---\n!!str hooks: {PreToolUse: []}\n---\nbody\n',
+    '---\n&h hooks: {PreToolUse: []}\n---\nbody\n',
+    '---\nname: &k hooks\n*k: {PreToolUse: []}\n---\nbody\n',
+    '---\n? hooks\n: {PreToolUse: []}\n---\nbody\n',
+    '---\n"\\x68ooks": {PreToolUse: []}\n---\nbody\n'
   ]) {
     const record = skill(text);
     assert.ok(record.signals.includes('skill-hooks'), text);

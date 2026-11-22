@@ -84,6 +84,8 @@ export function parseFrontmatter(text) {
 // Claude Code runs `!`command`` and ```! blocks in SKILL.md while rendering the skill,
 // before the model sees it and without a permission prompt.
 const SKILL_SHELL_INJECTION_RE = /!`[^`\r\n]+`|^[ \t]*(?:`{3,}|~{3,})!/m;
+const SKILL_HOOKS_KEY_RE =
+  /(?:^[ \t]*|[{,][ \t]*)(?:[!&][^\s,{}[\]]*[ \t]+)*(?:["']?hooks["']?[ \t]*:|[*?]|"[^"\n]*\\)/im;
 const SHELL_TOOL_RE = /(?:^|[\s,[\]"'])(?:Bash|PowerShell)(?=$|[\s,(\]"'])/i;
 
 function isWildcard(tools) {
@@ -138,9 +140,10 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
   if (SHELL_INSTRUCTION_RE.test(value)) signals.add('shell-instructions');
   if (INSTALL_RE.test(value)) signals.add('install-instructions');
   // Skill hooks register commands for the rest of the session, however the key is written.
-  // A hooks key starts a line or follows `{` or `,` in a flow map; prose that mentions
-  // hooks inside a value does not count.
-  if (/(?:^\s*|[{,]\s*)["']?hooks["']?\s*:/im.test(entries.header || '')) signals.add('skill-hooks');
+  // A key starts a line or follows `{` or `,` in a flow map, optionally after YAML tags or
+  // anchors; prose that mentions hooks inside a value does not count. Alias, explicit (`?`)
+  // and escaped double-quoted keys cannot be read here, so they count as hooks too.
+  if (SKILL_HOOKS_KEY_RE.test(entries.header || '')) signals.add('skill-hooks');
   if (SKILL_SHELL_INJECTION_RE.test(value)) signals.add('skill-shell-injection');
 
   return {
