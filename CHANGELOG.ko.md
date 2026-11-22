@@ -6,6 +6,7 @@
 
 ## 미출시
 
+- 공급망(`check-install`, npm 빌드 출처): npm-pick-manifest, npm-install-checks, pacote와 대조했습니다. 패키지 이름만 쓰거나 범위를 쓰면 npm이 건너뛰는 deprecated 또는 `engines` 불일치 `latest`를 더 이상 고르지 않습니다. npm `--tag`는 기본 태그로 반영합니다. 정확한 버전 없는 `--before`, 프리릴리스 비교식, 선택을 바꿀 수 있는 `engines.npm`이나 해석하지 못한 `engines`는 ASK `unresolved-version`입니다. 빌드 출처는 이제 인증서의 Build Config URI(Fulcio OID 1.3.6.1.4.1.57264.1.18)가 증명이 주장하는 워크플로 파일을 가리켜야 합니다. 이전에는 서명된 statement의 워크플로 경로만 사용했습니다.
 - 스킬(`inspect-skill`): Claude Code 스킬 문서와 대조했습니다. frontmatter의 `hooks`는 `skill-hooks`(키로 읽을 수 없는 frontmatter나 그 밖의 `hooks` 언급은 검토가 필요한 `skill-frontmatter-uninspected`), `` !`command` ``와 ` ```! ` 블록은 `skill-shell-injection`을 추가하며, Claude Code가 확인 없이 실행하므로 둘 다 `BLOCK`입니다. `allowed-tools` 권한 부여는 모두 `skill-auto-approved-tools`(최소 `ASK`), `Bash`나 `PowerShell` 부여는 `skill-shell-auto-approve`(`BLOCK`)를 추가합니다. 이전에는 와일드카드만 보고했습니다.
 - 플러그인(`inspect-plugin`): Claude Code는 매니페스트에 없어도 플러그인 루트의 `hooks/hooks.json`, `.mcp.json`, `.lsp.json`, `monitors/monitors.json`, `bin/`을 불러오므로 모든 매니페스트에 `plugin-components-uninspected`(최소 `ASK`)가 붙습니다. `monitors`, `experimental.monitors`, `channels`도 `plugin-executable-components`로 봅니다.
 - 일반 MCP(`inspect`): TrustDex가 읽지 않는 서버 필드(예: `headers`, `envFile`, `cwd`, `stdio`/`http`/`sse`/`streamable-http` 외의 `type`)는 무시하지 않고 `uninspected-server-fields`(최소 `ASK`)를 추가합니다.

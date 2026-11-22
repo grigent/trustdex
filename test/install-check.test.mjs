@@ -135,7 +135,7 @@ test('custom registries mark the packages of that command instead of looking the
 });
 
 test('package spec parsing distinguishes registry, local, and unregistered sources', () => {
-  assert.deepEqual(parseNpmSpec('react'), { type: 'registry', name: 'react', selector: { kind: 'tag', value: 'latest' } });
+  assert.deepEqual(parseNpmSpec('react'), { type: 'registry', name: 'react', selector: { kind: 'tag', value: 'latest', implicit: true } });
   assert.deepEqual(parseNpmSpec('@scope/pkg@^1.2.0').selector, { kind: 'range', value: '^1.2.0' });
   assert.deepEqual(parseNpmSpec('pkg@v1.2.3').selector, { kind: 'exact', value: '1.2.3' });
   assert.deepEqual(parseNpmSpec('pkg@next').selector, { kind: 'tag', value: 'next' });
@@ -171,6 +171,46 @@ test('npm range resolution follows npm selection rules for the supported subset'
   assert.equal(resolveNpmVersion(doc, { kind: 'range', value: '>=1 <2 !weird' }), undefined);
   assert.equal(compileNpmRange('<1.0.0')('0.9.0'), true);
   assert.equal(compileNpmRange('^1.0.0')('1.2.0-beta.1'), false, 'prereleases are excluded from ranges');
+});
+
+test('npm skips a deprecated or engine-incompatible default tag the way npm-pick-manifest does', () => {
+  const bare = { kind: 'tag', value: 'latest', implicit: true };
+  const doc = (latest, extra = {}) => ({
+    'dist-tags': { latest: '2.0.0', beta: '1.9.0-beta.1' },
+    versions: { '1.0.0': {}, '1.9.0': {}, '1.9.0-beta.1': {}, '2.0.0': latest, ...extra }
+  });
+  const node22 = { nodeVersion: '22.0.0' };
+  assert.equal(resolveNpmVersion(doc({}), bare, node22), '2.0.0');
+  assert.equal(resolveNpmVersion(doc({ deprecated: 'x' }), bare, node22), '1.9.0', 'bare installs skip a deprecated latest');
+  assert.equal(resolveNpmVersion(doc({ deprecated: 'x' }), { kind: 'tag', value: 'latest' }, node22), '2.0.0', 'an explicit tag is taken as-is');
+  assert.equal(resolveNpmVersion(doc({ engines: { node: '>=24' } }), bare, node22), '1.9.0');
+  assert.equal(resolveNpmVersion(doc({ engines: { node: '>=24' } }), { kind: 'range', value: '^2' }, node22), '2.0.0', 'an incompatible match still beats nothing');
+  assert.equal(resolveNpmVersion(doc({ engines: { node: '>=20' } }), bare, node22), '2.0.0');
+  assert.equal(resolveNpmVersion(doc({ engines: { npm: '>=11' } }), bare, node22), undefined, 'TrustDex cannot see the npm version');
+  assert.equal(resolveNpmVersion(doc({ engines: { node: '>=20 !x' } }), bare, node22), undefined);
+  assert.equal(resolveNpmVersion(doc({}, { '1.9.0': { engines: { npm: '>=11' } } }), bare, node22), '2.0.0', 'uncertainty that cannot change the pick is ignored');
+  assert.equal(resolveNpmVersion(doc({}), bare, { ...node22, defaultTag: 'beta' }), '1.9.0-beta.1', '--tag changes the default tag');
+  assert.equal(resolveNpmVersion(doc({}), { kind: 'range', value: '^1' }, { ...node22, defaultTag: 'beta' }), '1.9.0');
+  assert.equal(resolveNpmVersion(doc({}), bare, { ...node22, defaultTag: 'missing' }), null);
+  assert.equal(resolveNpmVersion(doc({}), bare, { ...node22, defaultTag: '' }), undefined);
+  assert.equal(resolveNpmVersion(doc({}), bare, { ...node22, before: true }), undefined, '--before is not modeled');
+  assert.equal(resolveNpmVersion(doc({}), { kind: 'exact', value: '1.0.0' }, { ...node22, before: true }), '1.0.0');
+  assert.equal(resolveNpmVersion(doc({}), { kind: 'range', value: '>1.9.0-beta' }, node22), undefined, 'prerelease comparators are not modeled');
+});
+
+test('npm --tag and --before reach the resolver and fail safe', async () => {
+  const doc = npmDoc('tagged', { version: '1.0.0' });
+  doc['dist-tags'].beta = '1.0.0';
+  let [item] = await evaluate('npm i tagged --before 2020-01-01', { [NPM('tagged')]: doc });
+  assert.deepEqual([item.action, item.signals], ['ask', ['unresolved-version']]);
+  [item] = await evaluate('npm i tagged@1.0.0 --before=2020-01-01', { [NPM('tagged')]: doc });
+  assert.equal(item.signals.includes('unresolved-version'), false);
+  [item] = await evaluate('npm i tagged --tag nope', { [NPM('tagged')]: doc });
+  assert.deepEqual([item.action, item.signals], ['ask', ['version-not-found']]);
+  [item] = await evaluate('npm i tagged --tag=beta', { [NPM('tagged')]: doc });
+  assert.deepEqual([item.name, item.action], ['npm:tagged@1.0.0', 'allow']);
+  [item] = await evaluate('pnpm add tagged --tag nope', { [NPM('tagged')]: doc });
+  assert.deepEqual([item.name, item.action], ['npm:tagged@1.0.0', 'allow'], 'only npm takes --tag as the default tag');
 });
 
 test('look-alike names of popular packages are flagged, exact names are not', () => {

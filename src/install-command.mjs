@@ -266,11 +266,15 @@ function npmArgs(args) {
   const flags = new Set();
   let customRegistry = false;
   let ignoreScripts = false;
+  let defaultTag;
+  let before = false;
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
     if (arg === '--') { positionals.push(...args.slice(i + 1)); break; }
     if (arg.startsWith('-')) {
-      const [flag] = arg.split('=');
+      const [flag, inline] = arg.split(/=(.*)/s);
+      if (flag === '--tag') defaultTag = inline ?? args[i + 1] ?? '';
+      if (flag === '--before') before = true;
       if (NPM_SOURCE_FLAGS.has(flag) || /^--@[^:]+:registry$/.test(flag) || flag.startsWith('--//')) {
         customRegistry = true;
         if (!arg.includes('=')) i += 1;
@@ -283,7 +287,7 @@ function npmArgs(args) {
     }
     positionals.push(arg);
   }
-  return { positionals, flags, customRegistry, ignoreScripts };
+  return { positionals, flags, customRegistry, ignoreScripts, defaultTag, before };
 }
 
 function runnerPackages(args, packageFlags) {
@@ -372,7 +376,11 @@ function npmFamily(program, args) {
     if (!specs.length) {
       add({ kind: 'manifest', ignoreScripts: parsed.ignoreScripts });
     } else {
-      for (const spec of specs) add({ kind: 'package', mode: 'install', spec, ignoreScripts: parsed.ignoreScripts });
+      // npm's --tag and --before change which version a range or bare name resolves to.
+      const resolution = program === 'npm' && (parsed.defaultTag !== undefined || parsed.before)
+        ? { defaultTag: parsed.defaultTag, before: parsed.before }
+        : {};
+      for (const spec of specs) add({ kind: 'package', mode: 'install', spec, ignoreScripts: parsed.ignoreScripts, ...resolution });
     }
   }
   return findings;
@@ -684,7 +692,8 @@ export function parseNpmSpec(raw) {
   if (/[\s\x00-\x1f\x7f]/.test(selector)) return { type: 'invalid' };
   if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(selector)) return { type: 'unregistered' };
 
-  if (!selector) return { type: 'registry', name, selector: { kind: 'tag', value: 'latest' } };
+  // A bare name is npm's implicit '*' range, preferring the default tag.
+  if (!selector) return { type: 'registry', name, selector: { kind: 'tag', value: 'latest', implicit: true } };
   const bare = selector.replace(/^[=v]+/, '');
   if (EXACT_SEMVER_RE.test(bare)) return { type: 'registry', name, selector: { kind: 'exact', value: bare } };
   if (/^[A-Za-z][A-Za-z0-9._-]*$/.test(selector) && !/^v?\d/.test(selector) && selector !== 'x' && selector !== 'X') {

@@ -150,7 +150,8 @@ const PARTIAL_RE = /^(\^|~>?|>=|<=|>|<|=)?\s*v?(\d+|[xX*])(?:\.(\d+|[xX*]))?(?:\
 // the syntax is outside the supported subset.
 function comparatorPredicates(text) {
   const match = PARTIAL_RE.exec(text);
-  if (!match) return null;
+  // Prerelease comparators also admit prereleases of the same version in npm; not modeled.
+  if (!match || match[5] !== undefined) return null;
   const [, op = '', ma, mi, pa] = match;
   const wild = (part) => part === undefined || /^[xX*]$/.test(part);
   const nums = [ma, mi, pa].map((part) => (wild(part) ? null : +part));
@@ -215,21 +216,63 @@ export function compileNpmRange(range) {
   };
 }
 
-// npm prefers the latest dist-tag when it satisfies the range, else the highest match.
-export function resolveNpmVersion(doc, selector) {
+// npm-install-checks checkEngine: true, false, or null when TrustDex cannot tell
+// (an engines range it does not parse, or an npm version requirement).
+function npmEngineOk(meta, nodeVersion) {
+  const engines = meta?.engines;
+  if (!engines || typeof engines !== 'object') return true;
+  if (engines.node) {
+    const satisfies = typeof engines.node === 'string' ? compileNpmRange(engines.node) : null;
+    if (!satisfies || !nodeVersion) return null;
+    if (!satisfies(nodeVersion)) return false;
+  }
+  return engines.npm ? null : true;
+}
+
+// npm-pick-manifest for ranges and the implicit default tag: the default tag when it
+// satisfies, is not deprecated, and fits the engines; else the best-sorted match.
+function pickNpmRange(doc, range, satisfies, defaultTag, engineOk) {
+  const versions = doc.versions;
+  const tagged = doc['dist-tags']?.[defaultTag];
+  if (typeof tagged === 'string' && Object.hasOwn(versions, tagged) && (range === '*' || satisfies(tagged))) {
+    const meta = versions[tagged];
+    if (meta && engineOk(tagged) && !meta.deprecated) return tagged;
+  }
+  const entries = Object.keys(versions).filter(satisfies).map((version) => {
+    const engine = engineOk(version);
+    const live = !versions[version]?.deprecated;
+    return { version, parsed: parseVersion(version), engine, live, best: engine && live };
+  });
+  entries.sort((a, b) => (b.best - a.best) || (b.engine - a.engine) || (b.live - a.live) ||
+    compareVersions(b.parsed, a.parsed));
+  return entries[0]?.version ?? null;
+}
+
+// Resolves a selector the way npm does; null when nothing matches, undefined when
+// TrustDex cannot tell which version npm would pick.
+export function resolveNpmVersion(doc, selector, options = {}) {
   const versions = Object.keys(doc.versions || {});
   if (selector.kind === 'exact') return versions.includes(selector.value) ? selector.value : null;
-  if (selector.kind === 'tag') {
+  if (options.before) return undefined;
+  if (selector.kind === 'tag' && !selector.implicit) {
     const tagged = doc['dist-tags']?.[selector.value];
     return typeof tagged === 'string' && versions.includes(tagged) ? tagged : null;
   }
-  const satisfies = compileNpmRange(selector.value);
+  const defaultTag = options.defaultTag ?? 'latest';
+  if (!/^[A-Za-z0-9._-]+$/.test(defaultTag) || /^v?\d/.test(defaultTag)) return undefined;
+  const tagged = doc['dist-tags']?.[defaultTag];
+  // A missing or dangling default tag is inconsistent metadata; do not guess past it.
+  if (typeof tagged !== 'string' || !versions.includes(tagged)) {
+    if (selector.kind !== 'range') return null;
+  }
+  const range = selector.kind === 'range' ? selector.value.trim() || '*' : '*';
+  const satisfies = compileNpmRange(range);
   if (!satisfies) return undefined;
-  const latest = doc['dist-tags']?.latest;
-  if (typeof latest === 'string' && versions.includes(latest) && satisfies(latest)) return latest;
-  const matches = versions.filter(satisfies).map((version) => [version, parseVersion(version)]);
-  matches.sort((a, b) => compareVersions(b[1], a[1]));
-  return matches[0]?.[0] ?? null;
+  const nodeVersion = options.nodeVersion ?? process.versions.node;
+  const engine = new Map(versions.map((version) => [version, npmEngineOk(doc.versions[version], nodeVersion)]));
+  const assumeOk = pickNpmRange(doc, range, satisfies, defaultTag, (version) => engine.get(version) !== false);
+  const assumeBad = pickNpmRange(doc, range, satisfies, defaultTag, (version) => engine.get(version) === true);
+  return assumeOk === assumeBad ? assumeOk : undefined;
 }
 
 // ---------------------------------------------- name similarity (typosquats)
@@ -329,9 +372,9 @@ async function checkNpm(item, parsed, context) {
     return item.signal('invalid-registry-metadata', 'npm registry metadata is missing, unpublished, or does not match the name.');
   }
 
-  const version = resolveNpmVersion(doc, parsed.selector);
+  const version = resolveNpmVersion(doc, parsed.selector, context.npmResolution);
   if (version === undefined) {
-    item.signal('unresolved-version', 'The version range uses syntax TrustDex does not resolve; pin an exact version.');
+    item.signal('unresolved-version', 'TrustDex cannot tell which version npm would install for this range, tag, --tag, --before, or engines requirement; pin an exact version.');
     return;
   }
   if (version === null) return item.signal('version-not-found', 'No published version matches the requested version or tag.');
@@ -560,7 +603,8 @@ export async function evaluateInstallCommand(command, options = {}) {
   const context = {
     policy,
     fetchImpl: options.fetchImpl ?? globalThis.fetch,
-    now: options.now ?? Date.now()
+    now: options.now ?? Date.now(),
+    nodeVersion: options.nodeVersion
   };
   const localBinExists = typeof options.localBinExists === 'function' ? options.localBinExists : () => false;
   const { findings } = analyzeInstallCommand(command);
@@ -653,11 +697,13 @@ export async function evaluateInstallCommand(command, options = {}) {
       continue;
     }
 
-    const key = `${finding.ecosystem}:${parsed.name}:${JSON.stringify(parsed.selector)}:${Boolean(finding.ignoreScripts)}`;
+    const key = `${finding.ecosystem}:${parsed.name}:${JSON.stringify(parsed.selector)}:${Boolean(finding.ignoreScripts)}:${finding.defaultTag ?? ''}:${Boolean(finding.before)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     try {
-      if (finding.ecosystem === 'npm') await checkNpm(item, parsed, context);
+      if (finding.ecosystem === 'npm') {
+        await checkNpm(item, parsed, { ...context, npmResolution: { defaultTag: finding.defaultTag, before: finding.before, nodeVersion: context.nodeVersion } });
+      }
       else await checkPypi(item, parsed, context);
     } catch {
       item.signal('lookup-failed', 'The registry lookup failed, so the package could not be checked.');

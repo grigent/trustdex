@@ -38,7 +38,7 @@ For each registry package, TrustDex fetches public metadata from exactly two hos
 
 When a command points the installer at another registry or index (`--registry`, `--index-url`, `--extra-index-url`, `--find-links`, ...), its packages are not looked up on the public registry; they are reported as ASK `custom-registry` instead.
 
-The version that would be installed is resolved the way the installer does for the supported syntax: npm exact versions, dist-tags, `^`, `~`, x-ranges, comparators, `||`, and hyphen ranges (preferring the `latest` tag when it satisfies the range); PyPI `==`, `===`, no constraint, or a single `>=`/`>` lower bound (latest release). Other ranges are ASK `unresolved-version`: pin an exact version.
+The version that would be installed is resolved the way the installer does for the supported syntax: npm exact versions, dist-tags, `^`, `~`, x-ranges, comparators, `||`, and hyphen ranges, following npm-pick-manifest (a bare name or a range prefers the default tag, `latest` or npm's `--tag`, when it satisfies the range, is not deprecated, and fits `engines` for the Node.js running TrustDex; otherwise the highest match, preferring non-deprecated, engine-compatible versions). When that pick depends on something TrustDex cannot see (an `engines.npm` requirement or an `engines` range it does not parse), when npm's `--before` is set without an exact version, or when a range uses a prerelease comparator, the result is ASK `unresolved-version`. `--tag` and `--before` set in `.npmrc` or environment variables are not read; PyPI `==`, `===`, no constraint, or a single `>=`/`>` lower bound (latest release). Other ranges are ASK `unresolved-version`: pin an exact version.
 
 ## Signals
 
