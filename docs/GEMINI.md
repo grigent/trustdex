@@ -82,7 +82,51 @@ Gemini CLI merges user, project, and system settings, and extensions can add MCP
 of their own. Inspect each `mcpServers` object you use; TrustDex does not discover or
 merge them. This workflow does not cover the global `mcp` settings (`mcp.allowed`,
 `mcp.excluded`, `mcp.serverCommand`), extensions, Gemini CLI's built-in tools, or its
-sandbox.
+sandbox; `inspect-gemini-settings` below classifies some of those settings.
+
+## Gemini CLI permission settings
+
+MCP gating controls which external servers are exposed. Gemini CLI's own settings
+separately control which actions run without a prompt. Inspect a user, project, or
+system `settings.json` as a separate step:
+
+```bash
+node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack strict --json
+```
+
+Settings are classified by capability rather than echoed:
+
+| Observed setting | Signal | Built-in packs |
+| --- | --- | --- |
+| `tools.allowed` names the shell tool, or contains a wildcard | `gemini-auto-approved-shell` | `BLOCK` |
+| `tools.discoveryCommand`, `tools.callCommand`, or `mcp.serverCommand` | `gemini-tool-commands` | `BLOCK` |
+| any `hooks` entry, even when `hooksConfig.enabled` is `false` in this file | `gemini-hooks` | `BLOCK` |
+| any other `tools.allowed` entry | `gemini-auto-approved-tools` | at least `ASK` |
+| `general.defaultApprovalMode` is `auto_edit` | `gemini-auto-edit` | at least `ASK` |
+| `tools.sandboxAllowedPaths` or `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | at least `ASK` |
+| `security.enablePermanentToolApproval` or `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | at least `ASK` |
+| `security.folderTrust.enabled` is `false` | `gemini-folder-trust-disabled` | at least `ASK` |
+| `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | at least `ASK` |
+| `policyPaths` or `adminPolicyPaths` | `gemini-policy-paths` | at least `ASK` |
+| `mcpServers`, `admin.mcp.config`, or `admin.mcp.requiredConfig` entries | `gemini-mcp-servers` | at least `ASK` |
+| any setting TrustDex does not inspect | `uninspected-gemini-settings` | at least `ASK` |
+
+A settings file never reaches ALLOW, whatever the policy says. Restrictive settings
+(`tools.exclude`, `tools.core`, `tools.confirmationRequired`, `security.disableYoloMode`,
+`security.disableAlwaysAllow`) add no signal. An inspected setting with the wrong type,
+an unsupported approval mode, and a file that is not plain JSON (including one with
+comments) fail closed.
+
+The report holds the approval mode, booleans, and counts. It does not hold tool names,
+commands, paths, hook bodies, extension patterns, variable names, or the names of
+uninspected settings. It therefore has no content fingerprint or signed review record:
+a same-count change inside one category is not detected.
+
+This command reads one file. It does not merge the user, project, and system layers, does
+not read the policy files that `policyPaths` names, and does not see command-line flags
+such as `--yolo` or extension-provided settings. Inspect `mcpServers` with
+`inspect-gemini`. Official reference:
+[Gemini CLI configuration](https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/configuration.md).
 
 ## Signed review and drift
 

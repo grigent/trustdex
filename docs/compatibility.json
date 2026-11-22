@@ -83,6 +83,16 @@
       "example": "examples/gemini.mcpServers.json"
     },
     {
+      "id": "gemini-settings",
+      "commands": [
+        "inspect-gemini-settings"
+      ],
+      "tests": [
+        "gemini-settings.test.mjs"
+      ],
+      "example": "examples/gemini.settings.json"
+    },
+    {
       "id": "claude-settings",
       "commands": [
         "inspect-claude-settings",

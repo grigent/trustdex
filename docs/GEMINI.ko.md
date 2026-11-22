@@ -80,7 +80,49 @@ Gemini CLI는 사용자·프로젝트·시스템 설정을 병합하고, 확장 
 추가할 수도 있습니다. 사용하는 `mcpServers` 객체를 각각 검사하세요. TrustDex는 이를
 찾아내거나 병합하지 않습니다. 이 워크플로는 전역 `mcp` 설정(`mcp.allowed`,
 `mcp.excluded`, `mcp.serverCommand`), 확장 프로그램, Gemini CLI 내장 도구, 샌드박스를
-다루지 않습니다.
+다루지 않습니다. 이 중 일부 설정은 아래 `inspect-gemini-settings`가 분류합니다.
+
+## Gemini CLI 권한 설정
+
+MCP 게이트는 어떤 외부 서버가 노출되는지를 다룹니다. 어떤 동작이 확인 없이 실행되는지는
+Gemini CLI 자체 설정이 따로 정합니다. 사용자·프로젝트·시스템 `settings.json`을 별도
+단계로 검사하세요.
+
+```bash
+node ./bin/trustdex.mjs inspect-gemini-settings ./.gemini/settings.json --pack strict --json
+```
+
+설정 값은 그대로 출력하지 않고 기능별로 분류합니다.
+
+| 관찰된 설정 | 신호 | 기본 제공 팩 |
+| --- | --- | --- |
+| `tools.allowed`에 셸 도구 또는 와일드카드가 있음 | `gemini-auto-approved-shell` | `BLOCK` |
+| `tools.discoveryCommand`, `tools.callCommand`, `mcp.serverCommand` | `gemini-tool-commands` | `BLOCK` |
+| `hooks` 항목이 있음 (이 파일에서 `hooksConfig.enabled`가 `false`여도) | `gemini-hooks` | `BLOCK` |
+| 그 밖의 `tools.allowed` 항목 | `gemini-auto-approved-tools` | 최소 `ASK` |
+| `general.defaultApprovalMode`가 `auto_edit` | `gemini-auto-edit` | 최소 `ASK` |
+| `tools.sandboxAllowedPaths` 또는 `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | 최소 `ASK` |
+| `security.enablePermanentToolApproval` 또는 `security.autoAddToPolicyByDefault` | `gemini-persistent-approvals` | 최소 `ASK` |
+| `security.folderTrust.enabled`가 `false` | `gemini-folder-trust-disabled` | 최소 `ASK` |
+| `security.environmentVariableRedaction.allowed` | `gemini-env-redaction-bypass` | 최소 `ASK` |
+| `policyPaths` 또는 `adminPolicyPaths` | `gemini-policy-paths` | 최소 `ASK` |
+| `mcpServers`, `admin.mcp.config`, `admin.mcp.requiredConfig` 항목 | `gemini-mcp-servers` | 최소 `ASK` |
+| TrustDex가 검사하지 않는 설정 | `uninspected-gemini-settings` | 최소 `ASK` |
+
+설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. 제한하는 설정(`tools.exclude`,
+`tools.core`, `tools.confirmationRequired`, `security.disableYoloMode`,
+`security.disableAlwaysAllow`)은 신호를 추가하지 않습니다. 검사 대상 설정의 타입이
+틀리거나, 지원하지 않는 승인 모드이거나, 순수 JSON이 아닌 파일(주석 포함)은 거부합니다.
+
+보고서에는 승인 모드, 불리언, 개수만 들어갑니다. 도구 이름, 명령, 경로, 훅 내용, 확장
+패턴, 변수 이름, 검사하지 않는 설정의 이름은 들어가지 않습니다. 그래서 내용 지문이나
+서명된 검토 기록이 없고, 같은 분류 안에서 개수가 같은 변경은 감지하지 못합니다.
+
+이 명령은 파일 하나만 읽습니다. 사용자·프로젝트·시스템 계층을 병합하지 않고,
+`policyPaths`가 가리키는 정책 파일을 읽지 않으며, `--yolo` 같은 명령줄 플래그나 확장
+프로그램이 제공하는 설정은 보지 못합니다. `mcpServers`는 `inspect-gemini`로 검사하세요.
+공식 문서:
+[Gemini CLI configuration](https://github.com/google-gemini/gemini-cli/blob/main/docs/reference/configuration.md).
 
 ## 서명된 검토와 변경 감지
 

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { inspectClaudeSettings, inspectClaudeSettingsStack } from '../src/claude-settings.mjs';
 import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/codex-settings.mjs';
+import { inspectGeminiSettings } from '../src/gemini-settings.mjs';
 import { evaluateAll } from '../src/policy.mjs';
 import { getPolicyPack } from '../src/policy-packs.mjs';
 import {
@@ -220,7 +221,7 @@ test('no policy can make a permission settings file or stack ALLOW', () => {
     inspectClaudeSettingsStack([{ scope: 'user', settings: {} }]),
     inspectCodexSettingsText(''),
     inspectCodexSettingsStack([{ scope: 'user', text: '' }]),
-    { name: 'settings.json', kind: 'gemini-settings', source: { type: 'local' }, signals: [], envKeys: [] }
+    inspectGeminiSettings({})
   ];
   for (const item of items) {
     assert.deepEqual(item.signals, [], item.kind);
