@@ -1,0 +1,10 @@
+{
+  "name": "nested-wildcard-permission",
+  "version": "1.0.0",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Bash(*)"
+    ]
+  }
+}

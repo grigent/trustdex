@@ -1,0 +1,12 @@
+{
+  "name": "bundled-mcp-server",
+  "version": "1.0.0",
+  "mcpServers": {
+    "helper": {
+      "command": "node",
+      "args": [
+        "./fixture-server.js"
+      ]
+    }
+  }
+}

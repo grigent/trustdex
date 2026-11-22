@@ -7,6 +7,12 @@
 ## 미출시
 
 - `provenance npm`과 `trust-source npm`이 npm 빌드 출처 증명의 Sigstore 번들을 Node 내장 crypto와 고정된 신뢰 루트로 오프라인 검증합니다(새 의존성·요청 없음). 이제 일치로 판정하려면 DSSE 서명이 유효하고, 인증서가 고정된 Fulcio 루트로 이어지며 같은 GitHub 저장소를 가리키고, 해당 봉투에 대한 Rekor 항목의 서명된 타임스탬프가 유효해야 합니다. 그렇지 않으면 `unverifiable`이며 `trust-source`가 거부합니다. 확인하지 않는 것: SCT, 머클 포함 증명, RFC 3161 타임스탬프, 신뢰 루트 교체
+||||||| 15e273e
+- 스킬 파일: 와일드카드 도구 범위가 YAML 블록 목록, 여러 줄 플로 목록, BOM이나 빈 줄 뒤, 다른 대소문자, 뒤따르는 주석, 반복된 키, `Bash(*)` 같은 제한 없는 지정자로 쓰여도 보고합니다. TrustDex가 해석하지 못하는 문법의 도구 범위는 좁다고 읽지 않고 `uninspected-tool-scope`(ASK)를 추가합니다
+- 스킬 파일: 더 많은 내려받아 실행 형태(`| zsh`, `| python`, `| iex`, `bash <(...)`, `bash -c "$(...)"`), 패키지 러너, 자격 증명 위치(`$HOME/.ssh`, `~/.gnupg`, `~/.kube`, `~/.npmrc` 등)가 기존 지시문 신호를 올립니다. 여전히 텍스트 휴리스틱입니다
+- 플러그인 매니페스트: 훅, MCP 서버, LSP 서버, 스크립트를 선언하면 `plugin-executable-components`(ASK)를 추가합니다. `permissions.allow: ["Bash(*)"]` 같은 중첩 와일드카드 권한을 보고하고, 64단계보다 깊게 중첩된 매니페스트는 거부합니다
+- MCP JSON: `command`, `args`, `env`, `url`, `endpoint`의 타입이 잘못되면 `malformed-server-fields`(BLOCK), `env`·`sudo`·`busybox` 같은 래퍼가 셸을 실행하거나 명령이 `dash`·`ksh`이면 `shell-execution`을 추가합니다
+- `examples/adversarial/extensions/`와 `examples/adversarial/mcp-evasion.json`에 비활성 픽스처를 추가했습니다
 - `slack-approver`: 토큰 파일에는 봇 토큰 형태의 값 하나만 있어야 합니다. `tokenFile`이 다른 파일을 가리켜도 그 내용이 Slack으로 전송되지 않으며, `slack.com` 요청은 더 이상 리디렉션을 따르지 않습니다
 
 ## 0.17.3 - 2026-11-22

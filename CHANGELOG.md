@@ -7,6 +7,12 @@
 ## Unreleased
 
 - `provenance npm` and `trust-source npm` verify the Sigstore bundle of npm build provenance offline, with Node's built-in crypto and a pinned trust root (no new dependency or request). A match now requires a valid DSSE signature, a certificate that chains to the pinned Fulcio root and names the same GitHub repository, and a Rekor entry for that envelope with a valid signed timestamp; otherwise the release is `unverifiable` and `trust-source` refuses it. Not checked: SCT, Merkle inclusion proof, RFC 3161 timestamps, trust-root rotation
+||||||| 15e273e
+- skill files: a wildcard tool scope is reported when it is written as a YAML block list, a multi-line flow list, after a byte-order mark or leading blank lines, with a different letter case, with a trailing comment, in a repeated key, or as an unrestricted specifier such as `Bash(*)`. A tool scope in syntax TrustDex does not parse adds `uninspected-tool-scope` (ASK) instead of being read as narrow
+- skill files: more download-and-run forms (`| zsh`, `| python`, `| iex`, `bash <(...)`, `bash -c "$(...)"`), more package runners, and more credential locations (`$HOME/.ssh`, `~/.gnupg`, `~/.kube`, `~/.npmrc`, and similar) raise the existing instruction signals. These remain text heuristics
+- plugin manifests: `plugin-executable-components` (ASK) when a manifest declares hooks, MCP servers, LSP servers, or scripts; nested wildcard permissions such as `permissions.allow: ["Bash(*)"]` are reported; a manifest nested deeper than 64 levels is rejected
+- MCP JSON: `malformed-server-fields` (BLOCK) when `command`, `args`, `env`, `url`, or `endpoint` has the wrong type, and `shell-execution` when a wrapper such as `env`, `sudo`, or `busybox` launches a shell, or the command is `dash` or `ksh`
+- new inert fixtures under `examples/adversarial/extensions/` and `examples/adversarial/mcp-evasion.json`
 - `slack-approver`: the token file must contain exactly one bot-token-shaped value, so a `tokenFile` pointed at another file cannot send its contents to Slack, and requests to `slack.com` no longer follow redirects
 
 ## 0.17.3 - 2026-11-22
