@@ -246,6 +246,33 @@ test('no command prints or stores a planted value', () => {
   const badInitArgs = ['inventory-claude-init', badInit, '--out', o('claude-inventory-bad.json')];
   assertNoLeak(badInitArgs, run(badInitArgs));
 
+  // Codex mcpServerStatus/list capture: tool names, origins, and other fields must not reach the inventory.
+  const codexServer = (extra = {}) => ({
+    name: 'reviewed', runtimeStatus: 'connected', pluginId: canary(), httpOrigin: `https://${canary()}.example.invalid`,
+    serverInfo: { name: canary(), version: canary() }, serverCapabilities: { [canary()]: {} }, toolListMeta: { token: canary() },
+    tools: { [canary()]: { name: canary(), description: canary(), inputSchema: { default: canary() } } }, toolsError: null,
+    resources: [{ uri: `file:///${canary()}` }], resourceTemplates: [], authStatus: 'bearerToken', environmentId: canary(), ...extra
+  });
+  const codexExchange = (id, params, result) => JSON.stringify([{ method: 'mcpServerStatus/list', id, params }, { id, result }]);
+  const codexThread = canary();
+  const codexStatus = write('in/codex-status.json', codexExchange(canary(), { threadId: codexThread }, { data: [codexServer()], nextCursor: null }));
+  const codexStatusArgs = ['inventory-codex-mcp-status', codexStatus, '--out', o('codex-inventory.json')];
+  const codexStatusResult = run(codexStatusArgs);
+  assert.equal(codexStatusResult.status, 0, codexStatusResult.stderr);
+  assertNoLeak(codexStatusArgs, codexStatusResult);
+  for (const [name, bad] of Object.entries({
+    status: codexExchange(1, { threadId: canary() }, { data: [codexServer({ runtimeStatus: canary() })] }),
+    error: codexExchange(1, { threadId: canary() }, { data: [codexServer({ toolsError: canary() })] }),
+    cursor: codexExchange(1, { threadId: canary(), cursor: canary() }, { data: [codexServer()], nextCursor: canary() }),
+    filter: codexExchange(1, { threadId: canary(), serverName: canary() }, { data: [codexServer()] }),
+    shape: JSON.stringify({ [canary()]: canary() })
+  })) {
+    const badArgs = ['inventory-codex-mcp-status', write(`in/codex-status-${name}.json`, bad), '--out', o(`codex-inventory-${name}.json`)];
+    const badResult = run(badArgs);
+    assert.notEqual(badResult.status, 0);
+    assertNoLeak(badArgs, badResult);
+  }
+
   // Changed-state paths: recheck after the reviewed input changes prints source drift.
   const changedApprovable = { mcpServers: {
     remote: { url: `https://mcp.example.invalid/other?key=${canary()}`, headers: { Authorization: `Bearer ${canary()}` } },

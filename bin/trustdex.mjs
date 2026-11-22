@@ -48,6 +48,7 @@ import {
   diffEffectiveRuntimeEvidence
 } from '../src/runtime-evidence.mjs';
 import { claudeInitToRuntimeInventory } from '../src/claude-runtime-inventory.mjs';
+import { codexMcpStatusToRuntimeInventory } from '../src/codex-runtime-inventory.mjs';
 import {
   createRuntimeInventoryAttestation,
   verifyRuntimeInventoryAttestation
@@ -147,6 +148,7 @@ Usage:
       [--trust-store trust-store.json] [--pack ...]
   trustdex diff-bindings <before.json> <after.json> [--json]
   trustdex inventory-claude-init <stream.jsonl> --out inventory.json
+  trustdex inventory-codex-mcp-status <exchange.jsonl> --out inventory.json
   trustdex snapshot-runtime-tools <bindings.json> <inventory.json> --out runtime.json
       [--attestation attestation.json (--public key.pem | --keyset keyset.json)]
       [--max-age-seconds n]
@@ -842,6 +844,19 @@ async function main() {
       throw new Error('inventory-claude-init requires <stream.jsonl> and --out <inventory.json>.');
     }
     const inventory = claudeInitToRuntimeInventory(await fs.readFile(streamPath, 'utf8'));
+    await writeFileSafe(out, `${JSON.stringify(inventory, null, 2)}\n`);
+    const toolCount = inventory.servers.reduce((total, server) => total + server.toolCount, 0);
+    console.log(`Wrote ${out}\nServers: ${inventory.servers.length}\nMCP tools: ${toolCount}`);
+    return;
+  }
+
+  if (command === 'inventory-codex-mcp-status') {
+    const responsesPath = args[1];
+    const out = getFlag(args, '--out');
+    if (!responsesPath || !out) {
+      throw new Error('inventory-codex-mcp-status requires <exchange.jsonl> and --out <inventory.json>.');
+    }
+    const inventory = codexMcpStatusToRuntimeInventory(await fs.readFile(responsesPath, 'utf8'));
     await writeFileSafe(out, `${JSON.stringify(inventory, null, 2)}\n`);
     const toolCount = inventory.servers.reduce((total, server) => total + server.toolCount, 0);
     console.log(`Wrote ${out}\nServers: ${inventory.servers.length}\nMCP tools: ${toolCount}`);
