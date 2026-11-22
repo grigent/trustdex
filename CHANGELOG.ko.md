@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.20.4 - 2026-11-22
+
 - `inspect-gemini-settings`: Gemini CLI가 검증 전에 치환하는 환경 변수 참조(`$VAR`, `${VAR}`, `${VAR:-DEFAULT}`)가 들어 있는 `tools.sandbox` 문자열은 이제 거부하지 않고 `sandboxSetting: "unresolved"`와 `gemini-sandbox-unresolved` 신호(최소 `ASK`)로 보고합니다. 변수 이름, 기본값, 입력 문자열은 보고하지 않습니다. 지원하지 않는 명령 문자열과 빈 문자열은 기존대로 거부하며, Gemini CLI는 빈 문자열을 꺼짐으로 처리한다는 차이를 문서에 적었습니다.
 
 ## 0.20.3 - 2026-11-22

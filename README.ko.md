@@ -28,7 +28,7 @@ TrustDex는 AI 에이전트가 어떤 MCP 서버, 스킬, 플러그인을 사용
 Claude Code를 자동 모드나 확인 없는 모드로 쓰시나요? 위험한 행동을 실행 전에 멈추는 검문소를 붙이세요. 몇 시간 전에 올라온 패키지 설치, SSH 키나 토큰 읽기, 에이전트 설정 바꾸기, 자동 실행 항목 심기, SSH로 서버의 비밀값 빼내기 같은 행동이에요.
 
 ```bash
-npx trustdex@0.20.3 init
+npx trustdex@0.20.4 init
 ```
 
 무엇을 바꿀지 보여 주고 `yes`를 입력해야 진행합니다. TrustDex를 `~/.local/share/trustdex/<버전>`에 복사해 두므로, 훅이 실행 중에 코드를 내려받지 않습니다. `~/.claude/settings.json`은 먼저 백업하고, 다른 설정과 훅은 그대로 둡니다. 끝나면 Claude Code 세션을 새로 여세요. `--dry-run`은 계획만 보여 주고, `--strict`는 위험한 행동을 묻지 않고 거부합니다. `trustdex init --uninstall`로 훅을 뺄 수 있습니다. macOS와 Linux를 설정하며, 윈도우는 [훅 안내](docs/CLAUDE_HOOK.ko.md)를 보세요.
@@ -109,8 +109,8 @@ Node.js 20 이상이 필요합니다.
 npm에서 직접 실행:
 
 ```bash
-npx trustdex@0.20.3 --help
-npx trustdex@0.20.3 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
+npx trustdex@0.20.4 --help
+npx trustdex@0.20.4 inspect ./mcp.json --pack strict --policy ./trustdex.policy.json
 ```
 
 또는 소스 체크아웃에서 작업:
@@ -261,7 +261,7 @@ node ./bin/trustdex.mjs gate-claude ./.mcp.json --pack strict --out .trustdex/cl
 claude --strict-mcp-config --mcp-config .trustdex/claude-mcp.json
 ```
 
-Claude를 시작하기 전에 게이트의 결과를 확인하세요. 기본적으로 `ALLOW` 항목만 노출되며, `ASK` 항목에는 검토가 필요합니다. 어댑터는 검사할 수 없는 설정을 조용히 신뢰하지 않고 거부합니다. 이 명령은 npm 0.5.0 이상과 소스 체크아웃에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.20.3`을 사용하세요.
+Claude를 시작하기 전에 게이트의 결과를 확인하세요. 기본적으로 `ALLOW` 항목만 노출되며, `ASK` 항목에는 검토가 필요합니다. 어댑터는 검사할 수 없는 설정을 조용히 신뢰하지 않고 거부합니다. 이 명령은 npm 0.5.0 이상과 소스 체크아웃에서 사용할 수 있습니다. 게시된 CLI를 실행하려면 `node ./bin/trustdex.mjs` 대신 `npx trustdex@0.20.4`을 사용하세요.
 
 지원되는 설정, PowerShell 오류 처리, 서명된 검토 및 Claude Desktop 워크플로는 [Claude에서 TrustDex 사용하기](docs/CLAUDE.ko.md)를 참고하세요.
 
