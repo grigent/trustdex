@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- `provenance npm`과 `trust-source npm`이 Sigstore 로그 항목의 머클 포함 증명도 고정된 로그 키가 서명한 트리 헤드까지 검증합니다. 증명이 없거나 검증되지 않는 번들은 `unverifiable`이며 기록되지 않습니다. 2023년 형식 0.1 번들만 로그의 서명된 약속만 담을 수 있습니다. 네트워크 요청은 추가되지 않습니다.
+
 ## 0.19.0 - 2026-11-22
 
 - `inspect-gemini`, `gate-gemini`, `snapshot-gemini`, `approve-gemini`, `recheck-gemini`: Gemini CLI가 읽기 전에 `mcpServers`를 검사하고 게이트합니다. 모든 도구 호출 확인을 건너뛰는 `trust: true`에는 `auto-approve-tools` 신호가 붙고, 기본 제공 팩에서는 ALLOW가 되지 않습니다. 알 수 없는 필드, OAuth·Google 자격 증명 필드, `settings.json`의 다른 설정, URL의 자격 증명·쿼리 값은 거부합니다. `trust`, 도구 필터, 작업 디렉터리를 바꾸면 서명된 검토가 무효가 됩니다. [docs/GEMINI.ko.md](docs/GEMINI.ko.md)를 참고하세요.

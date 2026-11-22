@@ -4,15 +4,22 @@ import { FULCIO_CHAINS, REKOR_LOGS } from './sigstore-trust-root.mjs';
 // Offline verification of the Sigstore bundle npm serves with build provenance.
 // Checked: the DSSE signature against the signing certificate; that certificate's chain
 // to a pinned Fulcio root; the certificate's OIDC issuer and source repository; the
-// Rekor entry's signed timestamp against the pinned log key; that the entry is for this
+// Rekor entry's signed timestamp against the pinned log key; the Merkle inclusion proof
+// of the entry up to a checkpoint signed by that log key; that the entry is for this
 // envelope and certificate; and that the logged time is inside the certificate's
-// validity. Not checked: the certificate-transparency SCT, the Merkle inclusion proof,
-// RFC 3161 timestamps, and trust-root freshness (the root is pinned, not fetched).
+// validity. Not checked: the certificate-transparency SCT, RFC 3161 timestamps,
+// consistency between checkpoints (a split view of the log is not detected), and
+// trust-root freshness (the root is pinned, not fetched).
 
 const GITHUB_ACTIONS_ISSUER = 'https://token.actions.githubusercontent.com';
 const OID_ISSUER_V2 = '1.3.6.1.4.1.57264.1.8';
 const OID_SOURCE_REPOSITORY = '1.3.6.1.4.1.57264.1.12';
 const MAX_DER_DEPTH = 16;
+// npm provenance from 2023 uses bundle format 0.1, which may carry only the log's
+// promise. The cutoff is checked against the log-signed time, so relabelling a newer
+// bundle as 0.1 and dropping its proof does not pass.
+const LEGACY_BUNDLE_WITHOUT_PROOF = 'application/vnd.dev.sigstore.bundle+json;version=0.1';
+const LEGACY_BUNDLE_CUTOFF = Date.parse('2024-01-01T00:00:00Z');
 
 function fail(reason) {
   return { verified: false, reason };
@@ -119,6 +126,73 @@ function decodeBase64(value) {
   return Buffer.from(value, 'base64');
 }
 
+const sha256 = (...parts) => crypto.createHash('sha256').update(Buffer.concat(parts)).digest();
+const LEAF_PREFIX = Buffer.from([0]);
+const NODE_PREFIX = Buffer.from([1]);
+
+function decimal(value) {
+  if (typeof value !== 'string' || !/^(0|[1-9][0-9]{0,18})$/.test(value)) throw new Error('number');
+  return BigInt(value);
+}
+
+// RFC 9162 section 2.1.3.2: recompute the tree root from a leaf and its audit path.
+function merkleRoot(leafHash, index, size, path) {
+  if (index >= size) throw new Error('proof');
+  let node = index;
+  let last = size - 1n;
+  let hash = leafHash;
+  for (const sibling of path) {
+    if (last === 0n) throw new Error('proof');
+    if (node % 2n === 1n || node === last) {
+      hash = sha256(NODE_PREFIX, sibling, hash);
+      while (node % 2n === 0n && node !== 0n) {
+        node >>= 1n;
+        last >>= 1n;
+      }
+    } else {
+      hash = sha256(NODE_PREFIX, hash, sibling);
+    }
+    node >>= 1n;
+    last >>= 1n;
+  }
+  if (last !== 0n) throw new Error('proof');
+  return hash;
+}
+
+// The checkpoint is a signed note: `<origin>\n<tree size>\n<root hash>\n`, optional
+// extension lines, a blank line, then signature lines `\u2014 <name> <base64>` whose
+// bytes are a 4-byte key hint followed by the signature over the note text.
+function checkpointSignedBy(envelope, logKey, logId, size, root) {
+  if (typeof envelope !== 'string') return false;
+  const split = envelope.indexOf('\n\n');
+  if (split < 0) return false;
+  const text = envelope.slice(0, split + 1);
+  const lines = text.split('\n');
+  if (lines.length < 4 || !lines[0] || lines[1] !== size.toString() ||
+      !decodeBase64(lines[2]).equals(root)) return false;
+  const hint = decodeBase64(logId).subarray(0, 4);
+  return envelope.slice(split + 2).split('\n').some((line) => {
+    const match = /^\u2014 \S+ ([A-Za-z0-9+/]+={0,2})$/.exec(line);
+    if (!match) return false;
+    const bytes = Buffer.from(match[1], 'base64');
+    return bytes.length > 4 && bytes.subarray(0, 4).equals(hint) &&
+      crypto.verify('sha256', Buffer.from(text), logKey, bytes.subarray(4));
+  });
+}
+
+function inclusionProven(proof, body, logKey, logId) {
+  if (!proof || !Array.isArray(proof.hashes) || proof.hashes.length > 64) return false;
+  const size = decimal(proof.treeSize);
+  const path = proof.hashes.map((hash) => {
+    const bytes = decodeBase64(hash);
+    if (bytes.length !== 32) throw new Error('proof');
+    return bytes;
+  });
+  const root = merkleRoot(sha256(LEAF_PREFIX, body), decimal(proof.logIndex), size, path);
+  return root.equals(decodeBase64(proof.rootHash)) &&
+    checkpointSignedBy(proof.checkpoint?.envelope, logKey, logId, size, root);
+}
+
 export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
   const chains = trust.fulcioChains || FULCIO_CHAINS;
   const logs = trust.rekorLogs || REKOR_LOGS;
@@ -162,6 +236,16 @@ export function verifyNpmProvenanceBundle(bundle, expected, trust = {}) {
     if (!crypto.verify('sha256', signedEntry, logKey, decodeBase64(entry.inclusionPromise?.signedEntryTimestamp))) {
       return fail('log-signature');
     }
+    // The signed timestamp is a promise to log the entry; the inclusion proof shows it
+    // is in the log, under a tree head the log key signed.
+    // Only a 2023 bundle in format 0.1 may lack the proof; a proof that is present must
+    // verify whatever the format says.
+    const proof = entry.inclusionProof ?? null;
+    let included = proof === null && bundle.mediaType === LEGACY_BUNDLE_WITHOUT_PROOF && time < LEGACY_BUNDLE_CUTOFF;
+    if (proof !== null) {
+      try { included = inclusionProven(proof, body, logKey, entry.logId.keyId); } catch { included = false; }
+    }
+    if (!included) return fail('log-inclusion');
 
     // The logged entry must be for this payload, signature, and certificate.
     const logged = JSON.parse(body.toString('utf8'));

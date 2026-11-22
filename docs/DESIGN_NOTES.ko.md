@@ -8,7 +8,7 @@
 
 ## 1. npm provenance의 Sigstore 서명 검증
 
-> 상태: 아래 선택지 A를 `src/sigstore.mjs`에 구현했습니다. 확인하는 것과 확인하지 않는 것은 [TRUST_STORE.ko.md](TRUST_STORE.ko.md)에 있습니다. 이제 `matched` 결과에는 검증된 서명이 필요합니다. 머클 포함 증명, SCT, 신뢰 루트 갱신 검토 절차는 아직 남아 있습니다. 이 절의 나머지는 설계 기록으로 남겨 둡니다.
+> 상태: 아래 선택지 A를 `src/sigstore.mjs`에 구현했습니다. 확인하는 것과 확인하지 않는 것은 [TRUST_STORE.ko.md](TRUST_STORE.ko.md)에 있습니다. 이제 `matched` 결과에는 검증된 서명이 필요합니다. 머클 포함 증명도 검증합니다. SCT와 신뢰 루트 갱신 검토 절차는 아직 남아 있습니다. 이 절의 나머지는 설계 기록으로 남겨 둡니다.
 
 ### 현재
 
