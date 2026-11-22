@@ -77,12 +77,41 @@ test('Gemini trust: true never reaches ALLOW in a built-in pack', () => {
 });
 
 test('Gemini headers require review without retaining values', () => {
-  const result = evaluate(remote({ headers: { Authorization: 'Bearer $EXAMPLE_TOKEN', 'X-Secret': 'INERT_STATIC_SECRET' } }))[0];
-  assert.equal(result.action, 'ask');
-  assert.ok(result.signals.includes('static-http-headers'));
-  assert.ok(!JSON.stringify(result).includes('INERT_STATIC_SECRET'));
-  assert.ok(!JSON.stringify(createSnapshot([result])).includes('INERT_STATIC_SECRET'));
+  for (const endpoint of [{ httpUrl: 'https://reviewed.invalid/mcp' }, { url: 'https://reviewed.invalid/sse' }]) {
+    const config = { mcpServers: { reviewed: {
+      ...endpoint,
+      headers: { Authorization: 'Bearer $INERT_ENV_NAME', 'X-Secret': 'INERT_STATIC_SECRET' }
+    } } };
+    const [result] = evaluate(config);
+    assert.equal(result.action, 'ask');
+    assert.ok(result.signals.includes('static-http-headers'));
+    assert.ok(result.signals.includes('env-http-headers'));
+    for (const text of [JSON.stringify(result), JSON.stringify(createSnapshot([result]))]) {
+      assert.ok(!text.includes('INERT_STATIC_SECRET'));
+      assert.ok(!text.includes('INERT_ENV_NAME'));
+    }
+  }
+  assert.ok(!evaluate(remote({ headers: { Authorization: 'INERT_STATIC_SECRET' } }))[0].signals.includes('env-http-headers'));
   assert.equal(evaluate(remote({ headers: {} }))[0].action, 'allow');
+});
+
+test('Gemini signed reviews bind each header to its environment reference pattern', () => {
+  const config = (value, other = 'INERT_LITERAL') => remote({ headers: { Authorization: value, 'X-Key': other } });
+  const baseline = createSnapshot(evaluate(config('Bearer ${FIRST} $SECOND')));
+  const keys = generateTrustKeyPair();
+  const record = createTrustRecord(baseline, keys.privateKey, { policy });
+  const assess = (current) => assessReview({ record, publicKey: keys.publicKey, baseline, current: createSnapshot(evaluate(current)), policy });
+  assert.equal(assess(config('Bearer $FIRST ${SECOND}', 'ROTATED_LITERAL')).status, 'approved');
+  for (const changed of [
+    config('Bearer $THIRD $SECOND'),
+    config('Bearer $SECOND $FIRST'),
+    config('Bearer %FIRST% $SECOND'),
+    config('Bearer $FIRST $SECOND', '$THIRD'),
+    config('INERT_LITERAL', 'Bearer $FIRST $SECOND'),
+    config('INERT_LITERAL')
+  ]) {
+    assert.equal(assess(changed).status, 'needs-review');
+  }
 });
 
 test('Gemini credential rotations do not enter fingerprints; tool names and paths do not enter results', () => {
@@ -93,6 +122,8 @@ test('Gemini credential rotations do not enter fingerprints; tool names and path
   assert.notEqual(env('$FIRST').fingerprint, env('$SECOND').fingerprint);
   assert.equal(env('$FIRST').fingerprint, env('${FIRST}').fingerprint);
   assert.notEqual(env('%FIRST%').fingerprint, env('INERT_ONE').fingerprint);
+  assert.notEqual(env('%FIRST%').fingerprint, env('$FIRST').fingerprint);
+  assert.notEqual(env('$FIRST $SECOND').fingerprint, env('$SECOND $FIRST').fingerprint);
   assert.ok(!JSON.stringify(env('INERT_ONE')).includes('INERT_ONE'));
   const hidden = evaluate({ mcpServers: { local: { command: 'node', cwd: '/INERT_PATH', includeTools: ['INERT_TOOL_NAME'], excludeTools: ['INERT_OTHER_TOOL'] } } });
   for (const text of [JSON.stringify(hidden), JSON.stringify(createSnapshot(hidden))]) {
@@ -144,12 +175,30 @@ test('Gemini adapter rejects unsupported fields, invalid entries, and internal a
   ]) assert.throws(() => parseGeminiMcpConfig(config), JSON.stringify(config));
 });
 
-test('Gemini adapter rejects unresolved command, argument, directory, and endpoint expansion', () => {
+test('Gemini adapter rejects unresolved expansion of the launch target or tool filters', () => {
   for (const config of [
-    local({ command: '${COMMAND}' }), local({ args: ['${SCRIPT}'] }), local({ cwd: '${HOME}/server' }),
+    local({ command: '${COMMAND}' }), local({ command: '$COMMAND' }),
+    local({ args: ['${SCRIPT}'] }), local({ args: ['$SCRIPT'] }),
+    local({ cwd: '${HOME}/server' }), local({ cwd: '$HOME/server' }),
     remote({ httpUrl: '${MCP_URL}' }), remote({ httpUrl: 'https://${MCP_HOST}/mcp' }),
-    { mcpServers: { reviewed: { url: 'https://${MCP_HOST}/sse' } } }
+    remote({ httpUrl: 'https://reviewed.invalid/$MCP_PATH' }),
+    { mcpServers: { reviewed: { url: 'https://$MCP_HOST/sse' } } },
+    remote({ includeTools: ['$TOOLS'] }),
+    local({ excludeTools: ['${TOOLS:-read}'] })
   ]) assert.throws(() => parseGeminiMcpConfig(config), /expansion|literal/, JSON.stringify(config));
+});
+
+test('Gemini adapter rejects uninspected credential reference syntax without echoing it', () => {
+  for (const value of ['${TOKEN:-INERT_SECRET}', '${NAME:${INERT_SECRET}}', '${INERT_SECRET', '$123']) {
+    for (const config of [local({ env: { TOKEN: value } }), remote({ headers: { Authorization: value } })]) {
+      assert.throws(() => parseGeminiMcpConfig(config), ({ message }) => {
+        assert.match(message, /Unsupported Gemini MCP environment reference/);
+        assert.ok(!message.includes(value));
+        assert.ok(!message.includes('INERT_SECRET'));
+        return true;
+      });
+    }
+  }
 });
 
 test('Gemini secret-bearing URLs fail before they can be fingerprinted or reported', () => {

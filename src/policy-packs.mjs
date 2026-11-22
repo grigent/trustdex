@@ -89,6 +89,8 @@ const BASE_SIGNALS = {
   'gemini-auto-edit': 'ask',
   'gemini-auto-approved-tools': 'ask',
   'gemini-auto-approved-shell': 'block',
+  'gemini-unresolved-tool-grants': 'block',
+  'gemini-auto-approved-mcp': 'ask',
   'gemini-tool-commands': 'block',
   'gemini-hooks': 'block',
   'gemini-sandbox-relaxed': 'ask',

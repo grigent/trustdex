@@ -111,7 +111,7 @@ function devinServers() {
 function geminiServers() {
   return {
     remote: { httpUrl: 'https://mcp.example.invalid/mcp', headers: { Authorization: `Bearer ${canary()}` }, includeTools: [canary()], excludeTools: [canary()], trust: true },
-    sse: { url: 'https://mcp.example.invalid/sse', headers: { 'X-Key': canary() } },
+    sse: { url: 'https://mcp.example.invalid/sse', headers: { 'X-Key': `$${canary()}` } },
     local: { command: 'node', args: ['server.js', `--token=${canary()}`], env: { API_TOKEN: canary(), OTHER: '$OTHER' }, cwd: `/work/${canary()}`, timeout: 30000 }
   };
 }
@@ -195,7 +195,7 @@ test('no command prints or stores a planted value', () => {
       [canary()]: canary(),
       general: { defaultApprovalMode: 'auto_edit', [canary()]: canary() },
       tools: {
-        allowed: [`run_shell_command(${canary()})`, canary()], core: [canary()], exclude: [canary()],
+        allowed: [`run_shell_command(${canary()})`, canary()], core: [`$${canary()}`], exclude: [canary()],
         sandbox: 'docker', sandboxAllowedPaths: [canary()], discoveryCommand: canary(), callCommand: canary()
       },
       mcp: { serverCommand: canary(), allowed: [canary()], excluded: [canary()] },
@@ -385,6 +385,7 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', env: { T: canary() }, extra: canary() } } })],
     ['inspect-gemini', 'json', () => ({ mcpServers: { a: { httpUrl: 'https://x.invalid/', oauth: { clientSecret: canary() } } } })],
     ['inspect-gemini', 'json', () => ({ mcpServers: { a: { url: 'https://x.invalid/', headers: { A: 5, B: canary() } } } })],
+    ['inspect-gemini', 'json', () => ({ mcpServers: { a: { httpUrl: 'https://x.invalid/', headers: { A: `\${HEADER:-${canary()}}` } } } })],
     ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', cwd: [canary()] } } })],
     ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', trust: canary() } } })],
     ['inspect-gemini', 'json', () => ({ mcpServers: { a: { command: 'node', includeTools: [canary(), 5] } } })],
@@ -420,6 +421,9 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: canary() } })],
     ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: `${'$'}{${canary()}:-${canary()}}` } })],
     ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: `${canary()}$${canary()}` } })],
+    ['inspect-gemini-settings', 'json', () => ({
+      admin: { mcp: { requiredConfig: { [canary()]: { trust: canary() } } } }
+    })],
     ['inspect-gemini-settings', 'raw', () => `{"tools": {"allowed": [${canary()}]}}`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = "${canary()}"\n`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = ${canary()}\n`],

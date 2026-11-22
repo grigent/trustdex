@@ -36,8 +36,9 @@ Supported server fields:
 | HTTP streaming endpoint | `httpUrl`, `headers`, `timeout`, `trust`, `includeTools`, `excludeTools` |
 
 A server must have exactly one of `command`, `url`, or `httpUrl`. Everything else fails
-closed: unknown root or server fields, malformed entries, `${...}` in `command`, `args`,
-`cwd`, or an endpoint, and URLs containing credentials, query parameters, or fragments.
+closed: unknown root or server fields, malformed entries, unresolved environment
+references in `command`, `args`, `cwd`, endpoints, or tool filters, and URLs containing
+credentials, query parameters, or fragments.
 This intentionally excludes the documented `oauth`, `authProviderType`, `targetAudience`,
 and `targetServiceAccount` fields until they have an explicit inspection implementation.
 Automatic OAuth discovery needs none of those fields and remains Gemini CLI's
@@ -45,16 +46,19 @@ responsibility.
 
 Signals:
 
-- `trust: true` makes Gemini CLI skip every tool-call confirmation for that server. It
+- `trust: true` can skip tool-call confirmations for that server. It
   adds `auto-approve-tools`, which built-in packs send to review, so such a server is
   never ALLOW without an explicit policy decision.
-- Any header adds `static-http-headers`. Gemini CLI documents variable expansion for
-  `env` only, so header values are treated as literal credentials.
+- Any header retains the `static-http-headers` precaution, and a header with environment
+  references also adds `env-http-headers`. Gemini CLI expands references in both
+  `env` and transport headers. TrustDex recognizes simple `$NAME`, `${NAME}`, and
+  Windows-only `%NAME%` references; it does not read environment values. Complex
+  references such as `${NAME:-DEFAULT}` fail closed in these fields.
 
-Fingerprints include the transport, header names, the environment-variable names
-referenced in `env` (`$NAME`, `${NAME}`, `%NAME%`), the `trust` flag, and digests of
-`includeTools`, `excludeTools`, and `cwd`. Turning on `trust`, widening a tool filter, or
-changing the working directory therefore invalidates a signed review. Header and
+Fingerprints include the transport, header names, the ordered environment references
+per header and environment entry, the `trust` flag, and digests of
+`includeTools`, `excludeTools`, and `cwd`. Changing a reference, turning on `trust`,
+widening a tool filter, or changing the working directory invalidates a signed review. Header and
 environment values, tool names, and the directory path are omitted, so rotating a
 credential value alone does not invalidate a review. `timeout` is validated but not
 fingerprinted. Avoid putting credentials in command arguments or URL paths. Gated files
@@ -98,10 +102,12 @@ Settings are classified by capability rather than echoed:
 
 | Observed setting | Signal | Built-in packs |
 | --- | --- | --- |
-| `tools.allowed` names the shell tool, or contains a wildcard | `gemini-auto-approved-shell` | `BLOCK` |
+| `tools.allowed` or `tools.core` names the shell tool or contains a wildcard | `gemini-auto-approved-shell` | `BLOCK` |
+| `tools.allowed` or `tools.core` contains an unresolved environment reference | `gemini-unresolved-tool-grants` | `BLOCK` |
 | `tools.discoveryCommand`, `tools.callCommand`, or `mcp.serverCommand` | `gemini-tool-commands` | `BLOCK` |
 | any `hooks` entry, even when `hooksConfig.enabled` is `false` in this file | `gemini-hooks` | `BLOCK` |
-| any other `tools.allowed` entry | `gemini-auto-approved-tools` | at least `ASK` |
+| any other `tools.allowed` or `tools.core` entry | `gemini-auto-approved-tools` | at least `ASK` |
+| `mcp.allowed` entries, `mcp.autoAllowInHeadless: true`, or a trusted MCP server (including admin entries) | `gemini-auto-approved-mcp` | at least `ASK` |
 | `general.defaultApprovalMode` is `auto_edit` | `gemini-auto-edit` | at least `ASK` |
 | `tools.sandboxAllowedPaths` or `tools.sandboxNetworkAccess` | `gemini-sandbox-relaxed` | at least `ASK` |
 | `tools.sandbox` is `false`, `"false"`, or `"0"` (this file turns the sandbox off) | `gemini-sandbox-disabled` | at least `ASK` |
@@ -113,11 +119,15 @@ Settings are classified by capability rather than echoed:
 | `mcpServers`, `admin.mcp.config`, or `admin.mcp.requiredConfig` entries | `gemini-mcp-servers` | at least `ASK` |
 | any setting TrustDex does not inspect | `uninspected-gemini-settings` | at least `ASK` |
 
-A settings file never reaches ALLOW, whatever the policy says. Restrictive settings
-(`tools.exclude`, `tools.core`, `tools.confirmationRequired`, `security.disableYoloMode`,
+A settings file never reaches ALLOW, whatever the policy says. Gemini CLI's `tools.core`
+both restricts the tool set and adds allow rules for the listed tools outside plan mode.
+Restrictive settings
+(`tools.exclude`, `tools.confirmationRequired`, `security.disableYoloMode`,
 `security.disableAlwaysAllow`) add no signal. An inspected setting with the wrong type,
 an unsupported approval mode, and a file that is not plain JSON (including one with
-comments) fail closed.
+comments) fail closed. When present in the inspected settings, `admin.secureModeEnabled: true`
+is reflected in both the YOLO-disabled and always-allow-disabled booleans.
+Gemini defaults admin-required MCP servers to trusted when `trust` is omitted.
 
 `metadata.sandboxSetting` is `omitted`, `disabled` (`false`, `"false"`, or `"0"`, which Gemini
 CLI treats as off), `enabled` (`true`, `"true"`, `"1"`, or a sandbox command Gemini CLI supports: `docker`,
