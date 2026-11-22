@@ -24,6 +24,7 @@ Node.js 20 is the minimum supported version. `trustdex init` supports macOS and 
 | Claude Code `.mcp.json` and Claude Desktop `mcpServers` | `inspect-claude`, `gate-claude`, `snapshot-claude`, `approve-claude`, `recheck-claude` | `test/claude.test.mjs` | `claude-mcp` |
 | Devin CLI `mcp_config.json` | `inspect-devin`, `gate-devin`, `snapshot-devin`, `approve-devin`, `recheck-devin` | `test/devin.test.mjs` | `devin-mcp` |
 | Gemini CLI `mcpServers` | `inspect-gemini`, `gate-gemini`, `snapshot-gemini`, `approve-gemini`, `recheck-gemini` | `test/gemini.test.mjs` | `gemini-mcp` |
+| Devin CLI `config.json` permission rules | `inspect-devin-settings` | `test/devin-settings.test.mjs` | `devin-settings` |
 | Gemini CLI `settings.json` permission settings | `inspect-gemini-settings` | `test/gemini-settings.test.mjs` | `gemini-settings` |
 | Claude Code settings files and merged stacks | `inspect-claude-settings`, `inspect-claude-settings-stack`, `snapshot-claude-settings`, `snapshot-claude-settings-stack`, `diff-permissions` | `test/claude-settings.test.mjs`, `test/settings-stack.test.mjs`, `test/posture.test.mjs` | `claude-settings` |
 | Claude Code `PreToolUse` hook | `claude-hook`, `init`, `allow-once` | `test/claude-hook.test.mjs`, `test/init.test.mjs` | `claude-hook` |
