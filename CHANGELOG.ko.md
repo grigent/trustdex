@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- `inspect-gemini-settings`: `tools.sandbox`는 `true`, `"true"`, `"1"`, 또는 Gemini CLI가 지원하는 샌드박스 명령(`docker`, `podman`, `sandbox-exec`, `runsc`, `lxc`, `windows-native`)일 때만 `enabled`입니다. Gemini CLI가 설정 오류로 처리하는 그 밖의 문자열은 이제 `enabled`로 보고하지 않고 거부합니다(종료 코드 2). 입력 값은 출력하지 않습니다.
+
 ## 0.20.2 - 2026-11-22
 
 - `inspect-gemini-settings`: Gemini CLI가 끔으로 처리하는 문자열 `"false"`, `"0"`인 `tools.sandbox`를 이제 `disabled`로 분류하고 `gemini-sandbox-disabled`(최소 `ASK`)와 `sandboxConfigured: false`를 보고합니다. 이전에는 `enabled`로 보고했습니다. 파일의 `false`가 다른 계층보다 우선한다는 설명을 바로잡았습니다. `sandboxSetting`은 검사한 파일의 설정이며, 실제 값은 상위 설정 계층, `GEMINI_SANDBOX`, `--sandbox`에 따라 달라질 수 있습니다.

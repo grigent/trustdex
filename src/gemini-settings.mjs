@@ -3,6 +3,8 @@
 // and the names of settings TrustDex does not know are never retained.
 
 const SANDBOX_OFF = new Set([false, 'false', '0']);
+// The values Gemini CLI's sandboxConfig.ts accepts; any other string is a fatal config error there.
+const SANDBOX_ON = new Set([true, 'true', '1', 'docker', 'podman', 'sandbox-exec', 'runsc', 'lxc', 'windows-native']);
 const APPROVAL_MODES = new Set(['default', 'auto_edit', 'plan']);
 const SECTION_KEYS = Object.freeze({
   general: new Set(['defaultApprovalMode']),
@@ -94,8 +96,8 @@ export function inspectGeminiSettings(settings, sourceName = 'settings.json') {
   strings(tools, 'exclude', 'tools.exclude');
 
   const sandbox = own(tools, 'sandbox');
-  if (sandbox !== undefined && typeof sandbox !== 'boolean' && (typeof sandbox !== 'string' || !sandbox.trim())) {
-    throw new Error('Gemini tools.sandbox must be a boolean or a non-empty string.');
+  if (sandbox !== undefined && !SANDBOX_OFF.has(sandbox) && !SANDBOX_ON.has(sandbox)) {
+    throw new Error('Gemini tools.sandbox must be a boolean, "true", "false", "1", "0", or a sandbox command Gemini CLI supports (docker, podman, sandbox-exec, runsc, lxc, windows-native).');
   }
   // Gemini CLI treats false, "false", and "0" as off. This is the value in this file only;
   // another settings layer, GEMINI_SANDBOX, or --sandbox can change what applies at runtime.

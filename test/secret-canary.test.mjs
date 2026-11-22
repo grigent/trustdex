@@ -187,7 +187,7 @@ test('no command prints or stores a planted value', () => {
       general: { defaultApprovalMode: 'auto_edit', [canary()]: canary() },
       tools: {
         allowed: [`run_shell_command(${canary()})`, canary()], core: [canary()], exclude: [canary()],
-        sandbox: canary(), sandboxAllowedPaths: [canary()], discoveryCommand: canary(), callCommand: canary()
+        sandbox: 'docker', sandboxAllowedPaths: [canary()], discoveryCommand: canary(), callCommand: canary()
       },
       mcp: { serverCommand: canary(), allowed: [canary()], excluded: [canary()] },
       security: { allowedExtensions: [canary()], environmentVariableRedaction: { allowed: [canary()], blocked: [canary()] } },
@@ -406,6 +406,7 @@ test('no malformed input echoes a planted value in errors or reports', () => {
     ['inspect-gemini-settings', 'json', () => ({ tools: { allowed: [canary(), 5] } })],
     ['inspect-gemini-settings', 'json', () => ({ [canary()]: [canary()], tools: { discoveryCommand: [canary()] } })],
     ['inspect-gemini-settings', 'json', () => ({ hooks: { [canary()]: canary() } })],
+    ['inspect-gemini-settings', 'json', () => ({ tools: { sandbox: canary() } })],
     ['inspect-gemini-settings', 'raw', () => `{"tools": {"allowed": [${canary()}]}}`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = "${canary()}"\n`],
     ['inspect-codex-settings', 'toml', () => `approval_policy = ${canary()}\n`],

@@ -119,11 +119,13 @@ an unsupported approval mode, and a file that is not plain JSON (including one w
 comments) fail closed.
 
 `metadata.sandboxSetting` is `omitted`, `disabled` (`false`, `"false"`, or `"0"`, which Gemini
-CLI treats as off), or `enabled` (`true` or another string such as a sandbox command, which is
-not reported), so an omitted sandbox is distinguishable from one that is turned off.
+CLI treats as off), or `enabled` (`true`, `"true"`, `"1"`, or a sandbox command Gemini CLI supports: `docker`,
+`podman`, `sandbox-exec`, `runsc`, `lxc`, or `windows-native`; the command is not reported), so an omitted sandbox is distinguishable from one that is turned off.
 `metadata.sandboxConfigured` is `true` only for `enabled`. Both describe the value written in
 the inspected file. The sandbox that applies at runtime can differ: another settings layer,
-the `GEMINI_SANDBOX` environment variable, or the `--sandbox` CLI option can change it. The report holds the approval mode, booleans, and counts. It does not hold tool names,
+the `GEMINI_SANDBOX` environment variable, or the `--sandbox` CLI option can change it. Any
+other `tools.sandbox` string, which Gemini CLI rejects as a configuration error, fails closed
+without the value appearing in the error or report. The report holds the approval mode, booleans, and counts. It does not hold tool names,
 commands, paths, hook bodies, extension patterns, variable names, or the names of
 uninspected settings. It therefore has no content fingerprint or signed review record:
 a same-count change inside one category is not detected.

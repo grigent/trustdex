@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `inspect-gemini-settings`: `tools.sandbox` is `enabled` only for `true`, `"true"`, `"1"`, or a sandbox command Gemini CLI supports (`docker`, `podman`, `sandbox-exec`, `runsc`, `lxc`, `windows-native`). Any other string, which Gemini CLI rejects as a configuration error, now fails closed (exit 2) instead of being reported as `enabled`; the value is not printed.
+
 ## 0.20.2 - 2026-11-22
 
 - `inspect-gemini-settings`: `tools.sandbox` set to the string `"false"` or `"0"` is now `disabled` with `gemini-sandbox-disabled` (at least `ASK`) and `sandboxConfigured: false`, as Gemini CLI treats both as off; before, they were reported as `enabled`. The docs no longer say that a file's `false` overrides other layers: `sandboxSetting` describes the inspected file, and other settings layers, `GEMINI_SANDBOX`, or `--sandbox` can change the runtime value.
