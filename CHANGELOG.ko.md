@@ -6,6 +6,12 @@
 
 ## 미출시
 
+- 스킬 파일: 와일드카드 도구 범위가 YAML 블록 목록, 여러 줄 플로 목록, BOM이나 빈 줄 뒤, 다른 대소문자, 뒤따르는 주석, 반복된 키, `Bash(*)` 같은 제한 없는 지정자로 쓰여도 보고합니다. TrustDex가 해석하지 못하는 문법의 도구 범위는 좁다고 읽지 않고 `uninspected-tool-scope`(ASK)를 추가합니다
+- 스킬 파일: 더 많은 내려받아 실행 형태(`| zsh`, `| python`, `| iex`, `bash <(...)`, `bash -c "$(...)"`), 패키지 러너, 자격 증명 위치(`$HOME/.ssh`, `~/.gnupg`, `~/.kube`, `~/.npmrc` 등)가 기존 지시문 신호를 올립니다. 여전히 텍스트 휴리스틱입니다
+- 플러그인 매니페스트: 훅, MCP 서버, LSP 서버, 스크립트를 선언하면 `plugin-executable-components`(ASK)를 추가합니다. `permissions.allow: ["Bash(*)"]` 같은 중첩 와일드카드 권한을 보고하고, 64단계보다 깊게 중첩된 매니페스트는 거부합니다
+- MCP JSON: `command`, `args`, `env`, `url`, `endpoint`의 타입이 잘못되면 `malformed-server-fields`(BLOCK), `env`·`sudo`·`busybox` 같은 래퍼가 셸을 실행하거나 명령이 `dash`·`ksh`이면 `shell-execution`을 추가합니다
+- `examples/adversarial/extensions/`와 `examples/adversarial/mcp-evasion.json`에 비활성 픽스처를 추가했습니다
+
 ## 0.17.3 - 2026-11-22
 
 - `provenance npm`과 `trust-source npm`이 최신 버전의 npm 빌드 provenance를 패키지가 지금 선언한 저장소, 이전에 선언했던 저장소와 비교합니다. `trust-source`는 다른 저장소에서 빌드된 릴리스(`mismatch`), 이전 버전에 있던 provenance가 빠진 릴리스(`dropped`), 버전의 sha512와 맞출 수 없는 provenance(`unverifiable`)를 거부하고, 일치하면 소스 저장소와 워크플로를 주장에 기록합니다. Sigstore 서명은 검증하지 않으며, `check-install`은 새 요청을 하지 않습니다
