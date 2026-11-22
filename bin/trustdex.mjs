@@ -537,7 +537,7 @@ function describeBuildProvenance(build) {
   const refuse = ' trust-source refuses this version.';
   switch (build.status) {
     case 'matched':
-      return `built by ${repo(build.sourceRepository)}${build.workflowPath ? ` (${build.workflowPath})` : ''}, matching the declared repository. Registry-reported; signature not verified.`;
+      return `built by ${repo(build.sourceRepository)}${build.workflowPath ? ` (${build.workflowPath})` : ''}, matching the declared repository. Sigstore signature verified offline against the pinned trust root.`;
     case 'absent':
       return 'none published.';
     case 'dropped':

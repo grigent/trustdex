@@ -1,3 +1,4 @@
+import { verifyNpmProvenanceBundle } from '../src/sigstore.mjs';
 import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -207,7 +208,9 @@ test('npm build provenance must come from the repository the package declares', 
     maintainers: [{ name: 'alice' }]
   });
   const ATTEST = 'https://registry.npmjs.org/-/npm/v1/attestations/%40example%2Fagent@2.0.0';
-  const lookup = (doc, attestation) => inspectNpmPackage('@example/agent', {
+  // These bundles are unsigned test data; signature verification has its own test file.
+  const lookup = (doc, attestation, verifyBundle = () => ({ verified: true })) => inspectNpmPackage('@example/agent', {
+    verifyBundle,
     fetchImpl: async (url) => url === ATTEST
       ? (attestation === undefined ? response({}, 404) : response(attestation))
       : response(doc)
@@ -223,9 +226,22 @@ test('npm build provenance must come from the repository the package declares', 
   const claim = provenanceObservationToClaim(observation, 'Example Publisher');
   assert.deepEqual(claim.evidence.buildProvenance, {
     source: 'npm-registry-attestation', version: '2.0.0', sourceRepository: 'example/agent',
-    workflowPath: '.github/workflows/publish.yml', signatureVerified: false
+    workflowPath: '.github/workflows/publish.yml', signatureVerified: true
   });
   assert.deepEqual(parseTrustStore({ version: 1, claims: [claim] }).claims[0].evidence.buildProvenance, claim.evidence.buildProvenance);
+
+  // A matching statement whose signature does not verify is not a match.
+  for (const verifier of [verifyNpmProvenanceBundle, () => ({ verified: false, reason: 'x' }), () => { throw new Error('x'); }, () => ({ verified: 'yes' })]) {
+    observation = await lookup(packument('example/agent'), statement('https://github.com/example/agent'), verifier);
+    assert.equal(observation.evidence.buildProvenance.status, 'unverifiable');
+    assert.equal(observation.evidence.buildProvenance.reason, 'signature-not-verified');
+    assert.equal(observation.evidence.buildProvenance.signatureVerified, false);
+    assert.throws(() => provenanceObservationToClaim(observation, 'Example Publisher'), /Refusing to trust an npm package/);
+  }
+  // A hand-built "matched" observation without a verified signature is refused too.
+  observation = await lookup(packument('example/agent'), statement('https://github.com/example/agent'));
+  observation.evidence.buildProvenance.signatureVerified = false;
+  assert.throws(() => provenanceObservationToClaim(observation, 'Example Publisher'), /Refusing to trust an npm package/);
 
   const refused = [
     [packument('attacker/agent', 'example/agent'), statement('https://github.com/attacker/agent'), 'mismatch'],

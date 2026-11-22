@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- `provenance npm` and `trust-source npm` verify the Sigstore bundle of npm build provenance offline, with Node's built-in crypto and a pinned trust root (no new dependency or request). A match now requires a valid DSSE signature, a certificate that chains to the pinned Fulcio root and names the same GitHub repository, and a Rekor entry for that envelope with a valid signed timestamp; otherwise the release is `unverifiable` and `trust-source` refuses it. Not checked: SCT, Merkle inclusion proof, RFC 3161 timestamps, trust-root rotation
 - `slack-approver`: the token file must contain exactly one bot-token-shaped value, so a `tokenFile` pointed at another file cannot send its contents to Slack, and requests to `slack.com` no longer follow redirects
 
 ## 0.17.3 - 2026-11-22

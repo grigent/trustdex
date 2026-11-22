@@ -6,6 +6,7 @@
 
 ## 미출시
 
+- `provenance npm`과 `trust-source npm`이 npm 빌드 출처 증명의 Sigstore 번들을 Node 내장 crypto와 고정된 신뢰 루트로 오프라인 검증합니다(새 의존성·요청 없음). 이제 일치로 판정하려면 DSSE 서명이 유효하고, 인증서가 고정된 Fulcio 루트로 이어지며 같은 GitHub 저장소를 가리키고, 해당 봉투에 대한 Rekor 항목의 서명된 타임스탬프가 유효해야 합니다. 그렇지 않으면 `unverifiable`이며 `trust-source`가 거부합니다. 확인하지 않는 것: SCT, 머클 포함 증명, RFC 3161 타임스탬프, 신뢰 루트 교체
 - `slack-approver`: 토큰 파일에는 봇 토큰 형태의 값 하나만 있어야 합니다. `tokenFile`이 다른 파일을 가리켜도 그 내용이 Slack으로 전송되지 않으며, `slack.com` 요청은 더 이상 리디렉션을 따르지 않습니다
 
 ## 0.17.3 - 2026-11-22

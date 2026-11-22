@@ -67,7 +67,9 @@ Unknown third-party sources remain blocked in `official-first`. A verified prove
 | `mismatch` | built by a different repository than the package declares or declared before, as with a release built from an attacker's fork | refuses |
 | `unverifiable` | the attestation could not be fetched or parsed, or its subject does not match the version's sha512 | refuses |
 
-The attestation is fetched from `registry.npmjs.org` for that exact name and version only by these explicit commands; `check-install` and `claude-hook` do not make this request. TrustDex checks that the attestation names the exact version and its sha512 digest, but it does not verify the Sigstore signature: the result records what the registry reports (`signatureVerified: false`). It does not prove that the source repository or its workflow is safe.
+The attestation is fetched from `registry.npmjs.org` for that exact name and version only by these explicit commands; `check-install` and `claude-hook` do not make this request. TrustDex checks that the attestation names the exact version and its sha512 digest, and verifies its Sigstore bundle offline with Node's built-in crypto against a trust root pinned in the package (no extra request, no dependency). A match is recorded with `signatureVerified: true` only when all of these hold: the DSSE signature verifies under the signing certificate; that certificate chains to a pinned Fulcio root and was valid at the logged time; it was issued for GitHub Actions and names the same source repository; and the Rekor log entry is for this exact envelope and carries a valid signed entry timestamp from the pinned log key. Anything else is `unverifiable` and `trust-source` refuses it.
+
+Not checked: the certificate-transparency SCT, the Merkle inclusion proof, RFC 3161 timestamps, and trust-root rotation (the root is pinned, so a release signed under a newer Sigstore key is reported as `unverifiable` until TrustDex is updated). A verified signature shows which repository's workflow built the package; it does not prove that the repository or its workflow is safe.
 
 ## Integrity-backed package evidence
 

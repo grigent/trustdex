@@ -1,3 +1,4 @@
+import { verifyNpmProvenanceBundle } from './sigstore.mjs';
 import crypto from 'node:crypto';
 
 function assertFetch(fetchImpl) {
@@ -181,9 +182,10 @@ function npmSha512Hex(integrity) {
 
 // Reads the SLSA provenance npm reports for one exact version and compares its
 // source repository with the repository the package declares now and declared in
-// earlier versions. The Sigstore signature is not verified: this records what the
-// registry reports, bound to the version's sha512 digest.
-async function inspectNpmBuildProvenance(data, version, fetchImpl) {
+// earlier versions. A match is reported only when the attestation's Sigstore bundle
+// verifies offline against the pinned trust root (see sigstore.mjs for what is and is
+// not checked) and its signing certificate names the same source repository.
+async function inspectNpmBuildProvenance(data, version, fetchImpl, verifyBundle = verifyNpmProvenanceBundle) {
   const meta = data.versions[version];
   const declared = githubRepositorySlug(meta.repository ?? data.repository);
   const releasedAt = Date.parse(data.time?.[version]);
@@ -234,7 +236,15 @@ async function inspectNpmBuildProvenance(data, version, fetchImpl) {
   const workflowPath = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/.test(entryPoint) ? entryPoint : null;
   if (!sourceRepository) return unverifiable('unknown-source');
   const matched = sourceRepository === declared && (!previous || sourceRepository === previous);
-  return { status: matched ? 'matched' : 'mismatch', sourceRepository, workflowPath, ...base };
+  if (!matched) return { status: 'mismatch', sourceRepository, workflowPath, ...base };
+  let verification;
+  try {
+    verification = verifyBundle(attestation.bundle, { repository: sourceRepository });
+  } catch {
+    verification = null;
+  }
+  if (verification?.verified !== true) return unverifiable('signature-not-verified');
+  return { status: 'matched', sourceRepository, workflowPath, ...base, signatureVerified: true };
 }
 
 export async function inspectNpmPackage(packageName, options = {}) {
@@ -290,7 +300,7 @@ export async function inspectNpmPackage(packageName, options = {}) {
         shasum: latestMeta.dist.shasum ? String(latestMeta.dist.shasum) : null
       } : null,
       repository,
-      buildProvenance: await inspectNpmBuildProvenance(data, latest, options.fetchImpl),
+      buildProvenance: await inspectNpmBuildProvenance(data, latest, options.fetchImpl, options.verifyBundle),
       maintainers: Array.isArray(data.maintainers)
         ? data.maintainers.map((item) => item?.name).filter(Boolean).sort()
         : []
@@ -482,7 +492,7 @@ export function provenanceObservationToClaim(observation, publisher, options = {
 
   const build = observation.evidence.buildProvenance;
   if (observation.adapter === 'npm') {
-    if (!build || !['absent', 'matched'].includes(build.status)) {
+    if (!build || !['absent', 'matched'].includes(build.status) || (build.status === 'matched' && build.signatureVerified !== true)) {
       throw new Error({
         mismatch: 'Refusing to trust an npm package whose provenance was built from a different repository than it declares or declared before.',
         dropped: 'Refusing to trust an npm package whose latest version has no provenance although earlier versions did.'
@@ -494,7 +504,7 @@ export function provenanceObservationToClaim(observation, publisher, options = {
         version: observation.evidence.latestVersion,
         sourceRepository: build.sourceRepository,
         workflowPath: build.workflowPath,
-        signatureVerified: false
+        signatureVerified: build.signatureVerified === true
       };
     }
   }
