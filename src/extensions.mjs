@@ -87,10 +87,15 @@ const SKILL_SHELL_INJECTION_RE = /!`[^`\r\n]+`|^[ \t]*(?:`{3,}|~{3,})!/m;
 // A plain or quoted `hooks` key in a block mapping or a flow map registers session hooks.
 const SKILL_HOOKS_KEY_RE = /(?:^|[{,])[ \t]*["']?hooks["']?[ \t]*:/m;
 // Frontmatter this inspector cannot read as keys: any other mention of hooks, YAML explicit
-// keys, aliases, tags and anchors at a key position, escaped quoted keys, and flow maps
-// that use any of those.
+// keys, aliases, tags and anchors at a key position, escaped quoted keys, and any of those
+// after a flow map opens, including on later lines.
 const SKILL_UNREAD_FRONTMATTER_RE =
-  /hooks|^[ \t]*(?:\?(?:[ \t]|$)|\*[^\s*,{}[\]]|[!&]|"[^"\n]*\\)|^[^\n{]*\{[^\n]*[?*!&\\]/im;
+  /hooks|^[ \t]*(?:\?(?:[ \t]|$)|\*[^\s*,{}[\]]|[!&]|"[^"\n]*\\)/im;
+
+function hasUnreadFrontmatter(header) {
+  const flow = header.indexOf('{');
+  return SKILL_UNREAD_FRONTMATTER_RE.test(header) || (flow >= 0 && /[?*!&\\]/.test(header.slice(flow)));
+}
 const SHELL_TOOL_RE = /(?:^|[\s,[\]"'])(?:Bash|PowerShell)(?=$|[\s,(\]"'])/i;
 
 function isWildcard(tools) {
@@ -147,7 +152,7 @@ export function inspectSkillText(text, sourceName = 'SKILL.md') {
   // Skill hooks register commands for the rest of the session, however the key is written.
   const header = entries.header || '';
   if (SKILL_HOOKS_KEY_RE.test(header)) signals.add('skill-hooks');
-  else if (SKILL_UNREAD_FRONTMATTER_RE.test(header)) signals.add('skill-frontmatter-uninspected');
+  else if (hasUnreadFrontmatter(header)) signals.add('skill-frontmatter-uninspected');
   if (SKILL_SHELL_INJECTION_RE.test(value)) signals.add('skill-shell-injection');
 
   return {

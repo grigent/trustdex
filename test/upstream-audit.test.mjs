@@ -32,6 +32,7 @@ test('skill hooks and injected shell commands block even when local skills are a
     '---\n"\\x68ooks": {PreToolUse: []}\n---\nbody\n',
     '---\nmeta:\n  ? hooks\n  : {PreToolUse: []}\n---\nbody\n',
     '---\n{name: x, ? "\\x68ooks": {PreToolUse: []}}\n---\nbody\n',
+    '---\nx: {\n  a: 1, "\\x68ooks": [1]\n}\n---\nbody\n',
     '---\nname: x\ndescription: Explains React hooks: state and effects\n---\nbody\n'
   ]) {
     const record = skill(text);
