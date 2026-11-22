@@ -30,7 +30,7 @@ function raise(current, next) {
 }
 
 const SETTINGS_KINDS = new Set([
-  'claude-settings', 'claude-settings-stack', 'codex-settings', 'codex-settings-stack', 'gemini-settings'
+  'claude-settings', 'claude-settings-stack', 'codex-settings', 'codex-settings-stack', 'gemini-settings', 'devin-settings'
 ]);
 
 function signalAction(policy, signal, fallback = null) {

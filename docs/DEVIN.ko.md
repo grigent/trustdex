@@ -75,8 +75,51 @@ node ./bin/trustdex.mjs gate-devin ./.devin/mcp_config.json \
 
 Devin CLI는 프로젝트·로컬·사용자 파일을 병합합니다. 사용하는 파일을 각각 검사하세요.
 TrustDex는 이 파일들을 찾아내거나 병합하지 않습니다. 이 워크플로는 웹 앱에서 Devin
-조직에 설치한 MCP 서버, 플러그인, Devin 내장 도구, `permissions` 규칙, 엔터프라이즈
-허용 목록을 다루지 않습니다.
+조직에 설치한 MCP 서버, 플러그인, Devin 내장 도구, 엔터프라이즈 허용 목록을 다루지
+않습니다. `permissions` 규칙은 따로 검사합니다. [권한 설정](#권한-설정)을 참고하세요.
+
+## 권한 설정
+
+`inspect-devin`은 MCP 서버를 다룹니다. 권한 규칙은 다른 파일인 `config.json`에 있으며
+따로 검사합니다.
+
+```bash
+node ./bin/trustdex.mjs inspect-devin-settings ./.devin/config.json --pack strict --json
+```
+
+| 관찰된 설정 | 신호 | 기본 제공 팩 |
+| --- | --- | --- |
+| `permissions.allow`의 `Exec(...)` 규칙 또는 `exec` 도구 | `devin-auto-approved-exec` | `BLOCK` |
+| 그 밖의 `permissions.allow` 규칙(`Read`, `Write`, `Fetch`, 도구 이름, `mcp__...`) | `devin-auto-approved-tools` | `ASK` |
+| `permission_mode: "dangerous"` | `devin-permission-mode-bypass` | `BLOCK` |
+| `permission_mode: "accept-edits"` 또는 `"smart"` | `devin-permission-mode-auto` | `ASK` |
+| 비어 있지 않은 `hooks` 이벤트 | `devin-hooks` | `BLOCK` |
+| `local_tools_bypass_permissions: true` | `devin-local-tools-bypass` | `ASK` |
+| `mcpServers` 키(예전 Devin CLI 버전이 읽음) | `devin-mcp-servers` | `ASK` |
+| `proxy`처럼 TrustDex가 검사하지 않는 설정 | `uninspected-devin-settings` | `ASK` |
+
+설정 파일은 정책과 관계없이 ALLOW가 되지 않습니다. `ask`와 `deny` 규칙은 제한하는
+규칙이라 신호를 추가하지 않습니다. 에이전트에 자율성을 주지 않는 문서화된 설정(`agent`,
+표시 옵션, `keymap`, `read_config_from`, `sandbox` 등)은 값을 읽지 않고 건너뜁니다.
+
+규칙은 문서화된 형식이어야 합니다: `Read(...)`, `Write(...)`, `Exec(...)`, `Fetch(...)`,
+도구 이름 `read`, `edit`, `grep`, `glob`, `exec`, 또는 `mcp__*`, `mcp__server__*`,
+`mcp__server__tool`. 그 밖의 규칙, 알 수 없는 `permission_mode`, 형식이 잘못된 섹션,
+주석이 있는 파일은 거부합니다. Devin CLI는 `config.json`의 주석을 허용하므로, 검사할
+사본에서는 주석을 지우세요.
+
+보고서에는 권한 모드, 불리언, 개수만 들어갑니다. 규칙 범위, MCP 서버·도구 이름, 훅
+내용, 검사하지 않는 설정의 이름은 들어가지 않습니다.
+
+한계: 한 번에 파일 하나만 검사하며 사용자·프로젝트·로컬 파일을 병합하지 않습니다.
+다루지 않는 것: `.devin/hooks.v1.json`, `read_config_from`으로 다른 도구에서 가져오는
+훅과 규칙, 조직·팀 설정, 시스템 정책 파일, 세션 중에 부여한 승인, `--permission-mode`
+플래그와 `DEVIN_PERMISSION_MODE`. `mcpServers` 항목 자체는 `inspect-devin`으로 검사하세요.
+
+문서화된 설정 형식의 픽스처로 테스트했으며, Devin CLI 릴리스에서 실행해 본 것은
+아닙니다. 출처:
+[Devin CLI permissions](https://docs.devin.ai/cli/reference/permissions),
+[configuration file](https://docs.devin.ai/cli/reference/configuration/config-file).
 
 ## 서명된 검토와 변경 감지
 

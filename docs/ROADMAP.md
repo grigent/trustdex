@@ -81,7 +81,7 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 
 ## Later: expand interoperability
 
-- add adapters for additional agent runtimes and registries (Devin CLI and Gemini CLI MCP configuration and Gemini CLI permission settings are covered; Devin CLI permission rules are not)
+- add adapters for additional agent runtimes and registries (Devin CLI and Gemini CLI MCP configuration and permission settings are covered; other registries are not)
 - extend the test-backed compatibility matrix to new runtimes and registries
 - explore organization-managed trust stores and review-key rotation
 

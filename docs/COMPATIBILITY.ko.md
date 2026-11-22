@@ -24,6 +24,7 @@
 | Claude Code `.mcp.json` 및 Claude Desktop `mcpServers` | `inspect-claude`, `gate-claude`, `snapshot-claude`, `approve-claude`, `recheck-claude` | `test/claude.test.mjs` | `claude-mcp` |
 | Devin CLI `mcp_config.json` | `inspect-devin`, `gate-devin`, `snapshot-devin`, `approve-devin`, `recheck-devin` | `test/devin.test.mjs` | `devin-mcp` |
 | Gemini CLI `mcpServers` | `inspect-gemini`, `gate-gemini`, `snapshot-gemini`, `approve-gemini`, `recheck-gemini` | `test/gemini.test.mjs` | `gemini-mcp` |
+| Devin CLI `config.json` 권한 규칙 | `inspect-devin-settings` | `test/devin-settings.test.mjs` | `devin-settings` |
 | Gemini CLI `settings.json` 권한 설정 | `inspect-gemini-settings` | `test/gemini-settings.test.mjs` | `gemini-settings` |
 | Claude Code 설정 파일 및 병합 스택 | `inspect-claude-settings`, `inspect-claude-settings-stack`, `snapshot-claude-settings`, `snapshot-claude-settings-stack`, `diff-permissions` | `test/claude-settings.test.mjs`, `test/settings-stack.test.mjs`, `test/posture.test.mjs` | `claude-settings` |
 | Claude Code `PreToolUse` 훅 | `claude-hook`, `init`, `allow-once` | `test/claude-hook.test.mjs`, `test/init.test.mjs` | `claude-hook` |

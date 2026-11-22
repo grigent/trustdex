@@ -83,6 +83,16 @@
       "example": "examples/gemini.mcpServers.json"
     },
     {
+      "id": "devin-settings",
+      "commands": [
+        "inspect-devin-settings"
+      ],
+      "tests": [
+        "devin-settings.test.mjs"
+      ],
+      "example": "examples/devin.config.json"
+    },
+    {
       "id": "gemini-settings",
       "commands": [
         "inspect-gemini-settings"

@@ -1,0 +1,17 @@
+{
+  "permission_mode": "accept-edits",
+  "permissions": {
+    "allow": [
+      "Read(src/**)",
+      "Exec(npm run lint)",
+      "mcp__reviewed__list_items"
+    ],
+    "ask": [
+      "Write(**)"
+    ],
+    "deny": [
+      "Exec(sudo)",
+      "Write(.env*)"
+    ]
+  }
+}
