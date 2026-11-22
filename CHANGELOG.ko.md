@@ -6,6 +6,7 @@
 
 ## 미출시
 
+- 동작 변경: Claude Code·Codex 권한 설정 파일(또는 설정 스택)은 ALLOW가 되지 않습니다. 이전에는 `localAction: "allow"`를 둔 사용자 정책이 신호가 없는 설정 파일을 승인했지만, 이제는 `permission settings always require review` 사유와 함께 ASK입니다. 기본 제공 팩은 이미 ASK였습니다.
 - `provenance npm`과 `trust-source npm`은 서명 인증서에 고정된 인증서 투명성 로그의 서명된 인증서 타임스탬프(SCT)가 내장되어 있어야 통과시킵니다. 없으면 `unverifiable`입니다. 네트워크 요청은 추가되지 않습니다.
 - 고정된 Sigstore 신뢰 루트를 그 출처인 업스트림 `trusted_root.json`과 대조하는 테스트를 추가했고, 갱신 방법은 [docs/TRUST_ROOT.ko.md](docs/TRUST_ROOT.ko.md)에 있습니다.
 - `provenance npm`과 `trust-source npm`이 Sigstore 로그 항목의 머클 포함 증명도 고정된 로그 키가 서명한 트리 헤드까지 검증합니다. 증명이 없거나 검증되지 않는 번들은 `unverifiable`이며 기록되지 않습니다. 2023년 형식 0.1 번들만 로그의 서명된 약속만 담을 수 있습니다. 네트워크 요청은 추가되지 않습니다.
