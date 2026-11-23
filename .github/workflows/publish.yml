@@ -16,6 +16,8 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # A maintainer must approve each run of this environment before npm sees it.
+    environment: npm
     timeout-minutes: 10
     steps:
       - name: Resolve release tag

@@ -26,9 +26,10 @@ npm 자격 증명을 이슈, 풀 리퀘스트, 소스 파일, 로그 또는 채�
 - GitHub 사용자/조직: `grigent`
 - 저장소: `trustdex`
 - 워크플로 파일 이름: `publish.yml`
+- 환경 이름: `npm`
 - 허용 작업: 직접 `npm publish`
 
-워크플로는 `contents: read`와 `id-token: write`만 부여합니다. 그러면 npm은 장기 쓰기 토큰 대신 OIDC로 GitHub 호스팅 작업을 인증할 수 있습니다.
+GitHub `npm` 환경은 관리자 승인이 있어야 하고 보호된 브랜치만 받으므로, 배포 커밋을 병합해도 관리자가 실행을 승인하기 전에는 npm에 올라가지 않습니다. npm에도 같은 환경 이름을 설정하면 환경을 뺀 워크플로로는 게시할 수 없습니다. 워크플로는 `contents: read`와 `id-token: write`만 부여합니다. 그러면 npm은 장기 쓰기 토큰 대신 OIDC로 GitHub 호스팅 작업을 인증할 수 있습니다.
 
 신뢰할 수 있는 게시가 작동하면 `NPM_TOKEN` 저장소 비밀을 제거하고 npm에서 최초 게시 토큰을 폐기합니다. npm이 OIDC 인증을 선택할 수 있도록 워크플로는 의도적으로 표준 `npm publish` 명령을 계속 사용합니다.
 

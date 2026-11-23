@@ -1,2 +1,8 @@
-# Security-sensitive changes require review from the current maintainer.
-* @grigent
+# The maintainer is asked to review changes to release automation, CI, ownership,
+# maintainer rules, and the package manifest. npm publishing itself waits for a
+# maintainer's approval of the `npm` environment (see docs/RELEASING.md).
+/.github/ @grigent
+/scripts/ @grigent
+/package.json @grigent
+/AGENTS.md @grigent
+/AGENTS.ko.md @grigent
