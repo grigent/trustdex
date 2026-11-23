@@ -6,6 +6,9 @@
 
 ## 미출시
 
+- 출력(`provenance`, `trust-source`): GitHub, npm, MCP Registry 메타데이터에서 가져온 저장소·원격 URL에서 사용자 정보, 쿼리 값, 프래그먼트를 지웁니다. GitHub 참조는 응답의 `html_url` 대신 확인한 저장소 이름으로 만듭니다. 이전에는 메타데이터에 든 자격 증명이 출력되고 신뢰 저장소에 기록됐습니다.
+- 시험: 출력 카나리 검사가 모든 CLI 명령을 실행하고(네트워크 명령은 대역 `fetch`로), 검사에서 빠진 명령이 있으면 실패합니다.
+
 ## 0.20.5 - 2026-11-22
 
 - 공급망(`check-install`, npm 빌드 출처): npm-pick-manifest, npm-install-checks, pacote와 대조했습니다. 패키지 이름만 쓰거나 범위를 쓰면 npm이 건너뛰는 deprecated 또는 `engines` 불일치 `latest`를 더 이상 고르지 않습니다. npm `--tag`는 기본 태그로 반영합니다. 정확한 버전 없는 `--before`, 프리릴리스 비교식, 선택을 바꿀 수 있는 `engines.npm`이나 해석하지 못한 `engines`는 ASK `unresolved-version`입니다. 빌드 출처는 이제 인증서의 Build Config URI(Fulcio OID 1.3.6.1.4.1.57264.1.18)가 증명이 주장하는 워크플로 파일을 가리켜야 합니다. 이전에는 서명된 statement의 워크플로 경로만 사용했습니다.

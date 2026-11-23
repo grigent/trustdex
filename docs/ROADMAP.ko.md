@@ -52,6 +52,9 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 - 0.18.0 이후: 캡처한 Codex `mcpServerStatus/list` 요청·응답용
   `inventory-codex-mcp-status`, [Devin CLI](DEVIN.ko.md)와 [Gemini CLI](GEMINI.ko.md)용
   MCP 설정 어댑터.
+- 미출시: 출력 카나리 검사가 `provenance`, `trust-source`, `check-install`,
+  `claude-hook`, `slack-approver`, `init`, 런타임 증거 명령을 포함한 모든 CLI 명령을
+  실행하며, 검사에서 빠진 명령이 있으면 실패합니다.
 
 ## 현재: 경계 강화
 
