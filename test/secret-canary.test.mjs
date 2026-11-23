@@ -708,6 +708,8 @@ test('registry URLs keep their location and lose credentials, query values, and 
     ['https://www.npmjs.com/package/@example/agent', 'https://www.npmjs.com/package/@example/agent'],
     [`git+https://user:${secret}@github.com/example/agent.git?t=${secret}#${secret}`, 'git+https://github.com/example/agent.git'],
     [`git+https:/user:${secret}@github.com/example/agent`, '<unparseable-url>'],
+    [`https://example.com/redirect/https://user:${secret}@example.com/agent`, '<unparseable-url>'],
+    [`https://example.com/@user:${secret}@example.com/agent`, '<unparseable-url>'],
     [`https://mcp.example.invalid/mcp?key=${secret}`, 'https://mcp.example.invalid/mcp'],
     [`not a url ${secret}`, '<unparseable-url>']
   ]) assert.equal(credentialFreeUrl(input), expected, input);

@@ -173,9 +173,12 @@ export function credentialFreeUrl(value) {
     url.password = '';
     url.search = '';
     url.hash = '';
-    // Without a host, an "@" left in the path may be unparsed userinfo ("git+https:/u:pw@host/x").
+    // An "@" in the path may be unparsed userinfo ("git+https:/u:pw@host/x") or belong to a URL
+    // nested in the path; only a scope segment such as "/@example/agent" is kept.
     const authority = url.href.startsWith(`${url.protocol}//`);
-    if (url.pathname.includes('@') && (!authority || !url.host)) return '<unparseable-url>';
+    if (url.pathname.includes('@') && (!authority || !url.host || /[^/]@|:\/\//.test(url.pathname))) {
+      return '<unparseable-url>';
+    }
     return url.href;
   } catch {
     // npm "owner/repo" shorthand and scp-like "git@host:owner/repo" remotes carry no secret.
