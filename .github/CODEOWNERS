@@ -1,2 +1,8 @@
-# Security-sensitive changes require review from the current maintainer.
-* @grigent
+# Changes to release automation, CI, ownership, maintainer rules, and the package
+# manifest need the maintainer's review. Merging a "release: publish TrustDex v"
+# commit publishes to npm, and every release changes package.json.
+/.github/ @grigent
+/scripts/ @grigent
+/package.json @grigent
+/AGENTS.md @grigent
+/AGENTS.ko.md @grigent
