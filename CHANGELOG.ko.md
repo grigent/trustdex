@@ -6,6 +6,7 @@
 
 ## 미출시
 
+- 에이전트 가드(`claude-hook`): 보호 경로 검사가 `\\?\C:\…`, `\\.\C:\…`, `\\?\UNC\…`, `\\localhost\C$\…`, 드라이브 상대 경로 `C:..\…`, 윈도우의 끝 점·공백과 `::$DATA`, `%USERPROFILE%`, `$env:USERPROFILE`, `~user`, `/proc/self/root`, `/proc/self/cwd`, `/private/etc`, `/System/Volumes/Data`를 일반 경로와 같게 보고, `..`가 드라이브 밖으로 나가지 않게 하며, 심볼릭 링크는 가리키는 대상으로도 분류합니다. 이전에는 이런 표기로 자격 증명 저장소, 에이전트 설정, 시작 항목을 가드의 BLOCK·ASK 없이 읽거나 쓸 수 있었습니다.
 ## 0.20.5 - 2026-11-22
 
 - 공급망(`check-install`, npm 빌드 출처): npm-pick-manifest, npm-install-checks, pacote와 대조했습니다. 패키지 이름만 쓰거나 범위를 쓰면 npm이 건너뛰는 deprecated 또는 `engines` 불일치 `latest`를 더 이상 고르지 않습니다. npm `--tag`는 기본 태그로 반영합니다. 정확한 버전 없는 `--before`, 프리릴리스 비교식, 선택을 바꿀 수 있는 `engines.npm`이나 해석하지 못한 `engines`는 ASK `unresolved-version`입니다. 빌드 출처는 이제 인증서의 Build Config URI(Fulcio OID 1.3.6.1.4.1.57264.1.18)가 증명이 주장하는 워크플로 파일을 가리켜야 합니다. 이전에는 서명된 statement의 워크플로 경로만 사용했습니다.

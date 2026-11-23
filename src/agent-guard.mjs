@@ -19,6 +19,7 @@
 // example a Python script that builds a path at run time), so it is one layer
 // next to sandboxing and least-privilege credentials, not a replacement.
 
+import fs from 'node:fs';
 import os from 'node:os';
 import nodePath from 'node:path';
 
@@ -62,19 +63,20 @@ function programName(word) {
 // ------------------------------------------------------------ paths
 
 export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot = null, policyPath: rawPolicy = null, stateDir: rawState = null, secretPaths = [] } = {}) {
-  const home = toPosix(rawHome);
-  const trustdexRoot = rawRoot ? toPosix(rawRoot) : null;
-  const policyPath = rawPolicy ? toPosix(rawPolicy) : null;
-  const stateDir = rawState ? toPosix(rawState) : null;
+  const home = canonicalGuardPath(rawHome, { home: rawHome });
+  const absolute = (value) => canonicalGuardPath(value, { home: rawHome, cwd: process.cwd() });
+  const trustdexRoot = rawRoot ? absolute(rawRoot) : null;
+  const policyPath = rawPolicy ? absolute(rawPolicy) : null;
+  const stateDir = rawState ? absolute(rawState) : null;
   const h = (rel) => path.join(home, rel);
   return {
     config: [
       h('.claude/settings.json'), h('.claude/settings.local.json'), h('.claude.json'),
       h('.claude/hooks/'), h('.codex/config.toml'), h('.gemini/settings.json'), h('.cursor/mcp.json'),
       '/Library/Application Support/ClaudeCode/', '/etc/claude-code/',
-      ...(trustdexRoot ? [path.resolve(trustdexRoot) + path.sep] : []),
-      ...(policyPath ? [path.resolve(expandHome(policyPath, home))] : []),
-      ...(stateDir ? [path.resolve(expandHome(stateDir, home)) + path.sep] : [])
+      ...(trustdexRoot ? [trustdexRoot + path.sep] : []),
+      ...(policyPath ? [policyPath] : []),
+      ...(stateDir ? [stateDir + path.sep] : [])
     ],
     // Project-level files matched by name wherever they are.
     configNames: [/(^|\/)\.claude\/settings(\.local)?\.json$/i, /(^|\/)\.mcp\.json$/i, /(^|\/)\.claude\/hooks\//i, /(^|\/)\.codex\/config\.toml$/i],
@@ -87,7 +89,7 @@ export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot
       h('Library/Application Support/Google/Chrome/*/Login Data'), h('Library/Application Support/Google/Chrome/*/Cookies'),
       h('Library/Application Support/Firefox/Profiles/'), h('Library/Application Support/BraveSoftware/'),
       h('Library/Application Support/Microsoft Edge/'), h('Library/Safari/'),
-      ...secretPaths.map((entry) => path.resolve(expandHome(toPosix(entry), home)) + (/[\\/]$/.test(entry) ? path.sep : ''))
+      ...secretPaths.map((entry) => absolute(entry) + (/[\\/]$/.test(entry) ? path.sep : ''))
     ],
     secretNames: [/(^|\/)\.codex[^/]*\/auth\.json$/i, /(^|\/)id_(rsa|ecdsa|ed25519|dsa)$/i],
     persistence: [
@@ -128,17 +130,100 @@ function matchesAny(file, patterns, names = []) {
   return names.some((re) => re.test(file));
 }
 
-export function classifyPath(file, paths, { cwd: rawCwd = null, home: rawHome = os.homedir() } = {}) {
+// Spellings that name the same file as a plain absolute path. Win32 namespace prefixes
+// (\\?\C:\x, \\.\C:\x, \??\C:\x), \\?\UNC\host\share, and this computer's
+// administrative shares (\\localhost\C$\x) become drive or UNC paths.
+function windowsPath(value) {
+  return value
+    .replace(/^(?:\/\/[?.]\/|\/\?\?\/)(?=[A-Za-z]:(?:\/|$))/, '')
+    .replace(/^(?:\/\/[?.]\/|\/\?\?\/)UNC\//i, '//')
+    .replace(/^\/\/(?:localhost|127\.0\.0\.1|\[::1\]|::1)\/([A-Za-z])\$(?=\/|$)/i, '$1:');
+}
+
+// Windows ignores trailing dots and spaces in a name and reads "name::$DATA" as "name".
+function windowsSegments(rest) {
+  return rest.split('/').map((part) => (part === '.' || part === '..' ? part : part.replace(/:.*$/, '').replace(/[. ]+$/, ''))).join('/');
+}
+
+const HOME_PREFIX_RE = /^(?:~|\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|\$\{env:USERPROFILE\}|%HOMEDRIVE%%HOMEPATH%|\$env:HOMEDRIVE\$env:HOMEPATH)(?=\/|$)/i;
+
+// One absolute POSIX-style spelling for a tool path: home notation expanded, Windows
+// prefixes and drive letters normalized, `.` and `..` resolved without leaving a drive,
+// and kernel or firmlink aliases (/proc/self/root, /private/etc, /System/Volumes/Data)
+// removed. Symbolic links are resolved separately, against the file system.
+export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = os.homedir() } = {}) {
+  const home = toPosix(windowsPath(toPosix(rawHome)).replace(/^\/(?=[A-Za-z]:)/, ''));
+  const cwd = rawCwd ? canonicalGuardPath(rawCwd, { home: rawHome }) : null;
+  let value = windowsPath(String(file).trim().replace(/\\/g, '/'));
+  const user = path.basename(home);
+  value = value.replace(HOME_PREFIX_RE, home);
+  if (user && value.toLowerCase().startsWith(`~${user.toLowerCase()}`) && /^(?:\/|$)/.test(value.slice(user.length + 1))) {
+    value = home + value.slice(user.length + 1);
+  }
+  value = toPosix(value);
+  let drive = value.match(/^\/([A-Za-z]):(\/.*|)$/);
+  const relativeDrive = value.match(/^([A-Za-z]):(?!\/)(.*)$/);
+  if (relativeDrive) {
+    // "C:x" is relative to the current directory on drive C:, or to its root.
+    const base = cwd?.match(/^\/([A-Za-z]):(\/.*|)$/);
+    const root = base && base[1].toLowerCase() === relativeDrive[1].toLowerCase() ? base[2] || '/' : '/';
+    drive = [null, relativeDrive[1], path.join(root, relativeDrive[2])];
+  } else if (!drive && !path.isAbsolute(value)) {
+    if (!cwd) return value;
+    value = cwd.endsWith('/') ? cwd + value : `${cwd}/${value}`;
+    drive = value.match(/^\/([A-Za-z]):(\/.*|)$/);
+  }
+  if (drive) return `/${drive[1].toUpperCase()}:${path.resolve('/', windowsSegments(drive[2] || '/'))}`;
+  if (value.startsWith('//')) return `//${windowsSegments(path.resolve('/', value.slice(2))).slice(1)}`;
+  // Aliases are removed before `..` is resolved: /proc/self/cwd/.. is the parent of cwd.
+  let aliased = value.replace(/\/{2,}/g, '/');
+  if (cwd) aliased = aliased.replace(/^\/proc\/(?:self|thread-self)\/cwd(?=\/|$)/, () => cwd);
+  aliased = aliased
+    .replace(/^\/proc\/(?:self|thread-self|\d+)\/root(?=\/|$)/, '')
+    .replace(/^\/private(?=\/(?:etc|var|tmp)(?:\/|$))/, '')
+    .replace(/^\/System\/Volumes\/Data(?=\/|$)/, '');
+  return path.resolve('/', aliased);
+}
+
+// The same path with symbolic links resolved through its deepest existing ancestor, in
+// the notation of the configured home, or null when it cannot be resolved here.
+function realGuardPath(resolved, home) {
+  const native = /^\/[A-Za-z]:\//.test(resolved) ? resolved.slice(1) : resolved;
+  if (!nodePath.isAbsolute(native)) return null;
+  const real = (target) => {
+    let dir = target;
+    const rest = [];
+    for (;;) {
+      try {
+        return path.join(toPosix(fs.realpathSync.native(dir)), ...rest);
+      } catch {
+        const parent = nodePath.dirname(dir);
+        if (parent === dir) return null;
+        rest.unshift(nodePath.basename(dir));
+        dir = parent;
+      }
+    }
+  };
+  const target = real(native);
+  if (!target) return null;
+  const realHome = real(/^\/[A-Za-z]:\//.test(home) ? home.slice(1) : home);
+  const inHome = realHome && realHome !== home && (target === realHome || target.startsWith(`${realHome}/`));
+  return inHome ? home + target.slice(realHome.length) : target;
+}
+
+export function classifyPath(file, paths, { cwd = null, home = os.homedir() } = {}) {
   if (typeof file !== 'string' || !file) return [];
-  const home = toPosix(rawHome);
-  const cwd = rawCwd ? toPosix(rawCwd) : null;
-  let resolved = expandHome(toPosix(file.trim()), home);
-  if (!path.isAbsolute(resolved)) resolved = cwd && path.isAbsolute(cwd) ? path.resolve(cwd, resolved) : resolved;
-  else resolved = path.resolve(resolved);
+  const resolved = canonicalGuardPath(file, { cwd, home });
+  const candidates = [resolved];
+  if (path.isAbsolute(resolved)) {
+    const real = realGuardPath(resolved, canonicalGuardPath(home, { home }));
+    if (real && real !== resolved) candidates.push(real);
+  }
   const kinds = [];
-  if (matchesAny(resolved, paths.secrets, paths.secretNames)) kinds.push('secret');
-  if (matchesAny(resolved, paths.config, paths.configNames)) kinds.push('config');
-  if (matchesAny(resolved, paths.persistence, paths.persistenceNames || [])) kinds.push('persistence');
+  const matches = (patterns, names) => candidates.some((candidate) => matchesAny(candidate, patterns, names));
+  if (matches(paths.secrets, paths.secretNames)) kinds.push('secret');
+  if (matches(paths.config, paths.configNames)) kinds.push('config');
+  if (matches(paths.persistence, paths.persistenceNames || [])) kinds.push('persistence');
   return kinds;
 }
 

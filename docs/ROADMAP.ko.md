@@ -52,6 +52,9 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 - 0.18.0 이후: 캡처한 Codex `mcpServerStatus/list` 요청·응답용
   `inventory-codex-mcp-status`, [Devin CLI](DEVIN.ko.md)와 [Gemini CLI](GEMINI.ko.md)용
   MCP 설정 어댑터.
+- 미출시: 에이전트 가드의 경로 검사가 윈도우 드라이브 문자, `\\?\`·UNC 표기, 대소문자,
+  `..`, 심볼릭 링크, 커널·펌링크 별칭, 홈 디렉터리 표기를 같은 대상으로 보며, 플랫폼별
+  표기마다 시험이 있습니다.
 
 ## 현재: 경계 강화
 
