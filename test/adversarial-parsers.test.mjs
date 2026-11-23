@@ -128,7 +128,7 @@ test('strict JSON keeps valid documents and rejects duplicate, prototype, and de
 });
 
 test('a YAML escape that decodes to syntax or a control character leaves the scope unread', () => {
-  for (const scope of ['"Read \\x23 Bash"', '"Read(/a\\u0023b) Bash"', '"Read\\x2c Bash"', '"Read \\"x\\" Bash"']) {
+  for (const scope of ['"Read \\x23 Bash"', '"Read(/a\\u0023b) Bash"', '"Read\\x2c Bash"', '"Read \\"x\\" Bash"', '"Bash\\u0028\\u0023)"', '"Bash\\x28\\x5b*)"', '"Read\\nBash"']) {
     const report = inspectSkillText(`---\nallowed-tools: ${scope}\n---\n`);
     assert.ok(report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
     assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
