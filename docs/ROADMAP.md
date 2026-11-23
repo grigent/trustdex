@@ -54,6 +54,9 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - After 0.18.0: `inventory-codex-mcp-status` for a captured Codex `mcpServerStatus/list`
   exchange, and MCP configuration adapters for [Devin CLI](DEVIN.md) and
   [Gemini CLI](GEMINI.md).
+- Unreleased: the output canary sweep now runs every CLI command, including
+  `provenance`, `trust-source`, `check-install`, `claude-hook`, `slack-approver`, `init`,
+  and the runtime-evidence commands, and fails when a command is missing from it.
 - Unreleased: the agent guard's path checks treat Windows drive letters, `\\?\` and
   UNC spellings, letter case, `..`, symbolic links, kernel and firmlink aliases, and home
   notation as the same target, with tests for each platform's forms.

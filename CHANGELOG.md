@@ -6,7 +6,10 @@
 
 ## Unreleased
 
+- Output (`provenance`, `trust-source`): repository and remote URLs taken from GitHub, npm, and MCP Registry metadata no longer keep userinfo, query values, or fragments; GitHub references are built from the checked repository name instead of the response's `html_url`. Before, a credential in that metadata was printed and written to the trust store.
+- Tests: the output canary sweep now runs every CLI command (network commands against a stand-in `fetch`) and fails when a command is missing from it.
 - Agent guard (`claude-hook`): protected-path checks now see `\\?\C:\…`, `\\.\C:\…`, `\\?\UNC\…`, `\\localhost\C$\…`, drive-relative `C:..\…`, Windows trailing dots/spaces and `::$DATA`, `%USERPROFILE%`, `$env:USERPROFILE`, `~user`, `/proc/self/root`, `/proc/self/cwd`, `/private/etc`, and `/System/Volumes/Data` as the plain path, keep `..` inside a drive, and also classify a symbolic link by its target. Before, these spellings could read or write a credential store, agent settings, or a startup file without the guard's BLOCK or ASK.
+
 ## 0.20.5 - 2026-11-22
 
 - Supply chain (`check-install`, npm provenance): checked against npm-pick-manifest, npm-install-checks, and pacote. A bare name or range no longer resolves to a deprecated or engine-incompatible `latest` that npm would skip; npm's `--tag` sets the default tag; `--before` without an exact version, a prerelease comparator, and an `engines.npm` or unparsed `engines` requirement that could change the pick are ASK `unresolved-version`. Build provenance now also requires the certificate's Build Config URI (Fulcio OID 1.3.6.1.4.1.57264.1.18) to name the workflow file the attestation claims; before, the workflow path was taken from the signed statement alone.
