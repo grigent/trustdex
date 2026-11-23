@@ -128,16 +128,13 @@ test('strict JSON keeps valid documents and rejects duplicate, prototype, and de
 });
 
 test('a YAML escape that decodes to syntax or a control character leaves the scope unread', () => {
-  for (const scope of ['"Read \\x23 Bash"', '"Read(/a\\u0023b) Bash"', '"Read\\x2c Bash"', '"Read \\"x\\" Bash"', '"Bash\\u0028\\u0023)"', '"Bash\\x28\\x5b*)"', '"Read\\nBash"', '"Read\\x2cBash"', '"Bash\\x2cRead"', '"Bash\\nRead"', '"Bash\\u2028Read"']) {
+  for (const scope of ['"Read \\x23 Bash"', '"Read(/a\\u0023b) Bash"', '"Read\\x2c Bash"', '"Read \\"x\\" Bash"', '"Bash\\u0028\\u0023)"', '"Bash\\x28\\x5b*)"', '"Read\\nBash"', '"Read\\x2cBash"', '"Bash\\x2cRead"', '"Bash\\nRead"', '"Bash\\u2028Read"', '"Read\\x2c #\\x42ash"', '"Read(/a\\x5cBash\\x5cb)"', '"Read(/a\\x2cBash\\x2cb)"']) {
     const report = inspectSkillText(`---\nallowed-tools: ${scope}\n---\n`);
     assert.ok(report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
     assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
   }
-  for (const scope of ['"Read(/a\\x5cBash\\x5cb)"', '"Read(/a\\x22Bash\\x22b)"']) {
-    const report = inspectSkillText(`---\nallowed-tools: ${scope}\n---\n`);
-    assert.ok(!report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
-    assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
-  }
+  // A "#" inside a quoted value is text, not a comment.
+  assert.ok(inspectSkillText('---\nallowed-tools: "Read, # Bash"\n---\n').signals.includes('skill-shell-auto-approve'));
   for (const escape of ['\\e', '\\x1b', '\\u009b', '\\0', '\\n', '\\L']) {
     const report = inspectSkillText(`---\nname: "demo${escape}[2J"\nallowed-tools: Read\n---\n`);
     assert.doesNotMatch(report.name, /[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029]/, escape);

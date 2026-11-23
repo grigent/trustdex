@@ -40,17 +40,16 @@ function decodeDoubleQuoted(body) {
       decoded = String.fromCodePoint(Number.parseInt(hex, 16));
       i += 1 + length;
     }
-    // U+FFFD in its place marks the scope unread without joining or splitting words; an
-    // escaped comma or line break still separates the words on both sides, as YAML reads it.
-    out += UNSAFE_DECODED_RE.test(decoded) ? (/[\s,]/.test(decoded) ? ' \uFFFD ' : '\uFFFD') : decoded;
+    // U+FFFD in its place keeps the words around it apart and marks the scope unread.
+    out += UNSAFE_DECODED_RE.test(decoded) ? '\uFFFD' : decoded;
   }
   return out;
 }
 
 function parseScalar(value, depth = 0) {
   let raw = value.trim();
-  // An unquoted value ends at " #".
-  if (!/^["'[]/.test(raw)) raw = raw.replace(/\s+#.*$/, '');
+  // An unquoted value ends at " #", and one that starts with "#" is only a comment.
+  if (!/^["'[]/.test(raw)) raw = raw.replace(/(?:^|\s+)#.*$/, '');
   else if (/^(["']).*\1\s+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)\s+#.*$/, '$1');
   if (!raw) return '';
   if (raw.length > 1 && raw.startsWith('"') && raw.endsWith('"')) {
@@ -138,6 +137,7 @@ function hasUnreadFrontmatter(header) {
   return SKILL_UNREAD_FRONTMATTER_RE.test(header) || (flow >= 0 && /[?*!&\\]/.test(header.slice(flow)));
 }
 const SHELL_TOOL_RE = /(?:^|[\s,[\]"'])(?:Bash|PowerShell)(?=$|[\s,(\]"'])/i;
+const SHELL_WORD_RE = /\b(?:Bash|PowerShell)\b/i;
 
 function isWildcard(tools) {
   if (Array.isArray(tools)) return tools.some((tool) => isWildcard(String(tool)));
@@ -166,9 +166,11 @@ function toolScopeSignals(entries) {
   const grants = scopes.filter((entry) => /^allowed[-_]?tools$/i.test(entry.key));
   const granted = grants.some((entry) => [entry.value].flat().some((item) => String(item ?? '').trim())) ||
     mentioned > read || grants.some((entry) => entry.unsupported);
-  // A YAML comment folded into a list item is not a grant.
-  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test([entry.value].flat()
-    .map((item) => String(item ?? '').replace(/(?:^|\s)#.*$/, '')).join(' '))) ||
+  // Comments were already dropped while parsing; a "#" left inside a quoted value is text.
+  // In a scope that could not be read in full, a shell tool named as any word counts.
+  const text = (entry) => [entry.value].flat().map((item) => String(item ?? '')).join(' ');
+  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test(text(entry)) ||
+    ((entry.unsupported || hasStraySyntax(entry.value)) && SHELL_WORD_RE.test(text(entry)))) ||
     ((mentioned > read || grants.some((entry) => entry.unsupported || hasStraySyntax(entry.value))) &&
       SHELL_TOOL_RE.test(entries.header || ''));
   return [

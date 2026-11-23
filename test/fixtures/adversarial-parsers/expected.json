@@ -65,9 +65,10 @@
   },
   "skills/unknown-escape.SKILL.md": {
     "command": "inspect-skill",
-    "action": "ask",
+    "action": "block",
     "signals": [
       "skill-auto-approved-tools",
+      "skill-shell-auto-approve",
       "uninspected-tool-scope"
     ]
   },
