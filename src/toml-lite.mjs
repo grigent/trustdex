@@ -178,8 +178,8 @@ class Lexer {
 
   // Returns { kind, value } where kind is string, array, table, or bare.
   value(depth = 0) {
-    if (depth > MAX_VALUE_DEPTH) this.fail('arrays or inline tables nested too deeply');
     const char = this.peek();
+    if ((char === '[' || char === '{') && depth >= MAX_VALUE_DEPTH) this.fail('arrays or inline tables nested too deeply');
     if (this.startsWith('"""')) return { kind: 'string', value: this.multilineBasic() };
     if (this.startsWith("'''")) return { kind: 'string', value: this.multilineLiteral() };
     if (char === '"') return { kind: 'string', value: this.basicString() };

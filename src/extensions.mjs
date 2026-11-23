@@ -11,25 +11,37 @@ const INSTALL_RE = /(?:\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add)\b|\b(?:npx|pn
 const TOOL_SCOPE_KEYS = new Set(['allowed-tools', 'allowed_tools', 'allowedtools', 'tools']);
 const MAX_MANIFEST_DEPTH = 64;
 
-// YAML double-quoted escapes this reader decodes. Any other escape is left in place, where
-// the stray quote it keeps marks the scope as not read in full.
+// YAML double-quoted escapes this reader decodes. Any other escape, and one that decodes to
+// a control character (which would reach the terminal) or to syntax this reader treats
+// specially (`#`, quotes, brackets, commas), is left in place, where the stray quote it
+// keeps marks the scope as not read in full.
 const YAML_ESCAPES = { 0: '\0', a: '\x07', b: '\b', t: '\t', '\t': '\t', n: '\n', v: '\v', f: '\f', r: '\r',
   e: '\x1b', ' ': ' ', '"': '"', '/': '/', '\\': '\\', N: '\x85', _: '\xa0', L: '\u2028', P: '\u2029' };
 const YAML_HEX_LENGTH = { x: 2, u: 4, U: 8 };
 // Flow lists nested deeper than this are left unread instead of exhausting the stack.
 const MAX_FLOW_DEPTH = 8;
 
+const UNSAFE_DECODED_RE = /[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029#"'\\[\]{},]/;
+
 function decodeDoubleQuoted(body) {
+  if (!body.includes('\\')) return body;
   let out = '';
   for (let i = 0; i < body.length; i += 1) {
     if (body[i] !== '\\') { out += body[i]; continue; }
     const code = body[i + 1];
-    if (Object.hasOwn(YAML_ESCAPES, code)) { out += YAML_ESCAPES[code]; i += 1; continue; }
-    const length = YAML_HEX_LENGTH[code];
-    const hex = length && body.slice(i + 2, i + 2 + length);
-    if (!hex || !/^[0-9A-Fa-f]+$/.test(hex) || hex.length !== length || Number.parseInt(hex, 16) > 0x10ffff) return null;
-    out += String.fromCodePoint(Number.parseInt(hex, 16));
-    i += 1 + length;
+    let decoded;
+    if (Object.hasOwn(YAML_ESCAPES, code)) {
+      decoded = YAML_ESCAPES[code];
+      i += 1;
+    } else {
+      const length = YAML_HEX_LENGTH[code];
+      const hex = length && body.slice(i + 2, i + 2 + length);
+      if (!hex || !/^[0-9A-Fa-f]+$/.test(hex) || hex.length !== length || Number.parseInt(hex, 16) > 0x10ffff) return null;
+      decoded = String.fromCodePoint(Number.parseInt(hex, 16));
+      i += 1 + length;
+    }
+    if (UNSAFE_DECODED_RE.test(decoded)) return null;
+    out += decoded;
   }
   return out;
 }

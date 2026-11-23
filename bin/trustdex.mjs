@@ -235,12 +235,22 @@ async function readInputText(file) {
     if ((await handle.stat()).size > MAX_INPUT_BYTES) {
       throw new Error(`${path.basename(file)} is larger than 16 MiB; TrustDex does not inspect inputs this large.`);
     }
-    bytes = await handle.readFile();
+    // A pipe or device reports size 0, so the limit is also enforced while reading.
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const chunk = Buffer.alloc(64 * 1024);
+      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
+      if (!bytesRead) break;
+      total += bytesRead;
+      if (total > MAX_INPUT_BYTES) {
+        throw new Error(`${path.basename(file)} is larger than 16 MiB; TrustDex does not inspect inputs this large.`);
+      }
+      chunks.push(chunk.subarray(0, bytesRead));
+    }
+    bytes = Buffer.concat(chunks, total);
   } finally {
     await handle.close();
-  }
-  if (bytes.length > MAX_INPUT_BYTES) {
-    throw new Error(`${path.basename(file)} is larger than 16 MiB; TrustDex does not inspect inputs this large.`);
   }
   try {
     return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);

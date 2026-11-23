@@ -6,7 +6,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { MAX_JSON_DEPTH, parseStrictJson } from '../src/canonical.mjs';
+import { MAX_JSON_DEPTH, parseStrictJson, rejectDuplicateJsonMembers } from '../src/canonical.mjs';
+import * as keyset from '../src/keyset.mjs';
 import { inspectSkillText } from '../src/extensions.mjs';
 
 const cli = fileURLToPath(new URL('../bin/trustdex.mjs', import.meta.url));
@@ -124,4 +125,43 @@ test('strict JSON keeps valid documents and rejects duplicate, prototype, and de
   const deep = (depth) => '['.repeat(depth) + ']'.repeat(depth);
   assert.deepEqual(parseStrictJson(deep(MAX_JSON_DEPTH)).length, 1);
   assert.throws(() => parseStrictJson(deep(MAX_JSON_DEPTH + 1)), /nested more than/);
+});
+
+test('a YAML escape that decodes to syntax or a control character leaves the scope unread', () => {
+  for (const scope of ['"Read \\x23 Bash"', '"Read(/a\\u0023b) Bash"', '"Read\\x2c Bash"', '"Read \\"x\\" Bash"']) {
+    const report = inspectSkillText(`---\nallowed-tools: ${scope}\n---\n`);
+    assert.ok(report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
+    assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
+  }
+  for (const escape of ['\\e', '\\x1b', '\\u009b', '\\0', '\\n', '\\L']) {
+    const report = inspectSkillText(`---\nname: "demo${escape}[2J"\nallowed-tools: Read\n---\n`);
+    assert.doesNotMatch(report.name, /[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029]/, escape);
+  }
+});
+
+test('TOML nesting is limited even when the innermost container is empty', () => {
+  const dir = workspace();
+  for (const [open, close] of [['[', ']'], ['{ a = ', ' }']]) {
+    const file = path.join(dir, 'config.toml');
+    const nested = (count) => `${open.repeat(count)}1${close.repeat(count)}`.replace(`${open}1${close}`, open === '[' ? '[]' : '{}');
+    fs.writeFileSync(file, `[mcp_servers.demo]\ncommand = "x"\nargs = ${nested(65)}\n`);
+    assertFailsClosed(run('inspect-codex', file), 'nested too deeply', `65 ${open}`);
+    fs.writeFileSync(file, `[mcp_servers.demo]\ncommand = "x"\nargs = ${nested(64)}\n`);
+    assert.doesNotMatch(run('inspect-codex', file).stderr, /nested too deeply/, `64 ${open}`);
+  }
+});
+
+test('an oversized input from a pipe is rejected at the limit', { skip: process.platform === 'win32' }, () => {
+  // A shell pipeline gives the CLI a real pipe, which reports size 0 to fstat.
+  const result = spawnSync('sh', ['-c', 'head -c 17825792 /dev/zero | tr "\\000" " " | "$0" "$1" inspect /dev/stdin --pack strict --json', process.execPath, cli], { encoding: 'utf8' });
+  assertFailsClosed(result, 'larger than 16 MiB', 'piped input');
+});
+
+test('keyset and strict JSON share one duplicate-member scanner', () => {
+  assert.equal(keyset.rejectDuplicateJsonMembers, rejectDuplicateJsonMembers);
+  assert.throws(() => rejectDuplicateJsonMembers('{"a":1,"\\u0061":2}', 'keyset'), /keyset repeats a field name/);
+  assert.throws(() => rejectDuplicateJsonMembers('{"__proto__":{}}', 'keyset'), /keyset has a "__proto__" field/);
+  assert.throws(() => keyset.parseKeysetText('{"keys":[],"keys":[]}'), /Invalid keyset: repeats a field name/);
+  assert.throws(() => keyset.parseKeysetText('{"__proto__":{"keys":[]}}'), /Invalid keyset: has a "__proto__" field/);
+  rejectDuplicateJsonMembers('{"a":{"a":1},"b":[{"a":1},{"a":2}]}');
 });
