@@ -118,3 +118,37 @@ test('a symbolic link to a protected file is classified like its target', { skip
   assert.deepEqual(classifyPath(path.join(home, '.aws', 'credentials'), linkedPaths, linkedOptions), ['secret']);
   assert.deepEqual(classifyPath('src/a.js', linkedPaths, linkedOptions), []);
 });
+
+test('repeated leading slashes are one slash on POSIX', () => {
+  const paths = guardPaths({ home: '/home/user', secretPaths: ['//home/user/private/', '///srv//vault.key'] });
+  assert.deepEqual(classifyPath('/home/user/private/key.txt', paths, linux.options), ['secret']);
+  assert.deepEqual(classifyPath('//home/user/private/key.txt', paths, linux.options), ['secret']);
+  assert.deepEqual(classifyPath('/srv/vault.key', paths, linux.options), ['secret']);
+  assert.equal(canonicalGuardPath('//home//user/.npmrc', linux.options), '/home/user/.npmrc');
+});
+
+test('a home directory on a UNC share keeps its home rules', () => {
+  const home = '\\\\fileserver.example.com\\share\\user';
+  const paths = guardPaths({ home });
+  const options = { home, cwd: `${home}\\project` };
+  for (const spelling of [`${home}\\.npmrc`, '~\\.npmrc', '%USERPROFILE%\\.npmrc', '..\\.npmrc', '//fileserver.example.com/share/user/.npmrc']) {
+    assert.deepEqual(classifyPath(spelling, paths, options), ['secret'], spelling);
+  }
+  assert.deepEqual(classifyPath(`${home}\\.claude\\settings.json`, paths, options), ['config']);
+  assert.deepEqual(classifyPath(`${home}\\project\\src\\a.js`, paths, options), []);
+});
+
+test('UNC paths are never resolved against the file system', () => {
+  const original = fs.realpathSync.native;
+  const seen = [];
+  fs.realpathSync.native = (target) => { seen.push(String(target)); return original(target); };
+  try {
+    const home = '\\\\fileserver.example.com\\share\\user';
+    classifyPath('\\\\203.0.113.10\\share\\file.txt', guardPaths({ home }), { home, cwd: home });
+    classifyPath('//203.0.113.10/share/file.txt', windows.paths, windows.options);
+    classifyPath('\\\\?\\UNC\\203.0.113.10\\share\\file.txt', windows.paths, windows.options);
+  } finally {
+    fs.realpathSync.native = original;
+  }
+  assert.deepEqual(seen.filter((target) => /203\.0\.113\.10|fileserver/.test(target)), []);
+});

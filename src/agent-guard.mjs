@@ -68,7 +68,8 @@ export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot
   const trustdexRoot = rawRoot ? absolute(rawRoot) : null;
   const policyPath = rawPolicy ? absolute(rawPolicy) : null;
   const stateDir = rawState ? absolute(rawState) : null;
-  const h = (rel) => path.join(home, rel);
+  // Not path.join: it would fold the leading "//" of a UNC home into "/".
+  const h = (rel) => `${home.replace(/\/+$/, '')}/${rel}`;
   return {
     config: [
       h('.claude/settings.json'), h('.claude/settings.local.json'), h('.claude.json'),
@@ -153,6 +154,8 @@ const HOME_PREFIX_RE = /^(?:~|\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|
 // removed. Symbolic links are resolved separately, against the file system.
 export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = os.homedir() } = {}) {
   const home = toPosix(windowsPath(toPosix(rawHome)).replace(/^\/(?=[A-Za-z]:)/, ''));
+  // A leading "//" is a UNC share only in Windows notation; on POSIX it is "/".
+  const unc = /^\\\\/.test(String(file).trim()) || /^(?:\/[A-Za-z]:|\/\/)/.test(home) && !/^\/\//.test(String(rawHome).trim());
   const cwd = rawCwd ? canonicalGuardPath(rawCwd, { home: rawHome }) : null;
   let value = windowsPath(String(file).trim().replace(/\\/g, '/'));
   const user = path.basename(home);
@@ -174,7 +177,7 @@ export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = o
     drive = value.match(/^\/([A-Za-z]):(\/.*|)$/);
   }
   if (drive) return `/${drive[1].toUpperCase()}:${path.resolve('/', windowsSegments(drive[2] || '/'))}`;
-  if (value.startsWith('//')) return `//${windowsSegments(path.resolve('/', value.slice(2))).slice(1)}`;
+  if (unc && value.startsWith('//')) return `//${windowsSegments(path.resolve('/', value.slice(2))).slice(1)}`;
   // Aliases are removed before `..` is resolved: /proc/self/cwd/.. is the parent of cwd.
   let aliased = value.replace(/\/{2,}/g, '/');
   if (cwd) aliased = aliased.replace(/^\/proc\/(?:self|thread-self)\/cwd(?=\/|$)/, () => cwd);
@@ -187,9 +190,11 @@ export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = o
 
 // The same path with symbolic links resolved through its deepest existing ancestor, in
 // the notation of the configured home, or null when it cannot be resolved here.
+// UNC paths are never resolved: on Windows that would contact the named server (and can
+// send it the user's credentials) before the guard has decided.
 function realGuardPath(resolved, home) {
   const native = /^\/[A-Za-z]:\//.test(resolved) ? resolved.slice(1) : resolved;
-  if (!nodePath.isAbsolute(native)) return null;
+  if (!nodePath.isAbsolute(native) || native.startsWith('//')) return null;
   const real = (target) => {
     let dir = target;
     const rest = [];
@@ -206,7 +211,7 @@ function realGuardPath(resolved, home) {
   };
   const target = real(native);
   if (!target) return null;
-  const realHome = real(/^\/[A-Za-z]:\//.test(home) ? home.slice(1) : home);
+  const realHome = home.startsWith('//') ? null : real(/^\/[A-Za-z]:\//.test(home) ? home.slice(1) : home);
   const inHome = realHome && realHome !== home && (target === realHome || target.startsWith(`${realHome}/`));
   return inHome ? home + target.slice(realHome.length) : target;
 }
