@@ -165,7 +165,7 @@ export async function inspectGitHubReleaseSignature(repository, options = {}) {
 }
 
 // Registry metadata is publisher-controlled: keep the location, drop userinfo, query, and fragment.
-function credentialFreeUrl(value) {
+export function credentialFreeUrl(value) {
   if (typeof value !== 'string' || !value) return null;
   try {
     const url = new URL(value);
@@ -173,10 +173,15 @@ function credentialFreeUrl(value) {
     url.password = '';
     url.search = '';
     url.hash = '';
-    if (/[@?#]/.test(url.href.slice(url.protocol.length))) return '<unparseable-url>';
+    // Without a host, an "@" left in the path may be unparsed userinfo ("git+https:/u:pw@host/x").
+    const authority = url.href.startsWith(`${url.protocol}//`);
+    if (url.pathname.includes('@') && (!authority || !url.host)) return '<unparseable-url>';
     return url.href;
   } catch {
-    return /^[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+$/.test(value) ? value : '<unparseable-url>';
+    // npm "owner/repo" shorthand and scp-like "git@host:owner/repo" remotes carry no secret.
+    return /^(?:[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/.test(value)
+      ? value
+      : '<unparseable-url>';
   }
 }
 

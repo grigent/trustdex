@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { inspectNpmPackage, provenanceObservationToClaim } from '../src/provenance-online.mjs';
+import { credentialFreeUrl, inspectNpmPackage, provenanceObservationToClaim } from '../src/provenance-online.mjs';
 import { parseTrustStore } from '../src/provenance.mjs';
 
 // Canary sweep for the output redaction contract (docs/SECURITY_RESEARCH.md).
@@ -697,4 +697,18 @@ test('every CLI command is covered by the canary sweep', () => {
   assert.ok(commands.size > 40, `found only ${commands.size} commands`);
   const missing = [...commands].filter((name) => !sweep.includes(`['${name}'`));
   assert.deepEqual(missing, [], `commands missing from the canary sweep: ${missing.join(', ')}`);
+});
+
+test('registry URLs keep their location and lose credentials, query values, and fragments', () => {
+  const secret = canary();
+  for (const [input, expected] of [
+    ['example/agent', 'example/agent'],
+    ['github:example/agent', 'github:example/agent'],
+    ['git@github.com:example/agent.git', 'git@github.com:example/agent.git'],
+    ['https://www.npmjs.com/package/@example/agent', 'https://www.npmjs.com/package/@example/agent'],
+    [`git+https://user:${secret}@github.com/example/agent.git?t=${secret}#${secret}`, 'git+https://github.com/example/agent.git'],
+    [`git+https:/user:${secret}@github.com/example/agent`, '<unparseable-url>'],
+    [`https://mcp.example.invalid/mcp?key=${secret}`, 'https://mcp.example.invalid/mcp'],
+    [`not a url ${secret}`, '<unparseable-url>']
+  ]) assert.equal(credentialFreeUrl(input), expected, input);
 });
