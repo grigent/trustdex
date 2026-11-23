@@ -630,7 +630,8 @@ test('network-facing, hook, approval, setup, codex review, and runtime commands 
 
   // Only parsed package names and the stopped action's summary may leave the process.
   const sent = fs.readFileSync(net.logFile, 'utf8');
-  assert.match(sent, /slack\.com\/api\/chat\.postMessage/);
+  assert.ok(sent.split('\n').some((line) => line && JSON.parse(line).url === 'https://slack.com/api/chat.postMessage'),
+    'slack-approver did not post the stopped action');
   assert.deepEqual(leaked(sent), [], `requests carried ${leaked(sent).join(', ')}`);
 
   // Codex review workflow.
