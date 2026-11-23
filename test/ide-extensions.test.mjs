@@ -501,3 +501,37 @@ test('a FIFO manifest is reported without blocking the inspection', async (t) =>
   assert.ok(result.signals.includes('ide-extension-missing-manifest'));
   assert.ok(result.signals.includes('ide-extension-non-regular-files'));
 });
+
+test('an extension package.json with a repeated or "__proto__" key is not read', async () => {
+  for (const manifest of [
+    '{"publisher":"acme","name":"tool","version":"1.0.0","contributes":{},"contributes":{"commands":[]}}',
+    '{"publisher":"acme","name":"tool","version":"1.0.0","__proto__":{"main":"x.js"}}'
+  ]) {
+    const root = await tempDir();
+    await addExtension(root, 'acme.tool-1.0.0', manifest);
+    await writeRegistry(root, [entry('acme.tool', '1.0.0', 'acme.tool-1.0.0')]);
+    const [result] = await inspectIdeExtensionsDir(root);
+    assert.ok(result.signals.includes('ide-extension-missing-manifest'), manifest);
+    const [decision] = evaluateAll([result], getPolicyPack('strict'));
+    assert.equal(decision.action, 'block', manifest);
+  }
+});
+
+test('an obsolete marker cannot hide an extension whose package.json repeats a key', async () => {
+  const root = await tempDir();
+  await addExtension(root, 'acme.tool-1.0.0', '{"publisher":"acme","name":"tool","version":"1.0.0","version":"2.0.0"}');
+  await writeRegistry(root, [entry('acme.tool', '1.0.0', 'acme.tool-1.0.0')]);
+  await fs.writeFile(path.join(root, '.obsolete'), JSON.stringify({ 'acme.tool-2.0.0': true }));
+  const results = await inspectIdeExtensionsDir(root);
+  assert.equal(results.length, 1);
+  assert.ok(results[0].signals.includes('ide-extension-missing-manifest'));
+});
+
+test('an extension registry or .obsolete with a repeated key fails closed', async () => {
+  const root = await singleExtension();
+  await fs.writeFile(path.join(root, 'extensions.json'), '[{"identifier":{"id":"acme.tool","id":"acme.other"},"version":"1.0.0","relativeLocation":"acme.tool-1.0.0"}]');
+  await assert.rejects(inspectIdeExtensionsDir(root), /Invalid IDE extension registry JSON/);
+  const other = await singleExtension();
+  await fs.writeFile(path.join(other, '.obsolete'), '{"acme.tool-1.0.0":false,"acme.tool-1.0.0":true}');
+  await assert.rejects(inspectIdeExtensionsDir(other), /Invalid IDE extension .obsolete JSON/);
+});

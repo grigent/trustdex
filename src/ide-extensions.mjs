@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { sha256Json } from './canonical.mjs';
+import { parseStrictJson, sha256Json } from './canonical.mjs';
 
 // Static inventory of a VS Code-compatible editor extensions directory
 // (for example ~/.vscode/extensions or ~/.cursor/extensions). Nothing is
@@ -213,7 +213,7 @@ export async function digestExtensionTree(directory, limits = {}) {
 
 function parseRegistry(text) {
   let value;
-  try { value = JSON.parse(text); } catch {
+  try { value = parseStrictJson(text); } catch {
     throw new Error(`Invalid IDE extension registry JSON (${REGISTRY_FILE}).`);
   }
   if (!Array.isArray(value)) throw new Error(`IDE extension registry (${REGISTRY_FILE}) must be a JSON array.`);
@@ -233,7 +233,7 @@ function parseRegistry(text) {
 
 function parseObsolete(text) {
   let value;
-  try { value = JSON.parse(text); } catch {
+  try { value = parseStrictJson(text); } catch {
     throw new Error(`Invalid IDE extension ${OBSOLETE_FILE} JSON.`);
   }
   if (!isObject(value)) throw new Error(`IDE extension ${OBSOLETE_FILE} must be a JSON object.`);
@@ -328,7 +328,7 @@ async function inspectInstalled(directory, registryEntry, options = {}) {
     } else {
       const file = await readRegularFile(path.join(directory, 'package.json'), MAX_MANIFEST_BYTES);
       if (file?.nonRegular) signals.add('ide-extension-non-regular-files');
-      try { manifest = file?.text === undefined ? null : JSON.parse(file.text); } catch { manifest = null; }
+      try { manifest = file?.text === undefined ? null : parseStrictJson(file.text); } catch { manifest = null; }
       if (!isObject(manifest)) {
         manifest = null;
         signals.add('ide-extension-missing-manifest');
@@ -422,7 +422,7 @@ export async function inspectIdeExtensionsDir(root) {
     if (file === null) continue;
     if (!file.nonRegular) {
       let manifest = null;
-      try { manifest = JSON.parse(file.text); } catch { manifest = null; }
+      try { manifest = parseStrictJson(file.text); } catch { manifest = null; }
       if (isObject(manifest) && typeof manifest.version === 'string') {
         const key = extensionKey(normalizeIdeExtensionId(`${manifest.publisher || ''}.${manifest.name || ''}`), manifest.version);
         if ([key, ...TARGET_PLATFORMS.map((platform) => `${key}-${platform}`)].some((name) => obsolete.has(name))) continue;
