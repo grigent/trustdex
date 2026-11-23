@@ -48,9 +48,10 @@ function decodeDoubleQuoted(body) {
 
 function parseScalar(value, depth = 0) {
   let raw = value.trim();
-  // An unquoted value ends at " #"; one that is only a comment keeps just the "#".
-  if (!/^["'[]/.test(raw)) raw = raw.startsWith('#') ? '#' : raw.replace(/\s+#.*$/, '');
-  else if (/^(["']).*\1\s+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)\s+#.*$/, '$1');
+  // An unquoted value ends at " #"; one that is only a comment keeps just the "#". Flow
+  // list items arrive with their comments already removed.
+  if (!/^["'[]/.test(raw)) raw = raw.startsWith('#') && !depth ? '#' : raw.replace(/[ \t]+#.*$/, '');
+  else if (/^(["']).*\1[ \t]+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)[ \t]+#.*$/, '$1');
   if (!raw) return '';
   if (raw.length > 1 && raw.startsWith('"') && raw.endsWith('"')) {
     // YAML decodes "\x2a" to "*", so the scope is read after the same decoding.
@@ -102,19 +103,19 @@ function frontmatterEntries(text) {
             if (char === "'" && line[k + 1] === "'") k += 1;
             else if (char === "'") quote = null;
           } else if (char === '"' || char === "'") quote = char;
-          else if (char === '#' && (k === 0 || /\s/.test(line[k - 1]))) return line.slice(0, k);
+          else if (char === '#' && (k === 0 || /[ \t]/.test(line[k - 1]))) return line.slice(0, k);
         }
         if (quote) unsupported = true;
         return line;
       };
       const start = i;
       let joined = flowLine(raw);
-      while (!/\]\s*(?:#.*)?$/.test(joined) && i + 1 < lines.length &&
+      while (!/\][ \t]*$/.test(joined) && i + 1 < lines.length &&
         !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:(?:\s|$)/.test(lines[i + 1]) &&
         !TOOL_SCOPE_KEYS.has((lines[i + 1].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:/)?.[1] || '').toLowerCase())) joined += ` ${flowLine(lines[i += 1])}`;
-      if (/\]\s*(?:#.*)?$/.test(joined)) raw = joined;
+      if (/\][ \t]*$/.test(joined)) raw = joined;
       else i = start;
-      raw = raw.replace(/\]\s*#.*$/, ']');
+      raw = raw.replace(/\][ \t]*#.*$/, ']');
       if (!raw.trim().endsWith(']')) unsupported = true;
     }
     let parsed = parseScalar(raw);

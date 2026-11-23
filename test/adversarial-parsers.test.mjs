@@ -199,6 +199,11 @@ test('a comment in a skill scope neither hides a grant nor swallows the next fie
     assert.ok(!report.signals.includes('skill-shell-auto-approve'), `${header}: ${report.signals.join(', ')}`);
     assert.ok(!report.signals.includes('uninspected-tool-scope'), `${header}: ${report.signals.join(', ')}`);
   }
+  // Only a space or tab starts a YAML comment; a no-break space is part of the text.
+  for (const header of ['allowed-tools: [Read,\u00a0#x\n  Bash]', 'allowed-tools: Read\u00a0# Bash', 'allowed-tools: "Read"\u00a0# Bash']) {
+    const report = inspectSkillText(`---\n${header}\n---\n`);
+    assert.ok(report.signals.includes('skill-shell-auto-approve'), `${JSON.stringify(header)}: ${report.signals.join(', ')}`);
+  }
   const quoted = inspectSkillText('---\nallowed-tools: ["Read # x", Bash]\n---\n');
   assert.ok(quoted.signals.includes('skill-shell-auto-approve'), quoted.signals.join(', '));
   const item = inspectSkillText('---\nallowed-tools:\n  - Read\n  - # Bash\n---\n');
