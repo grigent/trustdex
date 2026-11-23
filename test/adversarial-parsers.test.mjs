@@ -133,6 +133,10 @@ test('a YAML escape that decodes to syntax or a control character leaves the sco
     assert.ok(report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
     assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
   }
+  for (const scope of ['"Read\\x2c*"', '"*\\x2cRead"', '"Read\\nBash(*)"']) {
+    const report = inspectSkillText(`---\nallowed-tools: ${scope}\n---\n`);
+    assert.ok(report.signals.includes('wildcard-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
+  }
   // A "#" inside a quoted value is text, not a comment.
   assert.ok(inspectSkillText('---\nallowed-tools: "Read, # Bash"\n---\n').signals.includes('skill-shell-auto-approve'));
   for (const escape of ['\\e', '\\x1b', '\\u009b', '\\0', '\\n', '\\L']) {
@@ -180,4 +184,16 @@ test('keyset and strict JSON share one duplicate-member scanner', () => {
   assert.throws(() => keyset.parseKeysetText('{"keys":[],"keys":[]}'), /Invalid keyset: repeats a field name/);
   assert.throws(() => keyset.parseKeysetText('{"__proto__":{"keys":[]}}'), /Invalid keyset: has a "__proto__" field/);
   rejectDuplicateJsonMembers('{"a":{"a":1},"b":[{"a":1},{"a":2}]}');
+});
+
+test('a comment in a skill scope neither hides a grant nor swallows the next field', () => {
+  const flow = inspectSkillText('---\nallowed-tools: [Read, # reviewed\n  "*"]\n---\n');
+  assert.ok(flow.signals.includes('wildcard-tool-scope'), flow.signals.join(', '));
+  const plain = inspectSkillText('---\nallowed-tools: [Read, # reviewed\n  *]\n---\n');
+  assert.ok(plain.signals.includes('wildcard-tool-scope'), plain.signals.join(', '));
+  const indented = inspectSkillText('---\n  allowed-tools: # none\n  description: Run Bash\n---\n');
+  assert.ok(!indented.signals.includes('skill-shell-auto-approve'), indented.signals.join(', '));
+  assert.equal(indented.metadata.description, 'Run Bash');
+  const item = inspectSkillText('---\nallowed-tools:\n  - Read\n  - # Bash\n---\n');
+  assert.ok(!item.signals.includes('skill-shell-auto-approve'), item.signals.join(', '));
 });

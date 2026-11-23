@@ -48,8 +48,8 @@ function decodeDoubleQuoted(body) {
 
 function parseScalar(value, depth = 0) {
   let raw = value.trim();
-  // An unquoted value ends at " #", and one that starts with "#" is only a comment.
-  if (!/^["'[]/.test(raw)) raw = raw.replace(/(?:^|\s+)#.*$/, '');
+  // An unquoted value ends at " #".
+  if (!/^["'[]/.test(raw)) raw = raw.replace(/\s+#.*$/, '');
   else if (/^(["']).*\1\s+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)\s+#.*$/, '$1');
   if (!raw) return '';
   if (raw.length > 1 && raw.startsWith('"') && raw.endsWith('"')) {
@@ -89,11 +89,19 @@ function frontmatterEntries(text) {
       // A list continues only up to the next `key: value` line or tool-scope key (however
       // it is spaced), and an unterminated list consumes nothing, so a list cannot
       // swallow a scope that follows it.
+      // A comment ends at its own line, so it is dropped before the lines are joined; on a
+      // line that also has quotes it cannot be told apart from text, so the scope is unread.
+      const flowLine = (line) => {
+        const text = line.replace(/\]\s+#[^"']*$/, ']');
+        if (!/(?:^|\s)#/.test(text)) return text;
+        if (/["']/.test(text)) { unsupported = true; return text; }
+        return text.replace(/(?:^|\s)#.*$/, '');
+      };
       const start = i;
-      let joined = raw;
+      let joined = flowLine(raw);
       while (!/\]\s*(?:#.*)?$/.test(joined) && i + 1 < lines.length &&
         !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:(?:\s|$)/.test(lines[i + 1]) &&
-        !TOOL_SCOPE_KEYS.has((lines[i + 1].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:/)?.[1] || '').toLowerCase())) joined += ` ${lines[i += 1]}`;
+        !TOOL_SCOPE_KEYS.has((lines[i + 1].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:/)?.[1] || '').toLowerCase())) joined += ` ${flowLine(lines[i += 1])}`;
       if (/\]\s*(?:#.*)?$/.test(joined)) raw = joined;
       else i = start;
       raw = raw.replace(/\]\s*#.*$/, ']');
@@ -106,7 +114,8 @@ function frontmatterEntries(text) {
         const line = lines[i += 1];
         if (!line.trim() || /^\s*#/.test(line)) continue;
         const item = line.match(/^\s*-\s+(.*)$/);
-        if (item) items.push(parseScalar(item[1]));
+        // A list item that is only a comment is not a grant.
+        if (item) items.push(parseScalar(item[1].replace(/^#.*$/, '')));
         else unsupported = true;
       }
       if (items.length && !unsupported) parsed = items;
@@ -159,7 +168,10 @@ function toolScopeSignals(entries) {
   const uninspected = scopes.some((entry) => entry.unsupported || hasStraySyntax(entry.value)) || mentioned > read;
   // When a scope could not be read in full, a wildcard anywhere in the header counts, so
   // breaking the syntax cannot lower a wildcard finding to the weaker signal.
-  const wildcard = scopes.some((entry) => isWildcard(entry.value)) ||
+  const unread = (entry) => entry.unsupported || hasStraySyntax(entry.value);
+  const text = (entry) => [entry.value].flat(Infinity).map((item) => String(item ?? '')).join(' ');
+  const wildcard = scopes.some((entry) => isWildcard(entry.value) ||
+    (unread(entry) && isWildcard(text(entry).replace(/\uFFFD/g, ' ')))) ||
     (uninspected && isWildcard((entries.header || '').replace(/[[\]{}"',]/g, ' ')));
   // allowed-tools grants run without a permission prompt; a grant that cannot be read
   // in full counts as one, and a shell tool named anywhere in it counts as shell.
@@ -168,9 +180,8 @@ function toolScopeSignals(entries) {
     mentioned > read || grants.some((entry) => entry.unsupported);
   // Comments were already dropped while parsing; a "#" left inside a quoted value is text.
   // In a scope that could not be read in full, a shell tool named as any word counts.
-  const text = (entry) => [entry.value].flat().map((item) => String(item ?? '')).join(' ');
   const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test(text(entry)) ||
-    ((entry.unsupported || hasStraySyntax(entry.value)) && SHELL_WORD_RE.test(text(entry)))) ||
+    (unread(entry) && SHELL_WORD_RE.test(text(entry)))) ||
     ((mentioned > read || grants.some((entry) => entry.unsupported || hasStraySyntax(entry.value))) &&
       SHELL_TOOL_RE.test(entries.header || ''));
   return [
