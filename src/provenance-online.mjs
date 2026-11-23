@@ -53,7 +53,8 @@ export async function inspectGitHubRepository(repository, options = {}) {
     observedAt: new Date().toISOString(),
     evidence: {
       kind: 'github-api',
-      reference: data.html_url || `https://github.com/${data.full_name}`,
+      // Built from the checked name: a response URL may carry credentials or query values.
+      reference: `https://github.com/${data.full_name}`,
       repositoryId: data.id ?? null,
       ownerLogin: data.owner?.login || null,
       ownerType: data.owner?.type || null,
@@ -152,7 +153,7 @@ export async function inspectGitHubReleaseSignature(repository, options = {}) {
     observedAt: new Date().toISOString(),
     evidence: {
       kind: 'github-release-signature',
-      reference: release.html_url || `https://github.com/${repoData.full_name}/releases/tag/${release.tag_name}`,
+      reference: `https://github.com/${repoData.full_name}/releases/tag/${encodeURIComponent(release.tag_name)}`,
       tag: release.tag_name,
       objectType,
       objectSha,
@@ -161,6 +162,30 @@ export async function inspectGitHubReleaseSignature(repository, options = {}) {
       signer: verification?.signer?.login || null
     }
   };
+}
+
+// Registry metadata is publisher-controlled: keep the location, drop userinfo, query, and fragment.
+export function credentialFreeUrl(value) {
+  if (typeof value !== 'string' || !value) return null;
+  try {
+    const url = new URL(value);
+    url.username = '';
+    url.password = '';
+    url.search = '';
+    url.hash = '';
+    // An "@" in the path may be unparsed userinfo ("git+https:/u:pw@host/x") or belong to a URL
+    // nested in the path; only a scope segment such as "/@example/agent" is kept.
+    const authority = url.href.startsWith(`${url.protocol}//`);
+    if (url.pathname.includes('@') && (!authority || !url.host || /[^/]@|:\/\//.test(url.pathname))) {
+      return '<unparseable-url>';
+    }
+    return url.href;
+  } catch {
+    // npm "owner/repo" shorthand and scp-like "git@host:owner/repo" remotes carry no secret.
+    return /^(?:[A-Za-z0-9_.-]+@[A-Za-z0-9.-]+:[A-Za-z0-9_./-]+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)$/.test(value)
+      ? value
+      : '<unparseable-url>';
+  }
 }
 
 const SLSA_V1 = 'https://slsa.dev/provenance/v1';
@@ -302,7 +327,7 @@ export async function inspectNpmPackage(packageName, options = {}) {
         integrity: String(latestMeta.dist.integrity),
         shasum: latestMeta.dist.shasum ? String(latestMeta.dist.shasum) : null
       } : null,
-      repository,
+      repository: credentialFreeUrl(repository),
       buildProvenance: await inspectNpmBuildProvenance(data, latest, options.fetchImpl, options.verifyBundle),
       maintainers: Array.isArray(data.maintainers)
         ? data.maintainers.map((item) => item?.name).filter(Boolean).sort()
@@ -391,7 +416,7 @@ export async function inspectMcpRegistryServer(serverName, options = {}) {
             digest: String(packages[0].fileSha256).toLowerCase()
           }
         : null,
-      repository: server.repository?.url || null,
+      repository: credentialFreeUrl(server.repository?.url),
       repositorySource: server.repository?.source || null,
       packages: packages.map((pkg) => ({
         registryType: pkg?.registryType || null,
@@ -401,7 +426,7 @@ export async function inspectMcpRegistryServer(serverName, options = {}) {
       })),
       remotes: remotes.map((remote) => ({
         type: remote?.type || null,
-        url: remote?.url || null
+        url: credentialFreeUrl(remote?.url)
       }))
     }
   };
