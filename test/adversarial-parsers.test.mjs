@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -151,10 +151,24 @@ test('TOML nesting is limited even when the innermost container is empty', () =>
   }
 });
 
-test('an oversized input from a pipe is rejected at the limit', { skip: process.platform === 'win32' }, () => {
-  // A shell pipeline gives the CLI a real pipe, which reports size 0 to fstat.
-  const result = spawnSync('sh', ['-c', 'head -c 17825792 /dev/zero | tr "\\000" " " | "$0" "$1" inspect /dev/stdin --pack strict --json', process.execPath, cli], { encoding: 'utf8' });
-  assertFailsClosed(result, 'larger than 16 MiB', 'piped input');
+test('an oversized input from a pipe is rejected at the limit', { skip: process.platform === 'win32' }, async () => {
+  // A named pipe reports size 0 to fstat, so only the limit while reading can stop it.
+  const fifo = path.join(workspace(), 'input.json');
+  assert.equal(spawnSync('mkfifo', [fifo]).status, 0);
+  const child = spawn(process.execPath, [cli, 'inspect', fifo, '--pack', 'strict', '--json']);
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => { stdout += chunk; });
+  child.stderr.on('data', (chunk) => { stderr += chunk; });
+  const writer = fs.createWriteStream(fifo);
+  writer.on('error', () => {});
+  const chunk = Buffer.alloc(1024 * 1024, 0x20);
+  for (let i = 0; i < 17 && !writer.destroyed; i += 1) {
+    if (!writer.write(chunk)) await new Promise((resolve) => { writer.once('drain', resolve); writer.once('close', resolve); });
+  }
+  writer.end();
+  const status = await new Promise((resolve) => child.on('close', resolve));
+  assertFailsClosed({ status, stdout, stderr }, 'larger than 16 MiB', 'piped input');
 });
 
 test('keyset and strict JSON share one duplicate-member scanner', () => {

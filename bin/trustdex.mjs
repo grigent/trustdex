@@ -240,7 +240,15 @@ async function readInputText(file) {
     let total = 0;
     for (;;) {
       const chunk = Buffer.alloc(64 * 1024);
-      const { bytesRead } = await handle.read(chunk, 0, chunk.length, null);
+      let bytesRead;
+      try {
+        ({ bytesRead } = await handle.read(chunk, 0, chunk.length, null));
+      } catch (error) {
+        // macOS shares a non-blocking stdin descriptor through /dev/stdin.
+        if (error.code !== 'EAGAIN') throw error;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        continue;
+      }
       if (!bytesRead) break;
       total += bytesRead;
       if (total > MAX_INPUT_BYTES) {
