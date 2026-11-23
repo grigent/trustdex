@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+## 0.21.0 - 2026-11-23
+
 - Output (`provenance`, `trust-source`): repository and remote URLs taken from GitHub, npm, and MCP Registry metadata no longer keep userinfo, query values, or fragments; GitHub references are built from the checked repository name instead of the response's `html_url`. Before, a credential in that metadata was printed and written to the trust store.
 - Tests: the output canary sweep now runs every CLI command (network commands against a stand-in `fetch`) and fails when a command is missing from it.
 - Parsers (MCP JSON, Codex TOML, `SKILL.md`, plugin manifests): JSON inputs with a repeated key (also when written with escapes), a `__proto__` key, or more than 128 levels of nesting, TOML arrays or inline tables nested more than 64 levels, inputs over 16 MiB, invalid UTF-8, and `SKILL.md` files with NUL characters (UTF-16) now fail closed. Before, `JSON.parse` silently kept the last duplicate, deep input crashed with a stack overflow, and invalid bytes were read as U+FFFD.
