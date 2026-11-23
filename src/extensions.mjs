@@ -48,8 +48,8 @@ function decodeDoubleQuoted(body) {
 
 function parseScalar(value, depth = 0) {
   let raw = value.trim();
-  // An unquoted value ends at " #".
-  if (!/^["'[]/.test(raw)) raw = raw.replace(/\s+#.*$/, '');
+  // An unquoted value ends at " #"; one that is only a comment keeps just the "#".
+  if (!/^["'[]/.test(raw)) raw = raw.startsWith('#') ? '#' : raw.replace(/\s+#.*$/, '');
   else if (/^(["']).*\1\s+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)\s+#.*$/, '$1');
   if (!raw) return '';
   if (raw.length > 1 && raw.startsWith('"') && raw.endsWith('"')) {
@@ -89,13 +89,23 @@ function frontmatterEntries(text) {
       // A list continues only up to the next `key: value` line or tool-scope key (however
       // it is spaced), and an unterminated list consumes nothing, so a list cannot
       // swallow a scope that follows it.
-      // A comment ends at its own line, so it is dropped before the lines are joined; on a
-      // line that also has quotes it cannot be told apart from text, so the scope is unread.
+      // A comment ends at its own line, so it is dropped before the lines are joined. A
+      // quote still open at the end of a line is not read across lines.
       const flowLine = (line) => {
-        const text = line.replace(/\]\s+#[^"']*$/, ']');
-        if (!/(?:^|\s)#/.test(text)) return text;
-        if (/["']/.test(text)) { unsupported = true; return text; }
-        return text.replace(/(?:^|\s)#.*$/, '');
+        let quote = null;
+        for (let k = 0; k < line.length; k += 1) {
+          const char = line[k];
+          if (quote === '"') {
+            if (char === '\\') k += 1;
+            else if (char === '"') quote = null;
+          } else if (quote === "'") {
+            if (char === "'" && line[k + 1] === "'") k += 1;
+            else if (char === "'") quote = null;
+          } else if (char === '"' || char === "'") quote = char;
+          else if (char === '#' && (k === 0 || /\s/.test(line[k - 1]))) return line.slice(0, k);
+        }
+        if (quote) unsupported = true;
+        return line;
       };
       const start = i;
       let joined = flowLine(raw);
@@ -114,8 +124,7 @@ function frontmatterEntries(text) {
         const line = lines[i += 1];
         if (!line.trim() || /^\s*#/.test(line)) continue;
         const item = line.match(/^\s*-\s+(.*)$/);
-        // A list item that is only a comment is not a grant.
-        if (item) items.push(parseScalar(item[1].replace(/^#.*$/, '')));
+        if (item) items.push(parseScalar(item[1]));
         else unsupported = true;
       }
       if (items.length && !unsupported) parsed = items;

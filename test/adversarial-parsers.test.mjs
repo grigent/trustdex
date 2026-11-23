@@ -194,6 +194,13 @@ test('a comment in a skill scope neither hides a grant nor swallows the next fie
   const indented = inspectSkillText('---\n  allowed-tools: # none\n  description: Run Bash\n---\n');
   assert.ok(!indented.signals.includes('skill-shell-auto-approve'), indented.signals.join(', '));
   assert.equal(indented.metadata.description, 'Run Bash');
+  for (const header of ['allowed-tools: # No Bash access', 'allowed-tools: ["Read", # no Bash\n  "Grep"]', "allowed-tools: ['Read', 'Grep'] # no Bash"]) {
+    const report = inspectSkillText(`---\n${header}\n---\n`);
+    assert.ok(!report.signals.includes('skill-shell-auto-approve'), `${header}: ${report.signals.join(', ')}`);
+    assert.ok(!report.signals.includes('uninspected-tool-scope'), `${header}: ${report.signals.join(', ')}`);
+  }
+  const quoted = inspectSkillText('---\nallowed-tools: ["Read # x", Bash]\n---\n');
+  assert.ok(quoted.signals.includes('skill-shell-auto-approve'), quoted.signals.join(', '));
   const item = inspectSkillText('---\nallowed-tools:\n  - Read\n  - # Bash\n---\n');
   assert.ok(!item.signals.includes('skill-shell-auto-approve'), item.signals.join(', '));
 });
