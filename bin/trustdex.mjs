@@ -238,8 +238,8 @@ async function readInputText(file) {
     // A pipe or device reports size 0, so the limit is also enforced while reading.
     const chunks = [];
     let total = 0;
+    const chunk = Buffer.alloc(64 * 1024);
     for (;;) {
-      const chunk = Buffer.alloc(64 * 1024);
       let bytesRead;
       try {
         ({ bytesRead } = await handle.read(chunk, 0, chunk.length, null));
@@ -254,7 +254,7 @@ async function readInputText(file) {
       if (total > MAX_INPUT_BYTES) {
         throw new Error(`${path.basename(file)} is larger than 16 MiB; TrustDex does not inspect inputs this large.`);
       }
-      chunks.push(chunk.subarray(0, bytesRead));
+      chunks.push(Buffer.from(chunk.subarray(0, bytesRead)));
     }
     bytes = Buffer.concat(chunks, total);
   } finally {
