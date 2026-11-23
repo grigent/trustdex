@@ -40,9 +40,9 @@ function decodeDoubleQuoted(body) {
       decoded = String.fromCodePoint(Number.parseInt(hex, 16));
       i += 1 + length;
     }
-    // U+FFFD in its place keeps the words around it, joins no new ones, and marks the scope
-    // unread; a line break still separates words, as YAML reads it.
-    out += UNSAFE_DECODED_RE.test(decoded) ? (/\s/.test(decoded) ? '\uFFFD ' : '\uFFFD') : decoded;
+    // U+FFFD in its place marks the scope unread without joining or splitting words; an
+    // escaped comma or line break still separates the words on both sides, as YAML reads it.
+    out += UNSAFE_DECODED_RE.test(decoded) ? (/[\s,]/.test(decoded) ? ' \uFFFD ' : '\uFFFD') : decoded;
   }
   return out;
 }
