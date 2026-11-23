@@ -65,6 +65,7 @@ node ./bin/trustdex.mjs inspect ./examples/mcp.json \
 
 - 커밋 작성자와 커미터는 GitHub noreply 주소를 씁니다. `Co-authored-by`, `Signed-off-by` 같은 `*-by` 꼬리말에도 noreply 주소만 넣고 개인 주소는 넣지 않습니다. 필수 검사 `Commit identity`가 이를 확인합니다.
 - [로드맵](docs/ROADMAP.ko.md)을 따라 항목 하나에 PR 하나를 테스트와 함께 엽니다. 항목이 반영되면 로드맵 진행 상황과 두 변경 기록을 고칩니다.
-- 배포 PR과 `.github/`, `scripts/`, `package.json`, `AGENTS*.md`를 바꾸는 PR은 직접 병합하지 않습니다. 관리자에게 남겨 둡니다(`.github/CODEOWNERS` 참고). npm 게시도 관리자 승인을 기다립니다.
+- PR만 열고, 자기 PR을 포함해 어떤 PR도 병합하지 않습니다. 검토와 병합은 관리자가 하고, npm 게시도 관리자 승인을 기다립니다.
+- 작업에서 요청하지 않았다면 버전을 올리거나 배포 PR을 열지 않고, `.github/`, `scripts/`, `package.json`, `AGENTS*.md`를 바꾸지 않습니다(`.github/CODEOWNERS` 참고).
 - 컴퓨터별 경로, 호스트 이름, IP 주소, 계정·워크스페이스 ID, 이메일 주소 같은 개인 정보는 코드, 테스트 자료, 문서, 커밋 메시지, PR 글에 넣지 않습니다. `/home/user`, `example.com`, `203.0.113.10` 같은 자리표시자를 씁니다.
 - 에이전트가 접근할 수 있는 다른 저장소의 내용을 옮겨 오지 않습니다.
