@@ -26,9 +26,10 @@ After the package exists, configure npm trusted publishing for:
 - GitHub user/organization: `grigent`
 - repository: `trustdex`
 - workflow filename: `publish.yml`
+- environment name: `npm`
 - allowed action: direct `npm publish`
 
-The workflow grants only `contents: read` and `id-token: write`. npm can then authenticate the GitHub-hosted job with OIDC instead of a long-lived write token.
+The `npm` GitHub environment requires a maintainer's approval and accepts only protected branches, so merging a release commit stops before npm until a maintainer approves the run. Setting the same environment name in npm means a workflow edited to drop the environment cannot publish. The workflow grants only `contents: read` and `id-token: write`. npm can then authenticate the GitHub-hosted job with OIDC instead of a long-lived write token.
 
 Once trusted publishing works, remove the `NPM_TOKEN` repository secret and revoke the bootstrap token on npm. The workflow deliberately continues to use the standard `npm publish` command so npm can select OIDC authentication.
 

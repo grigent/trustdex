@@ -66,6 +66,6 @@ These rules apply to coding agents that open or update pull requests in this rep
 
 - Use a GitHub noreply address as the commit author and committer. `Co-authored-by`, `Signed-off-by`, and other `*-by` trailers may name only noreply addresses; never add a personal address. The required `Commit identity` check enforces this.
 - Work from [the roadmap](docs/ROADMAP.md): one focused pull request per item, with tests, and update the roadmap progress and both changelogs when the item lands.
-- Do not merge release pull requests or pull requests that change `.github/`, `scripts/`, `package.json`, or `AGENTS*.md`. They need the maintainer's review (see `.github/CODEOWNERS`).
+- Do not merge release pull requests or pull requests that change `.github/`, `scripts/`, `package.json`, or `AGENTS*.md`. Leave them for the maintainer (see `.github/CODEOWNERS`); npm publishing also waits for the maintainer's approval.
 - Never put machine-specific paths, host names, IP addresses, account or workspace IDs, email addresses, or other personal data in code, fixtures, documentation, commit messages, or pull request text. Use placeholders such as `/home/user`, `example.com`, and `203.0.113.10`.
 - Do not copy content from other repositories the agent can access.
