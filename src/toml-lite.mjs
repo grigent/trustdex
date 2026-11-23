@@ -5,6 +5,8 @@
 // when a caller asks for them; anything unsupported throws without echoing input.
 
 const BARE_KEY_RE = /[A-Za-z0-9_-]/;
+// Arrays and inline tables nested deeper than this fail closed instead of exhausting the stack.
+const MAX_VALUE_DEPTH = 64;
 const ESCAPES = { b: '\b', t: '\t', n: '\n', f: '\f', r: '\r', '"': '"', '\\': '\\' };
 
 class Lexer {
@@ -175,8 +177,9 @@ class Lexer {
   }
 
   // Returns { kind, value } where kind is string, array, table, or bare.
-  value() {
+  value(depth = 0) {
     const char = this.peek();
+    if ((char === '[' || char === '{') && depth >= MAX_VALUE_DEPTH) this.fail('arrays or inline tables nested too deeply');
     if (this.startsWith('"""')) return { kind: 'string', value: this.multilineBasic() };
     if (this.startsWith("'''")) return { kind: 'string', value: this.multilineLiteral() };
     if (char === '"') return { kind: 'string', value: this.basicString() };
@@ -188,7 +191,7 @@ class Lexer {
         this.skipBlank();
         if (this.peek() === ']') { this.i += 1; return { kind: 'array', value: items }; }
         if (this.done) this.fail('unterminated array');
-        items.push(this.value());
+        items.push(this.value(depth + 1));
         this.skipBlank();
         if (this.peek() === ',') { this.i += 1; continue; }
         if (this.peek() === ']') { this.i += 1; return { kind: 'array', value: items }; }
@@ -205,7 +208,7 @@ class Lexer {
         if (this.peek() !== '=') this.fail('expected "=" in an inline table');
         this.i += 1;
         this.skipSpaces();
-        entries.push({ path, value: this.value() });
+        entries.push({ path, value: this.value(depth + 1) });
         this.skipSpaces();
         if (this.peek() === ',') { this.i += 1; continue; }
         if (this.peek() === '}') { this.i += 1; return { kind: 'table', value: entries }; }

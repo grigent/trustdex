@@ -55,6 +55,10 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 - 미출시: 출력 카나리 검사가 `provenance`, `trust-source`, `check-install`,
   `claude-hook`, `slack-approver`, `init`, 런타임 증거 명령을 포함한 모든 CLI 명령을
   실행하며, 검사에서 빠진 명령이 있으면 실패합니다.
+- 미출시: `test/fixtures/adversarial-parsers`에 MCP JSON, Codex TOML, `SKILL.md`,
+  플러그인 매니페스트용 적대적 파서 시험 자료(중복·이스케이프 키, `__proto__`, 깊은 중첩,
+  잘못된 UTF-8, UTF-16, 너무 큰 파일, YAML 이스케이프·별칭)를 더했고, 지원하지 않는 경우는
+  모두 실패로 닫힙니다.
 
 ## 현재: 경계 강화
 

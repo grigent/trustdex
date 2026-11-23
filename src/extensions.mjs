@@ -11,17 +11,56 @@ const INSTALL_RE = /(?:\b(?:npm|pnpm|yarn|bun)\s+(?:i|install|add)\b|\b(?:npx|pn
 const TOOL_SCOPE_KEYS = new Set(['allowed-tools', 'allowed_tools', 'allowedtools', 'tools']);
 const MAX_MANIFEST_DEPTH = 64;
 
-function parseScalar(value) {
-  let raw = value.trim();
-  // An unquoted value ends at " #".
-  if (!/^["'[]/.test(raw)) raw = raw.replace(/\s+#.*$/, '');
-  else if (/^(["']).*\1\s+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)\s+#.*$/, '$1');
-  if (!raw) return '';
-  if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
-    return raw.slice(1, -1);
+// YAML double-quoted escapes this reader decodes. Any other escape is left in place, where
+// the stray quote it keeps marks the scope as not read in full. An escape that decodes to a
+// control character (which would reach the terminal) or to syntax this reader treats
+// specially (`#`, quotes, brackets, commas) becomes U+FFFD, which also marks it unread.
+const YAML_ESCAPES = { 0: '\0', a: '\x07', b: '\b', t: '\t', '\t': '\t', n: '\n', v: '\v', f: '\f', r: '\r',
+  e: '\x1b', ' ': ' ', '"': '"', '/': '/', '\\': '\\', N: '\x85', _: '\xa0', L: '\u2028', P: '\u2029' };
+const YAML_HEX_LENGTH = { x: 2, u: 4, U: 8 };
+// Flow lists nested deeper than this are left unread instead of exhausting the stack.
+const MAX_FLOW_DEPTH = 8;
+
+const UNSAFE_DECODED_RE = /[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029#"'\\[\]{},]/;
+
+function decodeDoubleQuoted(body) {
+  if (!body.includes('\\')) return body;
+  let out = '';
+  for (let i = 0; i < body.length; i += 1) {
+    if (body[i] !== '\\') { out += body[i]; continue; }
+    const code = body[i + 1];
+    let decoded;
+    if (Object.hasOwn(YAML_ESCAPES, code)) {
+      decoded = YAML_ESCAPES[code];
+      i += 1;
+    } else {
+      const length = YAML_HEX_LENGTH[code];
+      const hex = length && body.slice(i + 2, i + 2 + length);
+      if (!hex || !/^[0-9A-Fa-f]+$/.test(hex) || hex.length !== length || Number.parseInt(hex, 16) > 0x10ffff) return null;
+      decoded = String.fromCodePoint(Number.parseInt(hex, 16));
+      i += 1 + length;
+    }
+    // U+FFFD in its place keeps the words around it apart and marks the scope unread.
+    out += UNSAFE_DECODED_RE.test(decoded) ? '\uFFFD' : decoded;
   }
+  return out;
+}
+
+function parseScalar(value, depth = 0) {
+  let raw = value.trim();
+  // An unquoted value ends at " #"; one that is only a comment keeps just the "#". Flow
+  // list items arrive with their comments already removed.
+  if (!/^["'[]/.test(raw)) raw = raw.startsWith('#') && !depth ? '#' : raw.replace(/[ \t]+#.*$/, '');
+  else if (/^(["']).*\1[ \t]+#/.test(raw)) raw = raw.replace(/^((["']).*?\2)[ \t]+#.*$/, '$1');
+  if (!raw) return '';
+  if (raw.length > 1 && raw.startsWith('"') && raw.endsWith('"')) {
+    // YAML decodes "\x2a" to "*", so the scope is read after the same decoding.
+    return decodeDoubleQuoted(raw.slice(1, -1)) ?? raw;
+  }
+  if (raw.length > 1 && raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1).replaceAll("''", "'");
   if (raw.startsWith('[') && raw.endsWith(']')) {
-    return raw.slice(1, -1).split(',').map((item) => parseScalar(item)).filter(Boolean);
+    if (depth >= MAX_FLOW_DEPTH) return raw;
+    return raw.slice(1, -1).split(',').map((item) => parseScalar(item, depth + 1)).filter(Boolean);
   }
   if (raw === 'true') return true;
   if (raw === 'false') return false;
@@ -33,9 +72,10 @@ function parseScalar(value) {
 // (block scalar, nested map, unterminated list) is marked unsupported, not guessed.
 function frontmatterEntries(text) {
   // A byte-order mark or blank lines before the opening fence must not hide the header.
-  const value = String(text || '').replace(/^\uFEFF/, '').replace(/^(?:[ \t]*\r?\n)+/, '');
-  if (!/^---[ \t]*\r?\n/.test(value)) return [];
-  const lines = value.split(/\r?\n/);
+  // A lone carriage return is a YAML line break, so it splits lines here too.
+  const value = String(text || '').replace(/^\uFEFF/, '').replace(/^(?:[ \t]*(?:\r\n?|\n))+/, '');
+  if (!/^---[ \t]*(?:\r\n?|\n)/.test(value)) return [];
+  const lines = value.split(/\r\n?|\n/);
   const entries = [];
   const end = lines.findIndex((line, index) => index > 0 && /^(?:---|\.\.\.)\s*$/.test(line));
   entries.header = lines.slice(1, end < 0 ? lines.length : end).join('\n');
@@ -44,19 +84,38 @@ function frontmatterEntries(text) {
     const match = lines[i].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:\s*(.*)$/);
     if (!match) continue;
     let raw = match[2];
-    let unsupported = /^[>|]/.test(raw.trim());
+    // An alias, anchor, or tag makes the value something other than the text written.
+    let unsupported = /^[>|]|^[*&!]\S/.test(raw.trim());
     if (raw.trim().startsWith('[')) {
       // A list continues only up to the next `key: value` line or tool-scope key (however
       // it is spaced), and an unterminated list consumes nothing, so a list cannot
       // swallow a scope that follows it.
+      // A comment ends at its own line, so it is dropped before the lines are joined. A
+      // quote still open at the end of a line is not read across lines.
+      const flowLine = (line) => {
+        let quote = null;
+        for (let k = 0; k < line.length; k += 1) {
+          const char = line[k];
+          if (quote === '"') {
+            if (char === '\\') k += 1;
+            else if (char === '"') quote = null;
+          } else if (quote === "'") {
+            if (char === "'" && line[k + 1] === "'") k += 1;
+            else if (char === "'") quote = null;
+          } else if (char === '"' || char === "'") quote = char;
+          else if (char === '#' && (k === 0 || /[ \t]/.test(line[k - 1]))) return line.slice(0, k);
+        }
+        if (quote) unsupported = true;
+        return line;
+      };
       const start = i;
-      let joined = raw;
-      while (!/\]\s*(?:#.*)?$/.test(joined) && i + 1 < lines.length &&
+      let joined = flowLine(raw);
+      while (!/\][ \t]*$/.test(joined) && i + 1 < lines.length &&
         !/^(?:---|\.\.\.)\s*$|^\s*[A-Za-z0-9_-]+\s*:(?:\s|$)/.test(lines[i + 1]) &&
-        !TOOL_SCOPE_KEYS.has((lines[i + 1].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:/)?.[1] || '').toLowerCase())) joined += ` ${lines[i += 1]}`;
-      if (/\]\s*(?:#.*)?$/.test(joined)) raw = joined;
+        !TOOL_SCOPE_KEYS.has((lines[i + 1].match(/^\s*["']?([A-Za-z0-9_-]+)["']?\s*:/)?.[1] || '').toLowerCase())) joined += ` ${flowLine(lines[i += 1])}`;
+      if (/\][ \t]*$/.test(joined)) raw = joined;
       else i = start;
-      raw = raw.replace(/\]\s*#.*$/, ']');
+      raw = raw.replace(/\][ \t]*#.*$/, ']');
       if (!raw.trim().endsWith(']')) unsupported = true;
     }
     let parsed = parseScalar(raw);
@@ -97,6 +156,7 @@ function hasUnreadFrontmatter(header) {
   return SKILL_UNREAD_FRONTMATTER_RE.test(header) || (flow >= 0 && /[?*!&\\]/.test(header.slice(flow)));
 }
 const SHELL_TOOL_RE = /(?:^|[\s,[\]"'])(?:Bash|PowerShell)(?=$|[\s,(\]"'])/i;
+const SHELL_WORD_RE = /\b(?:Bash|PowerShell)\b/i;
 
 function isWildcard(tools) {
   if (Array.isArray(tools)) return tools.some((tool) => isWildcard(String(tool)));
@@ -105,7 +165,7 @@ function isWildcard(tools) {
 
 // Brackets, braces, or quotes left in a parsed scope mean the value was not fully read.
 function hasStraySyntax(value) {
-  return [value].flat().some((item) => typeof item === 'string' && /[[\]{}"']/.test(item));
+  return [value].flat(Infinity).some((item) => typeof item === 'string' && /[[\]{}"'\uFFFD]/.test(item));
 }
 
 // Every tool-scope key counts, in any letter case and however often it is repeated.
@@ -118,16 +178,20 @@ function toolScopeSignals(entries) {
   const uninspected = scopes.some((entry) => entry.unsupported || hasStraySyntax(entry.value)) || mentioned > read;
   // When a scope could not be read in full, a wildcard anywhere in the header counts, so
   // breaking the syntax cannot lower a wildcard finding to the weaker signal.
-  const wildcard = scopes.some((entry) => isWildcard(entry.value)) ||
+  const unread = (entry) => entry.unsupported || hasStraySyntax(entry.value);
+  const text = (entry) => [entry.value].flat(Infinity).map((item) => String(item ?? '')).join(' ');
+  const wildcard = scopes.some((entry) => isWildcard(entry.value) ||
+    (unread(entry) && isWildcard(text(entry).replace(/\uFFFD/g, ' ')))) ||
     (uninspected && isWildcard((entries.header || '').replace(/[[\]{}"',]/g, ' ')));
   // allowed-tools grants run without a permission prompt; a grant that cannot be read
   // in full counts as one, and a shell tool named anywhere in it counts as shell.
   const grants = scopes.filter((entry) => /^allowed[-_]?tools$/i.test(entry.key));
   const granted = grants.some((entry) => [entry.value].flat().some((item) => String(item ?? '').trim())) ||
     mentioned > read || grants.some((entry) => entry.unsupported);
-  // A YAML comment folded into a list item is not a grant.
-  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test([entry.value].flat()
-    .map((item) => String(item ?? '').replace(/(?:^|\s)#.*$/, '')).join(' '))) ||
+  // Comments were already dropped while parsing; a "#" left inside a quoted value is text.
+  // In a scope that could not be read in full, a shell tool named as any word counts.
+  const shellGrant = grants.some((entry) => SHELL_TOOL_RE.test(text(entry)) ||
+    (unread(entry) && SHELL_WORD_RE.test(text(entry)))) ||
     ((mentioned > read || grants.some((entry) => entry.unsupported || hasStraySyntax(entry.value))) &&
       SHELL_TOOL_RE.test(entries.header || ''));
   return [
@@ -140,6 +204,8 @@ function toolScopeSignals(entries) {
 
 export function inspectSkillText(text, sourceName = 'SKILL.md') {
   const value = String(text || '');
+  // UTF-16 or binary text read as UTF-8 hides its frontmatter behind NUL characters.
+  if (value.includes('\0')) throw new Error(`Unsupported ${String(sourceName).split(/[\\/]/).pop()}: it contains NUL characters (UTF-16 and binary files are not read).`);
   const entries = frontmatterEntries(value);
   const metadata = Object.fromEntries(entries.map((entry) => [entry.key, entry.value]));
   const signals = new Set(toolScopeSignals(entries));
