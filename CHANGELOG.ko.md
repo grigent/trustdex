@@ -6,9 +6,12 @@
 
 ## 미출시
 
+- 출력(`provenance`, `trust-source`): GitHub, npm, MCP Registry 메타데이터에서 가져온 저장소·원격 URL에서 사용자 정보, 쿼리 값, 프래그먼트를 지웁니다. GitHub 참조는 응답의 `html_url` 대신 확인한 저장소 이름으로 만듭니다. 이전에는 메타데이터에 든 자격 증명이 출력되고 신뢰 저장소에 기록됐습니다.
+- 시험: 출력 카나리 검사가 모든 CLI 명령을 실행하고(네트워크 명령은 대역 `fetch`로), 검사에서 빠진 명령이 있으면 실패합니다.
 - 파서(MCP JSON, Codex TOML, `SKILL.md`, 플러그인 매니페스트): 같은 키가 두 번 나오는(이스케이프로 쓴 경우 포함) JSON, `__proto__` 키, 128단계를 넘는 중첩, 64단계를 넘게 중첩된 TOML 배열·인라인 테이블, 16 MiB를 넘는 입력, 잘못된 UTF-8, NUL 문자가 든(UTF-16) `SKILL.md`는 이제 실패로 닫힙니다. 이전에는 `JSON.parse`가 마지막 중복 값을 조용히 남겼고, 깊은 입력은 스택 넘침으로 멈췄고, 잘못된 바이트는 U+FFFD로 읽혔습니다.
 - 스킬: 큰따옴표 YAML 이스케이프(`"\x2a"`, `"Bash\u0028*)"`)를 풀어서 도구 범위를 분류하고, 단독 CR도 줄바꿈으로 보며, 범위에 별칭·앵커·태그가 있으면 `uninspected-tool-scope`로 표시합니다. 이전에는 이스케이프로 쓴 와일드카드나 셸 허용을 놓쳤습니다.
 - 파서: 키셋과 IDE 확장의 `package.json`·`extensions.json`·`.obsolete`도 같은 엄격 JSON 파서를 써서 중복 키나 `__proto__` 키가 실패로 닫힙니다. 16 MiB 한도는 파이프 입력에도 적용되고, 빈 TOML 컨테이너도 깊이 한도에 들어가며, 제어 문자나 `#`·따옴표·괄호·쉼표로 풀리는 YAML 이스케이프는 셸 허용을 숨기거나 터미널에 닿지 않고 `uninspected-tool-scope`로 남습니다. 이렇게 읽지 못한 범위에서는 어느 단어로든 `Bash`·`PowerShell`이 나오면 셸 허용으로 보고 그런 이스케이프 옆의 와일드카드도 잡습니다. 따옴표 안의 `#`는 글자로 읽고, 여러 줄 플로 목록의 주석은 그 줄에서 끝나 뒤 항목을 숨기지 못합니다.
+
 ## 0.20.5 - 2026-11-22
 
 - 공급망(`check-install`, npm 빌드 출처): npm-pick-manifest, npm-install-checks, pacote와 대조했습니다. 패키지 이름만 쓰거나 범위를 쓰면 npm이 건너뛰는 deprecated 또는 `engines` 불일치 `latest`를 더 이상 고르지 않습니다. npm `--tag`는 기본 태그로 반영합니다. 정확한 버전 없는 `--before`, 프리릴리스 비교식, 선택을 바꿀 수 있는 `engines.npm`이나 해석하지 못한 `engines`는 ASK `unresolved-version`입니다. 빌드 출처는 이제 인증서의 Build Config URI(Fulcio OID 1.3.6.1.4.1.57264.1.18)가 증명이 주장하는 워크플로 파일을 가리켜야 합니다. 이전에는 서명된 statement의 워크플로 경로만 사용했습니다.
