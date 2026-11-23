@@ -155,7 +155,9 @@ const HOME_PREFIX_RE = /^(?:~|\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|
 export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = os.homedir() } = {}) {
   const home = toPosix(windowsPath(toPosix(rawHome)).replace(/^\/(?=[A-Za-z]:)/, ''));
   // A leading "//" is a UNC share only in Windows notation; on POSIX it is "/".
-  const unc = /^\\\\/.test(String(file).trim()) || /^(?:\/[A-Za-z]:|\/\/)/.test(home) && !/^\/\//.test(String(rawHome).trim());
+  // A "//" home is a UNC share when written with backslashes, or on Windows.
+  const uncHome = home.startsWith('//') && (!/^\/\//.test(String(rawHome).trim()) || process.platform === 'win32');
+  const unc = /^\\\\/.test(String(file).trim()) || /^\/[A-Za-z]:/.test(home) || uncHome;
   const cwd = rawCwd ? canonicalGuardPath(rawCwd, { home: rawHome }) : null;
   let value = windowsPath(String(file).trim().replace(/\\/g, '/'));
   const user = path.basename(home);
@@ -776,6 +778,8 @@ export function guardBashCommand(command, paths, options = {}) {
 
   // `cd` inside the command changes where later relative paths point.
   let currentCwd = options.cwd && path.isAbsolute(toPosix(options.cwd)) ? toPosix(options.cwd) : null;
+  // The same directory in the protected-path notation, so a UNC "//" survives `cd ..`.
+  let guardCwd = currentCwd ? options.cwd : null;
   // After a cd, bare file names (cat id_ed25519) may name protected files too.
   let movedDirectory = false;
 
@@ -786,10 +790,12 @@ export function guardBashCommand(command, paths, options = {}) {
     if (program === 'cd') {
       const target = words[1] && words[1] !== '-' ? expandHome(toPosix(words[1]), toPosix(options.home || os.homedir())) : toPosix(options.home || os.homedir());
       currentCwd = path.isAbsolute(target) ? path.resolve(target) : currentCwd ? path.resolve(currentCwd, target) : null;
+      const guardTarget = canonicalGuardPath(words[1] && words[1] !== '-' ? words[1] : options.home || os.homedir(), { cwd: guardCwd, home: options.home || os.homedir() });
+      guardCwd = currentCwd && path.isAbsolute(guardTarget) ? guardTarget : null;
       movedDirectory = true;
       continue;
     }
-    const pathOptions = { ...options, cwd: currentCwd };
+    const pathOptions = { ...options, cwd: guardCwd };
 
     if (AGENT_CONFIG_CLIS.test(program) && words[1] === 'mcp' && /^(?:add|add-json|add-from-claude-desktop|remove|login)$/.test(words[2] || '')) {
       add('command:agent-or-gate-config', 'guard-tamper', 'Adds or removes an MCP server for an AI agent; a new server gets access to your tools and data.');

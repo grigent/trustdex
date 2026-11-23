@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { canonicalGuardPath, classifyPath, guardFileTool, guardPaths } from '../src/agent-guard.mjs';
+import { canonicalGuardPath, classifyPath, guardBashCommand, guardFileTool, guardPaths } from '../src/agent-guard.mjs';
 
 const windows = {
   paths: guardPaths({ home: 'C:\\Users\\user', trustdexRoot: 'C:\\tools\\trustdex' }),
@@ -151,4 +151,26 @@ test('UNC paths are never resolved against the file system', () => {
     fs.realpathSync.native = original;
   }
   assert.deepEqual(seen.filter((target) => /203\.0\.113\.10|fileserver/.test(target)), []);
+});
+
+test('a cd inside a UNC home keeps its home rules', () => {
+  const home = '\\\\fileserver.example.com\\share\\user';
+  const options = { home, cwd: `${home}\\project` };
+  const paths = guardPaths({ home });
+  for (const command of ['cd .. && cat .npmrc', 'cd ../.aws && cat credentials', 'cd && cat .npmrc', `cd ${home.replaceAll('\\', '/')} && cat .npmrc`]) {
+    const signals = guardBashCommand(command, paths, options).flatMap((finding) => finding.signals);
+    assert.ok(signals.includes('secret-access'), `${command}: ${signals.join(', ')}`);
+  }
+});
+
+test('a forward-slash UNC home on Windows matches native UNC paths', (t) => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
+  t.after(() => Object.defineProperty(process, 'platform', platform));
+  const home = '//fileserver.example.com/share/user';
+  const options = { home, cwd: `${home}/project` };
+  const paths = guardPaths({ home });
+  for (const spelling of ['\\\\fileserver.example.com\\share\\user\\.npmrc', `${home}/.npmrc`, '~/.npmrc', '../.npmrc']) {
+    assert.deepEqual(classifyPath(spelling, paths, options), ['secret'], spelling);
+  }
 });
