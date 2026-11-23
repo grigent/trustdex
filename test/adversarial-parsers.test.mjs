@@ -133,6 +133,11 @@ test('a YAML escape that decodes to syntax or a control character leaves the sco
     assert.ok(report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
     assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
   }
+  for (const scope of ['"Read(/a\\x5cBash\\x5cb)"', '"Read(/a\\x22Bash\\x22b)"']) {
+    const report = inspectSkillText(`---\nallowed-tools: ${scope}\n---\n`);
+    assert.ok(!report.signals.includes('skill-shell-auto-approve'), `${scope}: ${report.signals.join(', ')}`);
+    assert.ok(report.signals.includes('uninspected-tool-scope'), `${scope}: ${report.signals.join(', ')}`);
+  }
   for (const escape of ['\\e', '\\x1b', '\\u009b', '\\0', '\\n', '\\L']) {
     const report = inspectSkillText(`---\nname: "demo${escape}[2J"\nallowed-tools: Read\n---\n`);
     assert.doesNotMatch(report.name, /[\x00-\x08\x0a-\x1f\x7f-\x9f\u2028\u2029]/, escape);

@@ -14,7 +14,7 @@ const MAX_MANIFEST_DEPTH = 64;
 // YAML double-quoted escapes this reader decodes. Any other escape is left in place, where
 // the stray quote it keeps marks the scope as not read in full. An escape that decodes to a
 // control character (which would reach the terminal) or to syntax this reader treats
-// specially (`#`, quotes, brackets, commas) becomes such a stray quote.
+// specially (`#`, quotes, brackets, commas) becomes U+FFFD, which also marks it unread.
 const YAML_ESCAPES = { 0: '\0', a: '\x07', b: '\b', t: '\t', '\t': '\t', n: '\n', v: '\v', f: '\f', r: '\r',
   e: '\x1b', ' ': ' ', '"': '"', '/': '/', '\\': '\\', N: '\x85', _: '\xa0', L: '\u2028', P: '\u2029' };
 const YAML_HEX_LENGTH = { x: 2, u: 4, U: 8 };
@@ -40,8 +40,9 @@ function decodeDoubleQuoted(body) {
       decoded = String.fromCodePoint(Number.parseInt(hex, 16));
       i += 1 + length;
     }
-    // A stray quote in its place keeps the words around it and marks the scope unread.
-    out += UNSAFE_DECODED_RE.test(decoded) ? '"' : decoded;
+    // U+FFFD in its place keeps the words around it, joins no new ones, and marks the scope
+    // unread; a line break still separates words, as YAML reads it.
+    out += UNSAFE_DECODED_RE.test(decoded) ? (/\s/.test(decoded) ? '\uFFFD ' : '\uFFFD') : decoded;
   }
   return out;
 }
@@ -145,7 +146,7 @@ function isWildcard(tools) {
 
 // Brackets, braces, or quotes left in a parsed scope mean the value was not fully read.
 function hasStraySyntax(value) {
-  return [value].flat(Infinity).some((item) => typeof item === 'string' && /[[\]{}"']/.test(item));
+  return [value].flat(Infinity).some((item) => typeof item === 'string' && /[[\]{}"'\uFFFD]/.test(item));
 }
 
 // Every tool-scope key counts, in any letter case and however often it is repeated.
