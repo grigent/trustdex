@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { rejectDuplicateJsonMembers } from './canonical.mjs';
 
 // A trustdex-keyset v1 file is the deployment-facing allowlist of Ed25519 verification
 // keys. It is an operator-written trust input: parsing fails closed on anything it does
@@ -72,38 +73,7 @@ export function isWeakEd25519Key(keyObject) {
   return y >= ED25519_P;
 }
 
-/**
- * Throws when a JSON text repeats a member name inside one object. JSON.parse keeps the
- * last value silently, which would let a later "revoked": [] erase an earlier revocation.
- * Call only on text that JSON.parse accepts.
- */
-export function rejectDuplicateJsonMembers(text, where = 'JSON input') {
-  const stack = [];
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (char === '"') {
-      let end = index + 1;
-      while (text[end] !== '"') end += text[end] === '\\' ? 2 : 1;
-      const top = stack[stack.length - 1];
-      if (top?.expectKey) {
-        const name = JSON.parse(text.slice(index, end + 1));
-        if (top.names.has(name)) throw new Error(`${where} repeats a field name.`);
-        top.names.add(name);
-        top.expectKey = false;
-      }
-      index = end;
-    } else if (char === '{') {
-      stack.push({ names: new Set(), expectKey: true });
-    } else if (char === '[') {
-      stack.push({ names: null, expectKey: false });
-    } else if (char === '}' || char === ']') {
-      stack.pop();
-    } else if (char === ',') {
-      const top = stack[stack.length - 1];
-      if (top?.names) top.expectKey = true;
-    }
-  }
-}
+export { rejectDuplicateJsonMembers };
 
 /** Parse keyset JSON text: duplicate member names are rejected before validation. */
 export function parseKeysetText(text) {

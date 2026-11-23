@@ -1,0 +1,98 @@
+{
+  "mcp/duplicate-server.json": {
+    "command": "inspect",
+    "error": "a key is defined more than once"
+  },
+  "mcp/duplicate-field.json": {
+    "command": "inspect",
+    "error": "a key is defined more than once"
+  },
+  "mcp/duplicate-root.json": {
+    "command": "inspect",
+    "error": "a key is defined more than once"
+  },
+  "mcp/escaped-duplicate-key.json": {
+    "command": "inspect",
+    "error": "a key is defined more than once"
+  },
+  "mcp/proto-key.json": {
+    "command": "inspect",
+    "error": "a \"__proto__\" key"
+  },
+  "mcp/deep-nesting.json": {
+    "command": "inspect",
+    "error": "nested more than 128 levels deep"
+  },
+  "codex/deep-array.toml": {
+    "command": "inspect-codex",
+    "error": "nested too deeply"
+  },
+  "codex/deep-inline-table.toml": {
+    "command": "inspect-codex",
+    "error": "nested too deeply"
+  },
+  "skills/escaped-wildcard.SKILL.md": {
+    "command": "inspect-skill",
+    "action": "ask",
+    "signals": [
+      "skill-auto-approved-tools",
+      "wildcard-tool-scope"
+    ]
+  },
+  "skills/escaped-shell-grant.SKILL.md": {
+    "command": "inspect-skill",
+    "action": "block",
+    "signals": [
+      "skill-shell-auto-approve",
+      "wildcard-tool-scope"
+    ]
+  },
+  "skills/alias-scope.SKILL.md": {
+    "command": "inspect-skill",
+    "action": "ask",
+    "signals": [
+      "uninspected-tool-scope",
+      "wildcard-tool-scope"
+    ]
+  },
+  "skills/anchored-scope.SKILL.md": {
+    "command": "inspect-skill",
+    "action": "block",
+    "signals": [
+      "uninspected-tool-scope",
+      "skill-shell-auto-approve"
+    ]
+  },
+  "skills/unknown-escape.SKILL.md": {
+    "command": "inspect-skill",
+    "action": "block",
+    "signals": [
+      "skill-auto-approved-tools",
+      "skill-shell-auto-approve",
+      "uninspected-tool-scope"
+    ]
+  },
+  "skills/deep-flow-list.SKILL.md": {
+    "command": "inspect-skill",
+    "action": "ask",
+    "signals": [
+      "uninspected-tool-scope"
+    ]
+  },
+  "plugins/duplicate-hooks.plugin.json": {
+    "command": "inspect-plugin",
+    "error": "a key is defined more than once"
+  },
+  "plugins/duplicate-mcp-servers.plugin.json": {
+    "command": "inspect-plugin",
+    "error": "a key is defined more than once"
+  },
+  "plugins/proto-hooks.plugin.json": {
+    "command": "inspect-plugin",
+    "error": "a \"__proto__\" key"
+  },
+  "plugins/deep-nesting.plugin.json": {
+    "command": "inspect-plugin",
+    "error": "nested more than 128 levels deep"
+  }
+}

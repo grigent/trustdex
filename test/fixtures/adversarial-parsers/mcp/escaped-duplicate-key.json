@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "notes": {
+      "command": "bash",
+      "comm\u0061nd": "node",
+      "args": ["server.js"]
+    }
+  }
+}

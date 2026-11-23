@@ -1,0 +1,5 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "__proto__": { "hooks": "./hooks/hooks.json" }
+}

@@ -57,6 +57,10 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - Unreleased: the output canary sweep now runs every CLI command, including
   `provenance`, `trust-source`, `check-install`, `claude-hook`, `slack-approver`, `init`,
   and the runtime-evidence commands, and fails when a command is missing from it.
+- Unreleased: adversarial parser fixtures in `test/fixtures/adversarial-parsers` for MCP
+  JSON, Codex TOML, `SKILL.md`, and plugin manifests (duplicate and escaped keys,
+  `__proto__`, deep nesting, invalid UTF-8, UTF-16, oversized files, YAML escapes and
+  aliases), with each unsupported case failing closed.
 - Unreleased: the agent guard's path checks treat Windows drive letters, `\\?\` and
   UNC spellings, letter case, `..`, symbolic links, kernel and firmlink aliases, and home
   notation as the same target, with tests for each platform's forms.

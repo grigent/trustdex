@@ -8,6 +8,7 @@ import path from 'node:path';
 import process from 'node:process';
 
 import { inspectMcpConfig } from '../src/inspect.mjs';
+import { parseStrictJson } from '../src/canonical.mjs';
 import { parseCodexMcpToml, gateCodexToml } from '../src/codex-config.mjs';
 import { inspectCodexSettingsStack, inspectCodexSettingsText } from '../src/codex-settings.mjs';
 import { parseClaudeMcpConfig } from '../src/claude-config.mjs';
@@ -222,12 +223,59 @@ the public npm registry and PyPI, only when you invoke them.`);
 // JSON.parse messages can quote part of the input, which may be a credential.
 class InvalidJsonError extends SyntaxError {}
 
-async function readJson(file) {
-  const text = await fs.readFile(file, 'utf8');
+// Inspected inputs are configuration files; a larger one is refused before it is read.
+const MAX_INPUT_BYTES = 16 * 1024 * 1024;
+
+// Invalid UTF-8 is refused: decoding would turn it into U+FFFD and hide what another
+// reader sees. A byte-order mark is kept so each format decides whether it is allowed.
+async function readInputText(file) {
+  const handle = await fs.open(file, 'r');
+  let bytes;
   try {
-    return JSON.parse(text);
+    if ((await handle.stat()).size > MAX_INPUT_BYTES) {
+      throw new Error(`${path.basename(file)} is larger than 16 MiB; TrustDex does not inspect inputs this large.`);
+    }
+    // A pipe or device reports size 0, so the limit is also enforced while reading.
+    const chunks = [];
+    let total = 0;
+    const chunk = Buffer.alloc(64 * 1024);
+    for (;;) {
+      let bytesRead;
+      try {
+        ({ bytesRead } = await handle.read(chunk, 0, chunk.length, null));
+      } catch (error) {
+        // macOS shares a non-blocking stdin descriptor through /dev/stdin.
+        if (error.code !== 'EAGAIN') throw error;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        continue;
+      }
+      if (!bytesRead) break;
+      total += bytesRead;
+      if (total > MAX_INPUT_BYTES) {
+        throw new Error(`${path.basename(file)} is larger than 16 MiB; TrustDex does not inspect inputs this large.`);
+      }
+      chunks.push(Buffer.from(chunk.subarray(0, bytesRead)));
+    }
+    bytes = Buffer.concat(chunks, total);
+  } finally {
+    await handle.close();
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  } catch {
+    throw new Error(`${path.basename(file)} is not valid UTF-8.`);
+  }
+}
+
+async function readJson(file) {
+  const text = await readInputText(file);
+  try {
+    return parseStrictJson(text);
   } catch (error) {
-    if (error instanceof SyntaxError) throw new InvalidJsonError(`Invalid JSON in ${path.basename(file)}.`);
+    if (error instanceof SyntaxError) {
+      const detail = error.message.startsWith('Unsupported JSON: ') ? `: ${error.message.slice('Unsupported JSON: '.length)}` : '.';
+      throw new InvalidJsonError(`Invalid JSON in ${path.basename(file)}${detail}`);
+    }
     throw error;
   }
 }
@@ -436,7 +484,7 @@ async function evaluateMcp(configPath, args, options = {}) {
 }
 
 async function evaluateCodex(configPath, args) {
-  const text = await fs.readFile(configPath, 'utf8');
+  const text = await readInputText(configPath);
   const config = parseCodexMcpToml(text);
   const inspected = inspectMcpConfig(config);
   const store = await loadTrustStore(args);
@@ -490,7 +538,7 @@ async function evaluateClaudeSettings(settingsPath, args) {
 async function evaluateCodexSettings(configPath, args) {
   const policy = await loadPolicy(args);
   const [result] = evaluateAll([
-    inspectCodexSettingsText(await fs.readFile(configPath, 'utf8'), configPath)
+    inspectCodexSettingsText(await readInputText(configPath), configPath)
   ], policy);
   return { policy, result };
 }
@@ -532,7 +580,7 @@ async function evaluateCodexSettingsStack(args) {
   const layers = [];
   for (const scope of ['system', 'managed', 'user', 'profile', 'project', 'cli', 'legacy-managed']) {
     for (const file of getFlags(args, `--${scope}`)) {
-      layers.push({ scope, text: await fs.readFile(file, 'utf8') });
+      layers.push({ scope, text: await readInputText(file) });
     }
   }
   if (!layers.length) throw new Error('Codex settings stack requires at least one source flag.');
@@ -763,7 +811,7 @@ async function main() {
   if (command === 'inspect-skill') {
     const skillPath = args[1];
     if (!skillPath) throw new Error('inspect-skill requires a path to SKILL.md.');
-    await inspectSingle(inspectSkillText(await fs.readFile(skillPath, 'utf8'), skillPath), args);
+    await inspectSingle(inspectSkillText(await readInputText(skillPath), skillPath), args);
     return;
   }
 
