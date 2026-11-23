@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- Parsers (MCP JSON, Codex TOML, `SKILL.md`, plugin manifests): JSON inputs with a repeated key (also when written with escapes), a `__proto__` key, or more than 128 levels of nesting, TOML arrays or inline tables nested more than 64 levels, inputs over 16 MiB, invalid UTF-8, and `SKILL.md` files with NUL characters (UTF-16) now fail closed. Before, `JSON.parse` silently kept the last duplicate, deep input crashed with a stack overflow, and invalid bytes were read as U+FFFD.
+- Skills: double-quoted YAML escapes (`"\x2a"`, `"Bash\u0028*)"`) are decoded before the tool scope is classified, a lone carriage return counts as a line break, and an alias, anchor, or tag on a scope marks it `uninspected-tool-scope`. Before, an escaped wildcard or shell grant was missed.
 ## 0.20.5 - 2026-11-22
 
 - Supply chain (`check-install`, npm provenance): checked against npm-pick-manifest, npm-install-checks, and pacote. A bare name or range no longer resolves to a deprecated or engine-incompatible `latest` that npm would skip; npm's `--tag` sets the default tag; `--before` without an exact version, a prerelease comparator, and an `engines.npm` or unparsed `engines` requirement that could change the pick are ASK `unresolved-version`. Build provenance now also requires the certificate's Build Config URI (Fulcio OID 1.3.6.1.4.1.57264.1.18) to name the workflow file the attestation claims; before, the workflow path was taken from the signed statement alone.

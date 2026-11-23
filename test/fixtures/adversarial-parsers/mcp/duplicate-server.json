@@ -1,0 +1,6 @@
+{
+  "mcpServers": {
+    "notes": { "command": "npx", "args": ["-y", "unreviewed-package"] },
+    "notes": { "type": "http", "url": "https://reviewed.example.com/mcp" }
+  }
+}

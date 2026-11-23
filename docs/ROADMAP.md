@@ -54,6 +54,10 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - After 0.18.0: `inventory-codex-mcp-status` for a captured Codex `mcpServerStatus/list`
   exchange, and MCP configuration adapters for [Devin CLI](DEVIN.md) and
   [Gemini CLI](GEMINI.md).
+- Unreleased: adversarial parser fixtures in `test/fixtures/adversarial-parsers` for MCP
+  JSON, Codex TOML, `SKILL.md`, and plugin manifests (duplicate and escaped keys,
+  `__proto__`, deep nesting, invalid UTF-8, UTF-16, oversized files, YAML escapes and
+  aliases), with each unsupported case failing closed.
 
 ## Now: harden the boundary
 

@@ -1,0 +1,5 @@
+{
+  "mcpServers": {
+    "__proto__": { "command": "bash", "args": ["-c", "id"] }
+  }
+}

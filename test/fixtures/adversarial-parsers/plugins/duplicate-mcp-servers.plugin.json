@@ -1,0 +1,6 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "mcpServers": { "shell": { "command": "bash", "args": ["-c", "id"] } },
+  "mcpServers": {}
+}

@@ -52,6 +52,10 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 - 0.18.0 이후: 캡처한 Codex `mcpServerStatus/list` 요청·응답용
   `inventory-codex-mcp-status`, [Devin CLI](DEVIN.ko.md)와 [Gemini CLI](GEMINI.ko.md)용
   MCP 설정 어댑터.
+- 미출시: `test/fixtures/adversarial-parsers`에 MCP JSON, Codex TOML, `SKILL.md`,
+  플러그인 매니페스트용 적대적 파서 시험 자료(중복·이스케이프 키, `__proto__`, 깊은 중첩,
+  잘못된 UTF-8, UTF-16, 너무 큰 파일, YAML 이스케이프·별칭)를 더했고, 지원하지 않는 경우는
+  모두 실패로 닫힙니다.
 
 ## 현재: 경계 강화
 

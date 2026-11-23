@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- 파서(MCP JSON, Codex TOML, `SKILL.md`, 플러그인 매니페스트): 같은 키가 두 번 나오는(이스케이프로 쓴 경우 포함) JSON, `__proto__` 키, 128단계를 넘는 중첩, 64단계를 넘게 중첩된 TOML 배열·인라인 테이블, 16 MiB를 넘는 입력, 잘못된 UTF-8, NUL 문자가 든(UTF-16) `SKILL.md`는 이제 실패로 닫힙니다. 이전에는 `JSON.parse`가 마지막 중복 값을 조용히 남겼고, 깊은 입력은 스택 넘침으로 멈췄고, 잘못된 바이트는 U+FFFD로 읽혔습니다.
+- 스킬: 큰따옴표 YAML 이스케이프(`"\x2a"`, `"Bash\u0028*)"`)를 풀어서 도구 범위를 분류하고, 단독 CR도 줄바꿈으로 보며, 범위에 별칭·앵커·태그가 있으면 `uninspected-tool-scope`로 표시합니다. 이전에는 이스케이프로 쓴 와일드카드나 셸 허용을 놓쳤습니다.
 ## 0.20.5 - 2026-11-22
 
 - 공급망(`check-install`, npm 빌드 출처): npm-pick-manifest, npm-install-checks, pacote와 대조했습니다. 패키지 이름만 쓰거나 범위를 쓰면 npm이 건너뛰는 deprecated 또는 `engines` 불일치 `latest`를 더 이상 고르지 않습니다. npm `--tag`는 기본 태그로 반영합니다. 정확한 버전 없는 `--before`, 프리릴리스 비교식, 선택을 바꿀 수 있는 `engines.npm`이나 해석하지 못한 `engines`는 ASK `unresolved-version`입니다. 빌드 출처는 이제 인증서의 Build Config URI(Fulcio OID 1.3.6.1.4.1.57264.1.18)가 증명이 주장하는 워크플로 파일을 가리켜야 합니다. 이전에는 서명된 statement의 워크플로 경로만 사용했습니다.
