@@ -61,6 +61,9 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
   JSON, Codex TOML, `SKILL.md`, and plugin manifests (duplicate and escaped keys,
   `__proto__`, deep nesting, invalid UTF-8, UTF-16, oversized files, YAML escapes and
   aliases), with each unsupported case failing closed.
+- Unreleased: the agent guard's path checks treat Windows drive letters, `\\?\` and
+  UNC spellings, letter case, `..`, symbolic links, kernel and firmlink aliases, and home
+  notation as the same target, with tests for each platform's forms.
 
 ## Now: harden the boundary
 
