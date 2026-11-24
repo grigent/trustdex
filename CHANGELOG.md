@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- `check-install` and `claude-hook` now block `@structureit/ir-dealapi-js` and `@zervonex/baileys` regardless of version, plus `abir-fca@0.0.25` and `fca-uzair-dev@1.2.0`, based on bundled npm malware advisories.
+
 ## 0.21.0 - 2026-11-23
 
 - Output (`provenance`, `trust-source`): repository and remote URLs taken from GitHub, npm, and MCP Registry metadata no longer keep userinfo, query values, or fragments; GitHub references are built from the checked repository name instead of the response's `html_url`. Before, a credential in that metadata was printed and written to the trust store.

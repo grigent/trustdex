@@ -487,10 +487,14 @@ const PYPI_MALWARE_ADVISORIES = new Map([
   ])]
 ]);
 
-// Hijacked releases of established npm packages, keyed by name and exact version,
-// each confirmed by a GitHub advisory or the maintainers' own notice.
 const VANT_NOTICE = 'https://github.com/youzan/vant/discussions/13273';
+const NPM_ALL_VERSIONS_MALWARE_ADVISORIES = new Map([
+  ['@structureit/ir-dealapi-js', GHSA('GHSA-gq28-39q4-2fq3')],
+  ['@zervonex/baileys', GHSA('GHSA-j2m6-4cjj-vv5m')]
+]);
 const NPM_MALWARE_ADVISORIES = new Map([
+  ['abir-fca', new Map([['0.0.25', GHSA('GHSA-5rhq-849p-frrr')]])],
+  ['fca-uzair-dev', new Map([['1.2.0', GHSA('GHSA-f84q-56c5-63xh')]])],
   ['vant', new Map(['2.13.3', '2.13.4', '2.13.5', '3.6.13', '3.6.14', '3.6.15', '4.9.11', '4.9.12', '4.9.13', '4.9.14']
     .map((version) => [version, VANT_NOTICE]))],
   ['@wppconnect-team/wppconnect', new Map([['2.4.1', GHSA('GHSA-cxc9-87g6-qrj9')]])],
@@ -499,6 +503,8 @@ const NPM_MALWARE_ADVISORIES = new Map([
 ]);
 
 function npmMalwareAdvisory(name, version) {
+  const allVersions = NPM_ALL_VERSIONS_MALWARE_ADVISORIES.get(name);
+  if (allVersions) return allVersions;
   if (typeof version !== 'string') return undefined;
   // npm ignores build metadata when matching versions, so `1.2.3+x` installs 1.2.3.
   return NPM_MALWARE_ADVISORIES.get(name)?.get(version.trim().replace(/^[=v]+/i, '').replace(/\+.*$/, ''));
@@ -681,10 +687,12 @@ export async function evaluateInstallCommand(command, options = {}) {
     }
 
     const item = makeItem(`${finding.ecosystem}:${parsed.name}`, { ignoreScripts: Boolean(finding.ignoreScripts) });
-    if (finding.ecosystem === 'npm' && parsed.selector.kind === 'exact' &&
-        blockKnownRelease(item, npmMalwareAdvisory(parsed.name, parsed.selector.value), parsed.selector.value)) {
-      items.push(item);
-      continue;
+    if (finding.ecosystem === 'npm') {
+      const pinned = parsed.selector.kind === 'exact' ? parsed.selector.value : undefined;
+      if (blockKnownRelease(item, npmMalwareAdvisory(parsed.name, pinned), pinned)) {
+        items.push(item);
+        continue;
+      }
     }
     if (finding.ecosystem === 'pypi') {
       const { kind, value } = parsed.selector;

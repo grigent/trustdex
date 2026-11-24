@@ -67,7 +67,7 @@ BLOCK command:download-to-interpreter
 | `lookup-failed` | ASK | 저장소에 연결하지 못했거나 오류 응답 |
 | `local-source`, `local-bin`, `install-scripts-disabled` | ALLOW | 로컬 경로, 이미 `node_modules/.bin`에 있는 실행 파일(이름만 쓴 `npx 이름`일 때), `--ignore-scripts`로 스크립트를 끈 경우 |
 
-TrustDex는 이름이 명시된 PyPI 패키지의 버전이 정확히 지정되었거나 PyPI 메타데이터에서 확인되면 내장 권고와 대조합니다. 버전이 정확히 지정된 명령은 사용자 지정 인덱스를 쓰더라도 오프라인으로 검사하고, 해당 버전은 이전 버전 추천에서 제외합니다. 패키지 내용, 로컬 파일, 전이 의존성은 권고 검사 범위 밖입니다.
+TrustDex는 이름이 명시된 npm 및 PyPI 패키지의 버전이 정확히 지정되었거나 저장소 메타데이터에서 확인되면 내장 권고와 대조합니다. 정확히 지정된 버전과 모든 버전에 권고가 적용되는 npm 패키지는 사용자 지정 저장소를 쓰더라도 오프라인으로 검사합니다. 해당 릴리스는 이전 버전 추천에서 제외합니다. 패키지 내용, 로컬 파일, 전이 의존성은 권고 검사 범위 밖입니다.
 
 내장 권고가 다루는 릴리스:
 
@@ -78,8 +78,12 @@ TrustDex는 이름이 명시된 PyPI 패키지의 버전이 정확히 지정되�
 | npm `@wppconnect-team/wppconnect` | `2.4.1` | [GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9) |
 | npm `@wppconnect/server` | `2.10.82` | [메인테이너가 확인한 보고](https://github.com/wppconnect-team/wppconnect-server/issues/2734) |
 | npm `qrcode-reader-vue3` | `3.1.4` | [GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh) |
+| npm `@structureit/ir-dealapi-js` | 모든 버전 | [GHSA-gq28-39q4-2fq3](https://github.com/advisories/GHSA-gq28-39q4-2fq3) |
+| npm `@zervonex/baileys` | 모든 버전 | [GHSA-j2m6-4cjj-vv5m](https://github.com/advisories/GHSA-j2m6-4cjj-vv5m) |
+| npm `abir-fca` | `0.0.25` | [GHSA-5rhq-849p-frrr](https://github.com/advisories/GHSA-5rhq-849p-frrr) |
+| npm `fca-uzair-dev` | `1.2.0` | [GHSA-f84q-56c5-63xh](https://github.com/advisories/GHSA-f84q-56c5-63xh) |
 
-이 목록은 기존 정상 패키지가 탈취돼 올라간 릴리스를 다룹니다. 처음부터 악성인 패키지는 보통 `package-not-found`, `new-package`, `similar-to-popular`로 걸립니다.
+이 목록이 모든 악성 패키지를 다루지는 않습니다. 새로 올라왔거나 삭제된 악성 패키지는 `package-not-found`, `new-package`, `similar-to-popular`로 걸리는 경우가 많습니다.
 
 ALLOW는 설정한 신호가 하나도 걸리지 않았다는 뜻입니다. `ignore-scripts`, 잠금 파일, 샌드박스와 함께 쓰세요.
 
