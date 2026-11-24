@@ -63,7 +63,7 @@ The version that would be installed is resolved the way the installer does for t
 | `lookup-failed` | ASK | the registry could not be reached or answered with an error |
 | `local-source`, `local-bin`, `install-scripts-disabled` | ALLOW | local path, an executable already in `node_modules/.bin` (bare `npx name` only), or scripts disabled with `--ignore-scripts` |
 
-TrustDex checks named npm and PyPI requirements against bundled advisories when the version is pinned exactly or resolved from registry metadata. It checks exact pins offline, including those using a custom index, and excludes affected releases from older-version suggestions. Package contents, local artifacts, and transitive dependencies are outside advisory matching.
+TrustDex checks named npm and PyPI requirements against bundled advisories when the version is pinned exactly or resolved from registry metadata. It checks exact pins and npm packages with package-wide advisories offline, including when they use a custom registry. Affected releases are excluded from older-version suggestions. Package contents, local artifacts, and transitive dependencies are outside advisory matching.
 
 The bundled advisories cover:
 
@@ -74,8 +74,12 @@ The bundled advisories cover:
 | npm `@wppconnect-team/wppconnect` | `2.4.1` | [GHSA-cxc9-87g6-qrj9](https://github.com/advisories/GHSA-cxc9-87g6-qrj9) |
 | npm `@wppconnect/server` | `2.10.82` | [maintainer-confirmed report](https://github.com/wppconnect-team/wppconnect-server/issues/2734) |
 | npm `qrcode-reader-vue3` | `3.1.4` | [GHSA-9q69-8j7m-ppmh](https://github.com/advisories/GHSA-9q69-8j7m-ppmh) |
+| npm `@structureit/ir-dealapi-js` | All versions | [GHSA-gq28-39q4-2fq3](https://github.com/advisories/GHSA-gq28-39q4-2fq3) |
+| npm `@zervonex/baileys` | All versions | [GHSA-j2m6-4cjj-vv5m](https://github.com/advisories/GHSA-j2m6-4cjj-vv5m) |
+| npm `abir-fca` | `0.0.25` | [GHSA-5rhq-849p-frrr](https://github.com/advisories/GHSA-5rhq-849p-frrr) |
+| npm `fca-uzair-dev` | `1.2.0` | [GHSA-f84q-56c5-63xh](https://github.com/advisories/GHSA-f84q-56c5-63xh) |
 
-The list covers hijacked releases of established packages. Malicious packages that were never legitimate are usually caught as `package-not-found`, `new-package`, or `similar-to-popular`.
+The list is not exhaustive. Newly published or removed malicious packages are often caught as `package-not-found`, `new-package`, or `similar-to-popular`.
 
 An ALLOW only means that no configured signal fired. Combine these checks with `ignore-scripts`, lockfiles, and a sandbox.
 

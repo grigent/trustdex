@@ -6,6 +6,8 @@
 
 ## 미출시
 
+- `check-install`과 `claude-hook`은 내장 npm 악성 패키지 권고에 따라 `@structureit/ir-dealapi-js`와 `@zervonex/baileys`의 모든 버전, 그리고 `abir-fca@0.0.25`와 `fca-uzair-dev@1.2.0`을 차단합니다.
+
 ## 0.21.0 - 2026-11-23
 
 - 출력(`provenance`, `trust-source`): GitHub, npm, MCP Registry 메타데이터에서 가져온 저장소·원격 URL에서 사용자 정보, 쿼리 값, 프래그먼트를 지웁니다. GitHub 참조는 응답의 `html_url` 대신 확인한 저장소 이름으로 만듭니다. 이전에는 메타데이터에 든 자격 증명이 출력되고 신뢰 저장소에 기록됐습니다.

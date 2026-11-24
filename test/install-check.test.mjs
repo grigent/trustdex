@@ -484,6 +484,43 @@ test('hijacked npm releases block offline and when resolved, and are never sugge
   assert.equal(item.action, 'allow');
 });
 
+test('package-wide npm malware advisories block names, ranges, and prerelease pins offline', async () => {
+  const calls = [];
+  for (const [command, name, advisory] of [
+    ['npm i @structureit/ir-dealapi-js', 'npm:@structureit/ir-dealapi-js', /GHSA-gq28-39q4-2fq3/],
+    ['npm i @structureit/ir-dealapi-js@^9.9.0', 'npm:@structureit/ir-dealapi-js', /GHSA-gq28-39q4-2fq3/],
+    ['npm i --registry https://mirror.example.invalid/ @zervonex/baileys@0.0.0-stage', 'npm:@zervonex/baileys@0.0.0-stage', /GHSA-j2m6-4cjj-vv5m/],
+    ['npx -y @zervonex/baileys@latest', 'npm:@zervonex/baileys', /GHSA-j2m6-4cjj-vv5m/]
+  ]) {
+    const [item] = await evaluate(command, {}, { calls });
+    assert.deepEqual([item.name, item.action, item.signals], [name, 'block', ['known-malicious-release']], command);
+    assert.match(item.reasons[0], advisory);
+  }
+  assert.deepEqual(calls, []);
+});
+
+test('version-specific npm malware advisories block pins and resolved versions, not neighboring releases', async () => {
+  for (const [name, version, other, fresh, advisory] of [
+    ['abir-fca', '0.0.25', '0.0.24', '0.0.26', /GHSA-5rhq-849p-frrr/],
+    ['fca-uzair-dev', '1.2.0', '1.1.0', '1.3.0', /GHSA-f84q-56c5-63xh/]
+  ]) {
+    const [pinned] = await evaluate(`npm i ${name}@${version}`, {});
+    assert.deepEqual([pinned.name, pinned.action, pinned.signals], [`npm:${name}@${version}`, 'block', ['known-malicious-release']]);
+    assert.match(pinned.reasons[0], advisory);
+    const [resolved] = await evaluate(`npm i ${name}`, { [NPM(name)]: npmDoc(name, { version }) });
+    assert.deepEqual(resolved, pinned);
+
+    const doc = npmDoc(name, { version: fresh, published: daysAgo(1), history: [
+      [other, daysAgo(50), 'owner'], [version, daysAgo(40), 'owner']
+    ] });
+    const [unaffected] = await evaluate(`npm i ${name}@${other}`, { [NPM(name)]: doc });
+    assert.equal(unaffected.action, 'allow');
+    const [review] = await evaluate(`npm i ${name}`, { [NPM(name)]: doc });
+    assert.deepEqual(review.signals, ['recent-release']);
+    assert.ok(review.reasons[0].includes(`Use ${name}@${other} instead`));
+  }
+});
+
 test('PyPI advice blocks an affected registry selection and skips it in fallback recommendations', async () => {
   const name = 'agent-framework';
   const affected = pypiDoc(name, { version: '1.26.2' });
