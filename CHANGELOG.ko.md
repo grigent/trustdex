@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.21.1 - 2026-11-24
+
 - `check-install`과 `claude-hook`은 내장 npm 악성 패키지 권고에 따라 `@structureit/ir-dealapi-js`와 `@zervonex/baileys`의 모든 버전, 그리고 `abir-fca@0.0.25`와 `fca-uzair-dev@1.2.0`을 차단합니다.
 
 ## 0.21.0 - 2026-11-23
