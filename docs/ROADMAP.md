@@ -64,6 +64,8 @@ TrustDex is early-stage. This roadmap communicates direction and is not a releas
 - Unreleased: the agent guard's path checks treat Windows drive letters, `\\?\` and
   UNC spellings, letter case, `..`, symbolic links, kernel and firmlink aliases, and home
   notation as the same target, with tests for each platform's forms.
+- TrustDex 0.21.2 extends the bundled npm malware advisories with the affected
+  `obfuscation-detector` releases.
 
 ## Now: harden the boundary
 

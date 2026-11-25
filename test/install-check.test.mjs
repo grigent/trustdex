@@ -502,6 +502,10 @@ test('package-wide npm malware advisories block names, ranges, and prerelease pi
 test('version-specific npm malware advisories block pins and resolved versions, not neighboring releases', async () => {
   for (const [name, version, other, fresh, advisory] of [
     ['abir-fca', '0.0.25', '0.0.24', '0.0.26', /GHSA-5rhq-849p-frrr/],
+    ['obfuscation-detector', '3.0.1', '3.0.0', '3.1.1', /GHSA-2f84-r5f9-388p/],
+    ['obfuscation-detector', '3.1.0', '3.0.0', '3.1.1', /GHSA-2f84-r5f9-388p/],
+    ['youseethemoney', '1.0.1', '1.0.0', '1.0.2', /GHSA-r6j6-xjc5-xfx9/],
+    ['zod-msg-tools', '0.1.4', '0.1.3', '0.1.5', /GHSA-4xcm-r7xm-qrwh/],
     ['fca-uzair-dev', '1.2.0', '1.1.0', '1.3.0', /GHSA-f84q-56c5-63xh/]
   ]) {
     const [pinned] = await evaluate(`npm i ${name}@${version}`, {});
