@@ -78,6 +78,9 @@ The bundled advisories cover:
 | npm `@zervonex/baileys` | All versions | [GHSA-j2m6-4cjj-vv5m](https://github.com/advisories/GHSA-j2m6-4cjj-vv5m) |
 | npm `abir-fca` | `0.0.25` | [GHSA-5rhq-849p-frrr](https://github.com/advisories/GHSA-5rhq-849p-frrr) |
 | npm `fca-uzair-dev` | `1.2.0` | [GHSA-f84q-56c5-63xh](https://github.com/advisories/GHSA-f84q-56c5-63xh) |
+| npm `obfuscation-detector` | `3.0.1`, `3.1.0` | [GHSA-2f84-r5f9-388p](https://github.com/advisories/GHSA-2f84-r5f9-388p) |
+| npm `youseethemoney` | `1.0.1` | [GHSA-r6j6-xjc5-xfx9](https://github.com/advisories/GHSA-r6j6-xjc5-xfx9) |
+| npm `zod-msg-tools` | `0.1.4` | [GHSA-4xcm-r7xm-qrwh](https://github.com/advisories/GHSA-4xcm-r7xm-qrwh) |
 
 The list is not exhaustive. Newly published or removed malicious packages are often caught as `package-not-found`, `new-package`, or `similar-to-popular`.
 
