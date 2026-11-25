@@ -82,6 +82,9 @@ TrustDex는 이름이 명시된 npm 및 PyPI 패키지의 버전이 정확히 �
 | npm `@zervonex/baileys` | 모든 버전 | [GHSA-j2m6-4cjj-vv5m](https://github.com/advisories/GHSA-j2m6-4cjj-vv5m) |
 | npm `abir-fca` | `0.0.25` | [GHSA-5rhq-849p-frrr](https://github.com/advisories/GHSA-5rhq-849p-frrr) |
 | npm `fca-uzair-dev` | `1.2.0` | [GHSA-f84q-56c5-63xh](https://github.com/advisories/GHSA-f84q-56c5-63xh) |
+| npm `obfuscation-detector` | `3.0.1`, `3.1.0` | [GHSA-2f84-r5f9-388p](https://github.com/advisories/GHSA-2f84-r5f9-388p) |
+| npm `youseethemoney` | `1.0.1` | [GHSA-r6j6-xjc5-xfx9](https://github.com/advisories/GHSA-r6j6-xjc5-xfx9) |
+| npm `zod-msg-tools` | `0.1.4` | [GHSA-4xcm-r7xm-qrwh](https://github.com/advisories/GHSA-4xcm-r7xm-qrwh) |
 
 이 목록이 모든 악성 패키지를 다루지는 않습니다. 새로 올라왔거나 삭제된 악성 패키지는 `package-not-found`, `new-package`, `similar-to-popular`로 걸리는 경우가 많습니다.
 
