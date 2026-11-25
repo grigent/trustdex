@@ -499,6 +499,8 @@ const NPM_MALWARE_ADVISORIES = new Map([
     ['3.0.1', GHSA('GHSA-2f84-r5f9-388p')],
     ['3.1.0', GHSA('GHSA-2f84-r5f9-388p')]
   ])],
+  ['youseethemoney', new Map([['1.0.1', GHSA('GHSA-r6j6-xjc5-xfx9')]])],
+  ['zod-msg-tools', new Map([['0.1.4', GHSA('GHSA-4xcm-r7xm-qrwh')]])],
   ['vant', new Map(['2.13.3', '2.13.4', '2.13.5', '3.6.13', '3.6.14', '3.6.15', '4.9.11', '4.9.12', '4.9.13', '4.9.14']
     .map((version) => [version, VANT_NOTICE]))],
   ['@wppconnect-team/wppconnect', new Map([['2.4.1', GHSA('GHSA-cxc9-87g6-qrj9')]])],
