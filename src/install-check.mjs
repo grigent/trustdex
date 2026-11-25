@@ -495,6 +495,10 @@ const NPM_ALL_VERSIONS_MALWARE_ADVISORIES = new Map([
 const NPM_MALWARE_ADVISORIES = new Map([
   ['abir-fca', new Map([['0.0.25', GHSA('GHSA-5rhq-849p-frrr')]])],
   ['fca-uzair-dev', new Map([['1.2.0', GHSA('GHSA-f84q-56c5-63xh')]])],
+  ['obfuscation-detector', new Map([
+    ['3.0.1', GHSA('GHSA-2f84-r5f9-388p')],
+    ['3.1.0', GHSA('GHSA-2f84-r5f9-388p')]
+  ])],
   ['vant', new Map(['2.13.3', '2.13.4', '2.13.5', '3.6.13', '3.6.14', '3.6.15', '4.9.11', '4.9.12', '4.9.13', '4.9.14']
     .map((version) => [version, VANT_NOTICE]))],
   ['@wppconnect-team/wppconnect', new Map([['2.4.1', GHSA('GHSA-cxc9-87g6-qrj9')]])],

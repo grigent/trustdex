@@ -6,6 +6,10 @@
 
 ## Unreleased
 
+## 0.21.2 - 2026-11-25
+
+- `check-install` and `claude-hook` now block `obfuscation-detector` versions `3.0.1` and `3.1.0` using the bundled [npm malware advisory](https://github.com/advisories/GHSA-2f84-r5f9-388p).
+
 ## 0.21.1 - 2026-11-24
 
 - `check-install` and `claude-hook` now block `@structureit/ir-dealapi-js` and `@zervonex/baileys` regardless of version, plus `abir-fca@0.0.25` and `fca-uzair-dev@1.2.0`, based on bundled npm malware advisories.
