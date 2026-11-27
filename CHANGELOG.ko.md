@@ -6,6 +6,8 @@
 
 ## 미출시
 
+## 0.22.0 - 2026-11-27
+
 - 에이전트 가드(`claude-hook`): Claude Code의 `PowerShell` 도구도 검사합니다. cmdlet과 별칭, `$HOME`·`$env:` 경로, `Join-Path`, .NET 파일 호출, 리디렉션을 Bash와 같은 방식으로 읽습니다. 코드를 내려받아 바로 실행하기(`iwr | iex`), `-EncodedCommand`, 환경변수를 네트워크로 보내기, 윈도우 시작 항목(Run 키, 예약 작업, 서비스, 시작프로그램 폴더, `$PROFILE`)을 잡아냅니다. 명령이 실행하는 프로그램은 Bash·패키지 검사를 거치고, 해석할 수 없는 명령은 보호하는 경로가 들어 있으면 거부합니다. 이전에는 PowerShell 도구 호출을 전혀 검사하지 않았습니다.
 - 에이전트 가드: Git Bash·Cygwin식 윈도우 경로(`/c/Users/...`, `/cygdrive/c/...`)를 드라이브 경로와 같게 보고, 윈도우 브라우저 프로필, 자격 증명 관리자·Vault 파일, `AppData` 아래 GitHub CLI·gcloud 폴더, 시작프로그램 폴더, PowerShell 프로필을 보호합니다. 이전에는 Git Bash에서 `/c/Users/<사용자>/.aws/credentials`나 `/c/Users/<사용자>/.config/gh/hosts.yml`을 읽는 것을 자격 증명 읽기로 알아보지 못했습니다.
 - `init`이 윈도우를 설정합니다. Git Bash가 있어야 하고, 슬래시 경로와 `"shell": "bash"`로 훅을 적고, 셸용 실행 파일 옆에 `trustdex.cmd`를 만들고, matcher에 `PowerShell`을 넣습니다. 훅 입력 맨 앞의 UTF-8 BOM(Windows PowerShell 5.1)은 무시합니다.

@@ -62,10 +62,10 @@ TrustDex는 초기 단계입니다. 이 로드맵은 방향을 공유하며 릴�
 - 미출시: 에이전트 가드의 경로 검사가 윈도우 드라이브 문자, `\\?\`·UNC 표기, 대소문자,
   `..`, 심볼릭 링크, 커널·펌링크 별칭, 홈 디렉터리 표기를 같은 대상으로 보며, 플랫폼별
   표기마다 시험이 있습니다.
-- 미출시: 에이전트 가드가 윈도우 Claude Code의 `PowerShell` 도구와 Git Bash식 경로도
-  검사하고, `init`이 Git Bash를 통해 윈도우를 설정합니다.
 - TrustDex 0.21.2는 내장 npm 악성 패키지 권고에 영향을 받는
   `obfuscation-detector` 릴리스를 추가합니다.
+- TrustDex 0.22.0은 윈도우 Claude Code의 `PowerShell` 도구와 Git Bash식 경로를 검사하고,
+  `init`이 Git Bash를 통해 윈도우를 설정합니다.
 
 ## 현재: 경계 강화
 
