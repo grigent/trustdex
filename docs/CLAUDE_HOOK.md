@@ -22,7 +22,7 @@ So by default the hook does not turn a risky action into a dialog. It denies the
 
 | Signal | Level | Examples |
 |---|---|---|
-| `guard-tamper` | BLOCK | changing `~/.claude/settings.json`, project `.claude/settings*.json`, `.mcp.json`, `~/.claude.json`, Codex/Gemini/Cursor agent config, the TrustDex installation, its policy or approval state; agent commands that mention `trustdex allow-once` |
+| `guard-tamper` | BLOCK | changing `~/.claude/settings.json`, project `.claude/settings*.json`, `.mcp.json`, `~/.claude.json`, Codex/Gemini/Cursor agent config, the TrustDex installation, its policy or approval state; agent commands that mention `trustdex allow-once` or run `trustdex init` (installing, replacing, or `--uninstall`-ing the hook; `--dry-run` without `--uninstall` stays allowed) |
 | `secret-access` | BLOCK | reading or copying SSH private keys, cloud/registry/GitHub tokens (`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config`, ...), agent login files, keychains (`security find-generic-password -w`, `dump-keychain`), browser cookies and saved logins (also in Chrome, Edge, Brave, and Firefox profiles under Windows `AppData`), Windows Credential Manager and Vault files, `gh auth token`, plus any paths in `secretPaths` |
 | `agent-permission-bypass` | BLOCK | `claude --dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox` / `--yolo` / `-s danger-full-access` / `approval_policy=never`, `gemini --yolo` / `-y`, `cursor-agent --force`, `aider --yes-always`, `q chat --trust-all-tools`, `amp --dangerously-allow-all` |
 | package install signals | BLOCK / ASK | see [Pre-install package checks](INSTALL_CHECK.md) |

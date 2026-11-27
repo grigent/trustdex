@@ -66,6 +66,28 @@ test('changing agent settings, MCP config, or TrustDex itself is blocked; readin
   assert.deepEqual(file('Write', '/Users/tester/project/src/app.js'), []);
 });
 
+test('agents cannot install, replace or remove the TrustDex hook with init', () => {
+  for (const command of [
+    'trustdex init --uninstall --yes',
+    'trustdex init --yes',
+    'trustdex init --uninstall --dry-run',
+    'node ~/.local/libexec/trustdex/bin/trustdex.mjs init --strict --yes',
+    'npx --yes trustdex@1.0.0 init --yes',
+    'pnpm dlx trustdex init --uninstall --yes',
+    'bunx trustdex@latest init',
+    'npm exec trustdex -- init --yes',
+    'sudo trustdex init --uninstall --yes',
+    'bash -c "trustdex init --uninstall --yes"',
+    "'/c/Users/tester/.local/bin/trustdex.cmd' init --uninstall --yes"
+  ]) {
+    assert.ok(bash(command).includes('guard-tamper'), command);
+  }
+  for (const command of ['trustdex init --dry-run', 'npx trustdex@1.0.0 init --dry-run', 'node ./bin/trustdex.mjs init --strict --dry-run',
+    'trustdex inspect ./mcp.json', 'git -C trustdex init', 'git init', 'npm init -y', 'grep -rn init ~/src/trustdex']) {
+    assert.deepEqual(bash(command), [], command);
+  }
+});
+
 test('here-documents are data unless a shell or interpreter runs them', () => {
   const commit = "git commit -q -F - <<'EOF'\nfeat: mention trustdex allow-once ABCDEFGH and don't break\n\nthe tool call's digest ~/.claude/settings.json\nEOF\ngit log --oneline -1";
   assert.deepEqual(bash(commit), []);

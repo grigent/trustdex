@@ -99,6 +99,35 @@ test('uninstall removes only the TrustDex hook', posixOnly, (t) => {
   assert.equal(applyUninstall({ settingsPath: path.join(dir, '.claude/settings.json') }).removed, 0);
 });
 
+test('init --uninstall changes nothing on a dry run and needs a terminal or --yes', (t) => {
+  const dir = home(t);
+  const settingsPath = path.join(dir, '.claude', 'settings.json');
+  const installed = JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [
+    { type: 'command', command: 'echo mine' },
+    { type: 'command', command: "node '/opt/trustdex/bin/trustdex.mjs' claude-hook --on-risk deny || { exit 2; }" }
+  ] }] } });
+  fs.mkdirSync(path.dirname(settingsPath));
+  fs.writeFileSync(settingsPath, installed);
+  assert.deepEqual(applyUninstall({ settingsPath, dryRun: true }), { removed: 1, backupPath: null });
+  const env = { ...process.env, HOME: dir, USERPROFILE: dir };
+  const run = (...args) => spawnSync(process.execPath, [cli, 'init', '--uninstall', ...args], { encoding: 'utf8', env });
+
+  const dry = run('--dry-run');
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.match(dry.stdout, /will remove its hook/);
+  const unattended = run();
+  assert.notEqual(unattended.status, 0);
+  assert.match(unattended.stderr, /run it yourself in a terminal, or pass --yes/);
+  assert.equal(fs.readFileSync(settingsPath, 'utf8'), installed, 'neither a dry run nor an unattended run changes the settings');
+
+  const yes = run('--yes');
+  assert.equal(yes.status, 0, yes.stderr);
+  assert.match(yes.stdout, /Removed the TrustDex hook/);
+  assert.equal(trustdexHooks(settingsOf(dir)).length, 0);
+  assert.equal(settingsOf(dir).hooks.PreToolUse[0].hooks[0].command, 'echo mine');
+  assert.match(run('--yes').stdout, /No TrustDex hook was found/);
+});
+
 test('on Windows init needs Git Bash and plans Windows paths, both wrappers and a Git Bash hook', () => {
   assert.throws(() => plan('C:\\Users\\tester', { platform: 'win32' }), /Git Bash/);
   const p = plan('C:\\Users\\tester', { platform: 'win32', nodePath: 'C:\\Program Files\\nodejs\\node.exe', gitBash: 'C:\\Program Files\\Git\\bin\\bash.exe' });

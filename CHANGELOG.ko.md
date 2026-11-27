@@ -6,6 +6,9 @@
 
 ## 미출시
 
+- 에이전트 가드(`claude-hook`): 에이전트가 `trustdex init`을 실행하는 명령은 이제 `guard-tamper`(BLOCK)입니다. 실행 파일, `trustdex.mjs`, 윈도우 `trustdex.cmd`, `npx trustdex@<버전>` 같은 패키지 실행 도구 모두, Bash와 PowerShell 모두 해당합니다. `--uninstall` 없는 `--dry-run`은 계속 허용합니다. 이전에는 에이전트가 사람의 승인 없이 훅을 바꾸거나 `trustdex init --uninstall --yes`로 뺄 수 있었습니다.
+- `init --uninstall`도 설치처럼 터미널에서 `yes`를 묻고, 터미널이 아닌 곳에서는 `--yes` 없이 실행되지 않습니다. `init --uninstall --dry-run`은 무엇을 뺄지만 알려 줍니다. 이전에는 `--dry-run`을 붙여도 `--uninstall`이 훅을 바로 지웠습니다.
+
 ## 0.22.0 - 2026-11-27
 
 - 에이전트 가드(`claude-hook`): Claude Code의 `PowerShell` 도구도 검사합니다. cmdlet과 별칭, `$HOME`·`$env:` 경로, `Join-Path`, .NET 파일 호출, 리디렉션을 Bash와 같은 방식으로 읽습니다. 코드를 내려받아 바로 실행하기(`iwr | iex`), `-EncodedCommand`, 환경변수를 네트워크로 보내기, 윈도우 시작 항목(Run 키, 예약 작업, 서비스, 시작프로그램 폴더, `$PROFILE`)을 잡아냅니다. 명령이 실행하는 프로그램은 Bash·패키지 검사를 거치고, 해석할 수 없는 명령은 보호하는 경로가 들어 있으면 거부합니다. 이전에는 PowerShell 도구 호출을 전혀 검사하지 않았습니다.

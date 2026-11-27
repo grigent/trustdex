@@ -621,7 +621,8 @@ test('network-facing, hook, approval, setup, codex review, and runtime commands 
     const initEnv = { HOME: initHome };
     check(['init', '--dry-run'], { env: initEnv });
     check(['init', '--yes'], { env: initEnv });
-    check(['init', '--uninstall'], { env: initEnv });
+    check(['init', '--uninstall', '--dry-run'], { env: initEnv });
+    check(['init', '--uninstall', '--yes'], { env: initEnv });
     fs.writeFileSync(path.join(initHome, '.claude', 'settings.json'), `{"env": {"T": ${canary()}}}`);
     check(['init', '--yes'], { env: initEnv });
   }

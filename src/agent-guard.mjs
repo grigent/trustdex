@@ -60,6 +60,16 @@ function programName(word) {
   return String(word).split('/').pop().toLowerCase();
 }
 
+// TrustDex itself: the wrapper, `trustdex.mjs`, the Windows `trustdex.cmd`, or a
+// package spec such as `trustdex@0.22.0` given to npx, pnpm dlx, bunx or yarn dlx.
+function isTrustdexWord(word) {
+  const base = String(word).split(/[\\/]/).pop().toLowerCase();
+  return /^trustdex(?:\.mjs|\.cmd|\.ps1)?$/.test(base) || /^trustdex@[^\s@/\\]+$/.test(base);
+}
+
+// Programs that run TrustDex when it is not called directly.
+const JS_RUNNERS = /^(?:node|nodejs|npx|pnpx|bunx|bun|pnpm|yarn|npm|deno|corepack)(?:\.exe|\.cmd)?$/;
+
 // ------------------------------------------------------------ paths
 
 export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot = null, policyPath: rawPolicy = null, stateDir: rawState = null, secretPaths = [], platform = process.platform } = {}) {
@@ -831,12 +841,20 @@ export function guardBashCommand(command, paths, options = {}) {
       add('command:startup-item', 'persistence-change', 'Points git at a different hooks directory, which runs code on every commit or checkout.');
     }
 
-    const trustdexIndex = argv.findIndex((word) => /^trustdex(?:\.mjs)?$/i.test(programName(word)));
+    const trustdexIndex = argv.findIndex(isTrustdexWord);
     const trustdexArgs = trustdexIndex >= 0 ? argv.slice(trustdexIndex + 1) : [];
     // Listing what is waiting is harmless; approving is for the person only.
     const listsOnly = trustdexArgs.length === 2 && /^allow-once$/i.test(trustdexArgs[0]) && trustdexArgs[1] === '--list';
     if (trustdexIndex >= 0 && !listsOnly && trustdexArgs.some((word) => /^allow-once$/i.test(word))) {
       add('command:trustdex-approve', 'guard-tamper', 'Approvals must be given by a person in their own terminal, not by the agent.');
+    }
+    // `trustdex init` installs, replaces or (--uninstall) removes the hook in the
+    // agent's own settings. Only a dry run without --uninstall changes nothing.
+    const runsTrustdex = isTrustdexWord(words[0] || '') || JS_RUNNERS.test(String(words[0] || '').split(/[\\/]/).pop().toLowerCase());
+    const trustdexSubcommand = trustdexArgs.find((word) => !word.startsWith('-'));
+    const dryRunOnly = trustdexArgs.includes('--dry-run') && !trustdexArgs.includes('--uninstall');
+    if (trustdexIndex >= 0 && runsTrustdex && /^init$/i.test(trustdexSubcommand || '') && !dryRunOnly) {
+      add('command:trustdex-init', 'guard-tamper', 'Installs, changes, or removes the TrustDex hook in the agent settings; a person runs this in their own terminal.');
     }
     if (startsAgentWithoutGuardrails(words)) {
       add('command:agent-without-guardrails', 'agent-permission-bypass', 'Starts an AI coding agent with its permission or sandbox checks switched off.');

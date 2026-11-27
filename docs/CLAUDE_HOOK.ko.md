@@ -22,7 +22,7 @@
 
 | 신호 | 수준 | 예 |
 |---|---|---|
-| `guard-tamper` | BLOCK | `~/.claude/settings.json`, 프로젝트의 `.claude/settings*.json`, `.mcp.json`, `~/.claude.json`, Codex·Gemini·Cursor 에이전트 설정, TrustDex 설치본·정책·승인 상태 변경. `trustdex allow-once`를 언급하는 에이전트 명령 |
+| `guard-tamper` | BLOCK | `~/.claude/settings.json`, 프로젝트의 `.claude/settings*.json`, `.mcp.json`, `~/.claude.json`, Codex·Gemini·Cursor 에이전트 설정, TrustDex 설치본·정책·승인 상태 변경. `trustdex allow-once`를 언급하거나 `trustdex init`을 실행하는 에이전트 명령(훅 설치·교체·`--uninstall`. `--uninstall` 없는 `--dry-run`은 허용) |
 | `secret-access` | BLOCK | SSH 개인 키, 클라우드·저장소·깃허브 토큰(`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config` 등), 에이전트 로그인 파일, 키체인(`security find-generic-password -w`, `dump-keychain`), 브라우저 쿠키·저장된 로그인(윈도우 `AppData` 아래 Chrome, Edge, Brave, Firefox 프로필 포함), 윈도우 자격 증명 관리자·Vault 파일, `gh auth token` 읽기·복사. `secretPaths`에 넣은 경로도 포함 |
 | `agent-permission-bypass` | BLOCK | `claude --dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox` / `--yolo` / `-s danger-full-access` / `approval_policy=never`, `gemini --yolo` / `-y`, `cursor-agent --force`, `aider --yes-always`, `q chat --trust-all-tools`, `amp --dangerously-allow-all` |
 | 패키지 설치 신호 | BLOCK / ASK | [설치 전 패키지 검사](INSTALL_CHECK.ko.md) 참고 |

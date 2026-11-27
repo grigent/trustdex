@@ -6,6 +6,9 @@
 
 ## Unreleased
 
+- Agent guard (`claude-hook`): an agent command that runs `trustdex init` is now `guard-tamper` (BLOCK), whether it calls the wrapper, `trustdex.mjs`, the Windows `trustdex.cmd`, or a package runner such as `npx trustdex@<version>`, from Bash or PowerShell. A `--dry-run` without `--uninstall` stays allowed. Before, an agent could replace the hook or remove it with `trustdex init --uninstall --yes` without the person's approval.
+- `init --uninstall` now asks for `yes` in a terminal and refuses to run unattended without `--yes`, like installing, and `init --uninstall --dry-run` only reports what it would remove. Before, `--uninstall` removed the hook at once, even with `--dry-run`.
+
 ## 0.22.0 - 2026-11-27
 
 - Agent guard (`claude-hook`): Claude Code's `PowerShell` tool is now checked. Cmdlets and aliases, `$HOME`/`$env:` paths, `Join-Path`, .NET file calls, and redirection are read like their Bash equivalents; downloading and running code (`iwr | iex`), `-EncodedCommand`, environment dumps sent over the network, and Windows startup items (Run keys, scheduled tasks, services, the Startup folder, `$PROFILE`) are flagged; programs it starts go through the Bash and package checks; a command that cannot be parsed is denied when it mentions a protected path. Before, a PowerShell tool call was never inspected.
