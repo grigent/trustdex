@@ -35,6 +35,43 @@ test('Windows drive letters, namespace prefixes, UNC shares, and case name the s
   assertSameTarget(windows, ['\\\\?\\c:\\TOOLS\\trustdex\\src\\claude-hook.mjs', 'C:\\tools\\trustdex\\'], ['config']);
 });
 
+test('Git Bash, MSYS2 and Cygwin drive paths name the same Windows file', () => {
+  assertSameTarget(windows, [
+    '/c/Users/user/.aws/credentials',
+    '/C/Users/user/.aws/credentials',
+    '/cygdrive/c/Users/user/.aws/credentials'
+  ], ['secret']);
+  assertSameTarget(windows, ['/c/tools/trustdex/src/claude-hook.mjs'], ['config']);
+  // Git Bash reports HOME as /c/Users/<name>; on Windows that is the same home.
+  const gitBashHome = { home: '/c/Users/user', platform: 'win32' };
+  const gitBashPaths = guardPaths({ ...gitBashHome, secretPaths: ['~/.ssh/deploy_key'] });
+  for (const spelling of ['C:\\Users\\user\\.ssh\\deploy_key', '/c/Users/user/.ssh/deploy_key', '~/.ssh/deploy_key']) {
+    assert.deepEqual(classifyPath(spelling, gitBashPaths, { ...gitBashHome, cwd: 'C:\\Users\\user\\project' }), ['secret'], spelling);
+  }
+  assert.deepEqual(guardBashCommand('cat /c/Users/user/.ssh/deploy_key', gitBashPaths, { ...gitBashHome, cwd: 'C:\\Users\\user\\project' }).map((item) => item.signals[0]), ['secret-access']);
+  // On macOS and Linux /c is an ordinary directory.
+  assert.deepEqual(classifyPath('/c/Users/user/.aws/credentials', linux.paths, { ...linux.options, platform: 'linux' }), []);
+  assert.equal(canonicalGuardPath('/c/x', { home: '/home/user', platform: 'linux' }), '/c/x');
+  assert.equal(canonicalGuardPath('/c/x', { home: '/home/user', platform: 'win32' }), '/C:/x');
+});
+
+test('Windows browser logins, the credential vault, Startup folders and PowerShell profiles are protected', () => {
+  assertSameTarget(windows, [
+    'C:\\Users\\user\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data',
+    'C:\\Users\\user\\AppData\\Local\\Microsoft\\Edge\\User Data\\Profile 1\\Network\\Cookies',
+    'C:\\Users\\user\\AppData\\Roaming\\Microsoft\\Credentials\\ABC',
+    'C:\\Users\\user\\AppData\\Roaming\\Microsoft\\Protect\\S-1-5-21\\key',
+    'C:\\Users\\user\\AppData\\Roaming\\GitHub CLI\\hosts.yml'
+  ], ['secret']);
+  assertSameTarget(windows, [
+    'C:\\Users\\user\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\run.lnk',
+    'C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp\\run.lnk',
+    'C:\\Users\\user\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1',
+    'C:\\Users\\user\\OneDrive\\Documents\\WindowsPowerShell\\profile.ps1'
+  ], ['persistence']);
+  assertSameTarget(windows, ['C:\\Program Files\\ClaudeCode\\managed-settings.json'], ['config']);
+});
+
 test('Windows trailing dots, spaces, and data streams do not hide a file', () => {
   assertSameTarget(windows, [
     'C:\\Users\\user\\.aws\\credentials.',

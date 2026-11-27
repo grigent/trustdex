@@ -6,6 +6,10 @@
 
 ## Unreleased
 
+- Agent guard (`claude-hook`): Claude Code's `PowerShell` tool is now checked. Cmdlets and aliases, `$HOME`/`$env:` paths, `Join-Path`, .NET file calls, and redirection are read like their Bash equivalents; downloading and running code (`iwr | iex`), `-EncodedCommand`, environment dumps sent over the network, and Windows startup items (Run keys, scheduled tasks, services, the Startup folder, `$PROFILE`) are flagged; programs it starts go through the Bash and package checks; a command that cannot be parsed is denied when it mentions a protected path. Before, a PowerShell tool call was never inspected.
+- Agent guard: Git Bash and Cygwin spellings of Windows paths (`/c/Users/...`, `/cygdrive/c/...`) are treated as the drive path, and Windows browser profiles, Credential Manager and Vault files, the GitHub CLI and gcloud folders under `AppData`, the Startup folders, and PowerShell profiles are protected. Before, reading `/c/Users/<you>/.aws/credentials` or `/c/Users/<you>/.config/gh/hosts.yml` from Git Bash was not seen as a credential read.
+- `init` sets up Windows: it needs Git Bash, writes a `"shell": "bash"` hook with forward-slash paths, adds a `trustdex.cmd` wrapper next to the shell one, and adds `PowerShell` to the matcher. A UTF-8 byte order mark at the start of the hook input (Windows PowerShell 5.1) is ignored.
+
 ## 0.21.2 - 2026-11-25
 
 - `check-install` and `claude-hook` now block `obfuscation-detector` versions `3.0.1` and `3.1.0` using the bundled [npm malware advisory](https://github.com/advisories/GHSA-2f84-r5f9-388p).

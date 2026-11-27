@@ -23,10 +23,10 @@
 | 신호 | 수준 | 예 |
 |---|---|---|
 | `guard-tamper` | BLOCK | `~/.claude/settings.json`, 프로젝트의 `.claude/settings*.json`, `.mcp.json`, `~/.claude.json`, Codex·Gemini·Cursor 에이전트 설정, TrustDex 설치본·정책·승인 상태 변경. `trustdex allow-once`를 언급하는 에이전트 명령 |
-| `secret-access` | BLOCK | SSH 개인 키, 클라우드·저장소·깃허브 토큰(`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config` 등), 에이전트 로그인 파일, 키체인(`security find-generic-password -w`, `dump-keychain`), 브라우저 쿠키·저장된 로그인, `gh auth token` 읽기·복사. `secretPaths`에 넣은 경로도 포함 |
+| `secret-access` | BLOCK | SSH 개인 키, 클라우드·저장소·깃허브 토큰(`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config` 등), 에이전트 로그인 파일, 키체인(`security find-generic-password -w`, `dump-keychain`), 브라우저 쿠키·저장된 로그인(윈도우 `AppData` 아래 Chrome, Edge, Brave, Firefox 프로필 포함), 윈도우 자격 증명 관리자·Vault 파일, `gh auth token` 읽기·복사. `secretPaths`에 넣은 경로도 포함 |
 | `agent-permission-bypass` | BLOCK | `claude --dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox` / `--yolo` / `-s danger-full-access` / `approval_policy=never`, `gemini --yolo` / `-y`, `cursor-agent --force`, `aider --yes-always`, `q chat --trust-all-tools`, `amp --dangerously-allow-all` |
 | 패키지 설치 신호 | BLOCK / ASK | [설치 전 패키지 검사](INSTALL_CHECK.ko.md) 참고 |
-| `persistence-change` | ASK | 런치 에이전트·데몬, `launchctl load/bootstrap`, `crontab`, 로그인 항목, `~/.zshrc` 같은 셸 시작 파일, git 훅(`.git/hooks/*`, `git config core.hooksPath`) |
+| `persistence-change` | ASK | 런치 에이전트·데몬, `launchctl load/bootstrap`, `crontab`, 로그인 항목, `~/.zshrc` 같은 셸 시작 파일, git 훅(`.git/hooks/*`, `git config core.hooksPath`). 윈도우에서는 `Run`/`RunOnce` 레지스트리 키, 예약 작업(`schtasks /create`, `Register-ScheduledTask`), 새 서비스, 시작프로그램 폴더, PowerShell 프로필(`$PROFILE`) |
 | `obfuscated-execution` | BLOCK | 숨긴 내용을 풀어서 실행: `base64 -d \| sh`, `xxd -r \| python3`, `gunzip \| sh`, `eval "$(... base64 -d)"` |
 | `remote-secret-access` | ASK | SSH로 서버에서: 보통 비밀값이 든 파일 읽기(`.env`, `*.env`, `*.pem`, `*.key`, `id_*`, `credentials`, `*token*`, `*secret*`, `*password*`, `*api_key*`), 환경변수 출력(`env`, `docker exec ... printenv`), `kubectl get secret`, `scp`/`rsync`로 그런 파일을 서버에서 가져오기 |
 | `remote-config-change` | ASK | SSH로 서버에서: 그런 파일 바꾸기·덮어쓰기, `/etc` 아래 서버 설정, `~/.ssh/authorized_keys`, 셸 시작 파일, 예약 작업(`crontab`) 바꾸기 |
@@ -46,7 +46,15 @@
 - 키를 드러내지 않고 쓰는 SSH 도구(`ssh -i`, `scp -i`)
 - 평범한 프로젝트 수정
 
-검사하는 도구는 `Bash`, `Read`, `Grep`, `Glob`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`입니다.
+검사하는 도구는 `Bash`, `PowerShell`, `Read`, `Grep`, `Glob`, `Write`, `Edit`, `MultiEdit`, `NotebookEdit`입니다.
+
+윈도우의 Claude Code는 Bash 대신 `PowerShell` 도구로 명령을 실행하기도 합니다. 훅은 이 명령도 읽습니다.
+- cmdlet과 그 별칭(`Get-Content`/`gc`/`cat`, `Copy-Item`, `Set-Content`, `Out-File`, 리디렉션, `[IO.File]::ReadAllText` 같은 .NET 호출), 그리고 `$HOME`, `$env:USERPROFILE`, `$env:APPDATA`, `$env:LOCALAPPDATA`, `Join-Path`, 같은 명령 안에서 앞서 넣은 변수로 만든 경로를 Bash와 같은 방식으로 검사합니다. 경로가 있는지만 보는 것(`Test-Path`, `Get-Item`)은 조용히 지나갑니다.
+- 코드를 내려받아 바로 실행하는 것(`iwr ... | iex`, `Invoke-Expression (... DownloadString(...))`, `[scriptblock]::Create`)은 `pipe-to-shell`, 숨긴 내용을 풀어서 실행하는 것(`-EncodedCommand`, `iex`와 함께 쓴 `FromBase64String`)은 `obfuscated-execution`입니다.
+- 명령이 실행하는 프로그램(`git`, `npm`, `node -e`, `cmd /c`, `claude ...`)은 패키지 설치를 포함해 Bash와 같은 방식으로 검사합니다.
+- 해석할 수 없는 명령은 보호하는 경로, 패키지 도구, 시작 항목이나 내려받기 관련 단어가 들어 있으면 거부합니다.
+
+Git Bash식 윈도우 경로(`/c/Users/...`, `/cygdrive/c/...`)는 `C:\Users\...`와 같은 경로로 봅니다.
 
 Bash 명령은 명령줄에 직접 적히지 않은 내용도 일부 들여다봅니다.
 - 중첩된 `sh -c '...'`, `eval`, `$(...)`를 따라갑니다.
@@ -94,7 +102,7 @@ If the user understands it and still wants it, they type this in their own termi
 
 ## 설정
 
-macOS와 Linux에서는 `npx trustdex@<버전> init`이 아래 단계를 대신 해 줍니다. 그 버전을 `~/.local/share/trustdex/<버전>`에 복사하고, 실행 파일을 만들고, 정책이 없으면 만들고, 설정을 백업한 뒤 고장 나면 멈추는 훅을 등록합니다. 먼저 계획을 보여 주고 `yes`를 받습니다. 직접 설정하려면 다음과 같이 합니다.
+macOS, Linux, 윈도우에서는 `npx trustdex@<버전> init`이 아래 단계를 대신 해 줍니다. 그 버전을 `~/.local/share/trustdex/<버전>`에 복사하고, 실행 파일을 만들고, 정책이 없으면 만들고, 설정을 백업한 뒤 고장 나면 멈추는 훅을 등록합니다. 먼저 계획을 보여 주고 `yes`를 받습니다. 직접 설정하려면 다음과 같이 합니다.
 
 1. 검토한 TrustDex 사본을 고정된 곳에 둡니다. `npx trustdex`는 검사 도구 자체를 실행할 때마다 내려받으므로 쓰지 마세요.
 2. `trustdex allow-once`를 쉽게 칠 수 있도록, 원하면 `PATH`에 작은 `trustdex` 실행 파일을 둡니다.
@@ -105,7 +113,7 @@ macOS와 Linux에서는 `npx trustdex@<버전> init`이 아래 단계를 대신 
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Bash|PowerShell|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -133,7 +141,31 @@ macOS와 Linux에서는 `npx trustdex@<버전> init`이 아래 단계를 대신 
 }
 ```
 
-훅이 입력이나 설정을 읽지 못하면, 위험할 수 있는 파일 도구와 Bash 명령을 그냥 통과시키지 않고 거부합니다. 관계없는 도구는 계속 동작합니다.
+훅이 입력이나 설정을 읽지 못하면, 위험할 수 있는 파일 도구와 Bash·PowerShell 명령을 그냥 통과시키지 않고 거부합니다. 관계없는 도구는 계속 동작합니다.
+
+### 윈도우
+
+윈도우의 Claude Code는 훅 명령을 Git Bash로 실행하므로, `init`에는 [Git for Windows](https://git-scm.com/downloads/win)가 필요합니다. `CLAUDE_CODE_GIT_BASH_PATH`와 흔히 쓰는 Git 설치 폴더에서 `bash.exe`를 찾고, 없으면 아무것도 바꾸지 않고 멈춥니다. 윈도우에서 `init`은 다음을 합니다.
+
+- `%USERPROFILE%\.local\share\trustdex\<버전>`에 설치하고, 실행 파일 두 개 `%USERPROFILE%\.local\bin\trustdex`(Git Bash용)와 `trustdex.cmd`(PowerShell·명령 프롬프트용)를 만들어 둘 다 보호합니다.
+- 훅을 슬래시(`/`) 경로와 `"shell": "bash"`로 적어서, 고장 나면 멈추는 `|| { ...; exit 2; }` 부분이 Git Bash에서 돌게 합니다.
+- matcher에 `PowerShell`을 넣습니다.
+
+PowerShell에서 `trustdex allow-once`를 치려면 실행 파일 폴더를 사용자 `PATH`에 한 번 넣으세요. `init`이 그 명령을 알려 줍니다. 윈도우 훅을 직접 적으면 다음과 같습니다.
+
+```json
+{
+  "matcher": "Bash|PowerShell|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
+  "hooks": [
+    {
+      "type": "command",
+      "shell": "bash",
+      "command": "'C:/Program Files/nodejs/node.exe' 'C:/Users/you/.local/share/trustdex/<version>/bin/trustdex.mjs' claude-hook --install-policy 'C:/Users/you/.config/trustdex/install-policy.json' --protect 'C:/Users/you/.local/bin/trustdex' --protect 'C:/Users/you/.local/bin/trustdex.cmd' || { echo 'TrustDex could not run, so this action was stopped.' >&2; exit 2; }",
+      "timeout": 60
+    }
+  ]
+}
+```
 
 ## 훅을 끄는 설정
 
@@ -154,6 +186,7 @@ trustdex inspect-claude-settings 저장소경로/.claude/settings.json
 - 실행 중에 경로나 명령을 만들어 내는 코드는 따라가지 못합니다(예: 숨겨진 경로를 복호화하는 파이썬 스크립트). 사용자가 이미 허용한 프로그램이 나중에 엉뚱한 일을 하는 것도 막지 못합니다.
 - 셸을 제한 없이 쓰는 에이전트라면, 같은 계정에서 도는 어떤 검사든 원리상 피해 갈 방법을 찾을 수 있습니다.
 - 훅이 스크립트로 알아보지 못하는 파일을 실행하는 경우(스크립트 확장자가 없는 실행 파일, `make`, `npm run`)는 읽지 않고, 승인도 그 파일 내용에 묶이지 않습니다.
+- PowerShell 검사는 명령 글자를 읽습니다. 명령이 실행하는 스크립트 파일(`& .\x.ps1`, `powershell -File x.ps1`), 실행 중에 계산되는 값, 스스로 비밀값을 읽는 모듈은 따라가지 않습니다.
 - 서버 검사는 SSH로 보내는 명령 글자만 봅니다. 서버에 이미 있는 스크립트, 이름이 특이한 비밀값 파일, 스스로 비밀값을 읽는 프로그램은 보지 못합니다. 에이전트가 쓰는 서버 계정은 꼭 필요한 권한만 주세요.
 
 이 훅은 다음과 함께 쓰는 한 겹의 보호로 쓰세요.
