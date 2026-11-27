@@ -671,7 +671,26 @@ async function readStdin(limit) {
     if (size > limit) throw new Error('stdin input is too large.');
     chunks.push(chunk);
   }
-  return Buffer.concat(chunks).toString('utf8');
+  // Windows PowerShell 5.1 starts piped text with a byte order mark.
+  return Buffer.concat(chunks).toString('utf8').replace(/^﻿/, '');
+}
+
+// Git Bash, which Claude Code uses to run hooks on Windows: the path Claude Code
+// is told to use, then the standard Git for Windows locations.
+function findGitBash(env = process.env) {
+  const candidates = [
+    env.CLAUDE_CODE_GIT_BASH_PATH,
+    env.ProgramFiles && path.win32.join(env.ProgramFiles, 'Git', 'bin', 'bash.exe'),
+    env['ProgramFiles(x86)'] && path.win32.join(env['ProgramFiles(x86)'], 'Git', 'bin', 'bash.exe'),
+    env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Programs', 'Git', 'bin', 'bash.exe')
+  ].filter(Boolean);
+  return candidates.find((candidate) => {
+    try {
+      return statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  }) || null;
 }
 
 async function loadInstallPolicy(args) {
@@ -1183,7 +1202,10 @@ async function main() {
   }
 
   if (command === 'init') {
-    const home = process.env.HOME || os.homedir();
+    // Claude Code on Windows keeps its settings under %USERPROFILE%, even in Git
+    // Bash where HOME is /c/Users/<name>.
+    const windows = process.platform === 'win32';
+    const home = windows ? os.homedir() : process.env.HOME || os.homedir();
     if (hasFlag(args, '--uninstall')) {
       const result = applyUninstall({ settingsPath: path.join(home, '.claude', 'settings.json') });
       console.log(result.removed
@@ -1191,7 +1213,11 @@ async function main() {
         : 'No TrustDex hook was found in Claude Code settings.');
       return;
     }
-    const plan = planInit({ home, sourceRoot: TRUSTDEX_ROOT, version: VERSION, nodePath: process.execPath, onRisk: hasFlag(args, '--strict') ? 'deny' : 'ask' });
+    const plan = planInit({
+      home, sourceRoot: TRUSTDEX_ROOT, version: VERSION, nodePath: process.execPath,
+      onRisk: hasFlag(args, '--strict') ? 'deny' : 'ask',
+      gitBash: windows ? findGitBash() : null
+    });
     console.log(describePlan(plan));
     if (hasFlag(args, '--dry-run')) return;
     if (!hasFlag(args, '--yes')) {
@@ -1217,6 +1243,11 @@ async function main() {
       result.backupPath ? `Previous settings: ${result.backupPath}` : 'Created ~/.claude/settings.json.',
       result.policyCreated ? `Created ${plan.policyPath}.` : `Kept your existing ${plan.policyPath}.`,
       `Make sure ${path.dirname(plan.wrapper)} is on your PATH to use "trustdex allow-once".`,
+      ...(windows ? [
+        'In PowerShell you can add it for your account with:',
+        `  [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';${path.dirname(plan.wrapper)}', 'User')`,
+        'then open a new terminal.'
+      ] : []),
       'Undo with: trustdex init --uninstall'
     ].join('\n'));
     return;

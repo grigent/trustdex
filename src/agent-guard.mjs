@@ -62,9 +62,9 @@ function programName(word) {
 
 // ------------------------------------------------------------ paths
 
-export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot = null, policyPath: rawPolicy = null, stateDir: rawState = null, secretPaths = [] } = {}) {
-  const home = canonicalGuardPath(rawHome, { home: rawHome });
-  const absolute = (value) => canonicalGuardPath(value, { home: rawHome, cwd: process.cwd() });
+export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot = null, policyPath: rawPolicy = null, stateDir: rawState = null, secretPaths = [], platform = process.platform } = {}) {
+  const home = canonicalGuardPath(rawHome, { home: rawHome, platform });
+  const absolute = (value) => canonicalGuardPath(value, { home: rawHome, cwd: process.cwd(), platform });
   const trustdexRoot = rawRoot ? absolute(rawRoot) : null;
   const policyPath = rawPolicy ? absolute(rawPolicy) : null;
   const stateDir = rawState ? absolute(rawState) : null;
@@ -74,7 +74,7 @@ export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot
     config: [
       h('.claude/settings.json'), h('.claude/settings.local.json'), h('.claude.json'),
       h('.claude/hooks/'), h('.codex/config.toml'), h('.gemini/settings.json'), h('.cursor/mcp.json'),
-      '/Library/Application Support/ClaudeCode/', '/etc/claude-code/',
+      '/Library/Application Support/ClaudeCode/', '/etc/claude-code/', '/C:/Program Files/ClaudeCode/',
       ...(trustdexRoot ? [trustdexRoot + path.sep] : []),
       ...(policyPath ? [policyPath] : []),
       ...(stateDir ? [stateDir + path.sep] : [])
@@ -90,6 +90,16 @@ export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot
       h('Library/Application Support/Google/Chrome/*/Login Data'), h('Library/Application Support/Google/Chrome/*/Cookies'),
       h('Library/Application Support/Firefox/Profiles/'), h('Library/Application Support/BraveSoftware/'),
       h('Library/Application Support/Microsoft Edge/'), h('Library/Safari/'),
+      // Windows: browser logins and cookies, the credential vault, DPAPI keys,
+      // and the GitHub CLI and gcloud credentials kept under AppData.
+      h('AppData/Local/Google/Chrome/User Data/*/Login Data'), h('AppData/Local/Google/Chrome/User Data/*/Cookies'),
+      h('AppData/Local/Google/Chrome/User Data/*/Network/Cookies'), h('AppData/Local/Google/Chrome/User Data/Local State'),
+      h('AppData/Local/Microsoft/Edge/User Data/*/Login Data'), h('AppData/Local/Microsoft/Edge/User Data/*/Cookies'),
+      h('AppData/Local/Microsoft/Edge/User Data/*/Network/Cookies'), h('AppData/Local/Microsoft/Edge/User Data/Local State'),
+      h('AppData/Local/BraveSoftware/'), h('AppData/Roaming/Mozilla/Firefox/Profiles/'),
+      h('AppData/Local/Microsoft/Credentials/'), h('AppData/Roaming/Microsoft/Credentials/'),
+      h('AppData/Local/Microsoft/Vault/'), h('AppData/Roaming/Microsoft/Protect/'),
+      h('AppData/Roaming/GitHub CLI/hosts.yml'), h('AppData/Roaming/gcloud/'),
       ...secretPaths.map((entry) => absolute(entry) + (/[\\/]$/.test(entry) ? path.sep : ''))
     ],
     secretNames: [/(^|\/)\.codex[^/]*\/auth\.json$/i, /(^|\/)id_(rsa|ecdsa|ed25519|dsa)$/i],
@@ -97,10 +107,14 @@ export function guardPaths({ home: rawHome = os.homedir(), trustdexRoot: rawRoot
       h('Library/LaunchAgents/'), '/Library/LaunchAgents/', '/Library/LaunchDaemons/', '/etc/cron.d/',
       '/etc/crontab', '/etc/profile', '/etc/zshrc', '/etc/bashrc',
       ...['.zshrc', '.zshenv', '.zprofile', '.zlogin', '.bashrc', '.bash_profile', '.profile', '.config/fish/config.fish'].map(h),
-      h('.config/autostart/'), h('.config/systemd/user/')
+      h('.config/autostart/'), h('.config/systemd/user/'),
+      // Windows: the Startup folders run their contents at every sign-in.
+      h('AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/'),
+      '/C:/ProgramData/Microsoft/Windows/Start Menu/Programs/StartUp/'
     ],
-    // Git hooks run code on every commit, checkout or push.
-    persistenceNames: [/(^|\/)\.git\/hooks\/[^/]+$/i]
+    // Git hooks run code on every commit, checkout or push. PowerShell profiles
+    // (also under a OneDrive-redirected Documents folder) run in every new shell.
+    persistenceNames: [/(^|\/)\.git\/hooks\/[^/]+$/i, /(^|\/)Documents\/(?:Windows)?PowerShell\/[^/]*profile\.ps1$/i]
   };
 }
 
@@ -148,24 +162,37 @@ function windowsSegments(rest) {
 
 const HOME_PREFIX_RE = /^(?:~|\$HOME|\$\{HOME\}|%USERPROFILE%|\$env:USERPROFILE|\$\{env:USERPROFILE\}|%HOMEDRIVE%%HOMEPATH%|\$env:HOMEDRIVE\$env:HOMEPATH)(?=\/|$)/i;
 
+// Git Bash, MSYS2 and Cygwin spell drive C: as /c or /cygdrive/c. On Windows these
+// name the same files as C:\, so they are folded into the drive notation.
+const MSYS_DRIVE_RE = /^\/(?:cygdrive\/)?([A-Za-z])(?=\/|$)/;
+
+// Windows path rules apply on Windows, and wherever the home directory is a
+// Windows drive path (for example when a Windows tool call is checked elsewhere).
+export function usesWindowsPaths(home, platform = process.platform) {
+  return platform === 'win32' || /^\/?[A-Za-z]:(?:[\\/]|$)/.test(toPosix(String(home ?? '')).replace(/^\//, ''));
+}
+
 // One absolute POSIX-style spelling for a tool path: home notation expanded, Windows
-// prefixes and drive letters normalized, `.` and `..` resolved without leaving a drive,
-// and kernel or firmlink aliases (/proc/self/root, /private/etc, /System/Volumes/Data)
-// removed. Symbolic links are resolved separately, against the file system.
-export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = os.homedir() } = {}) {
-  const home = toPosix(windowsPath(toPosix(rawHome)).replace(/^\/(?=[A-Za-z]:)/, ''));
+// prefixes and drive letters normalized (including Git Bash /c/... on Windows), `.` and
+// `..` resolved without leaving a drive, and kernel or firmlink aliases (/proc/self/root,
+// /private/etc, /System/Volumes/Data) removed. Symbolic links are resolved separately,
+// against the file system.
+export function canonicalGuardPath(file, { cwd: rawCwd = null, home: rawHome = os.homedir(), platform = process.platform } = {}) {
+  const windows = usesWindowsPaths(rawHome, platform);
+  const msys = (value) => (windows ? value.replace(MSYS_DRIVE_RE, '/$1:') : value);
+  const home = msys(toPosix(windowsPath(toPosix(rawHome)).replace(/^\/(?=[A-Za-z]:)/, '')));
   // A leading "//" is a UNC share only in Windows notation; on POSIX it is "/".
   // A "//" home is a UNC share when written with backslashes, or on Windows.
   const uncHome = home.startsWith('//') && (!/^\/\//.test(String(rawHome).trim()) || process.platform === 'win32');
   const unc = /^\\\\/.test(String(file).trim()) || /^\/[A-Za-z]:/.test(home) || uncHome;
-  const cwd = rawCwd ? canonicalGuardPath(rawCwd, { home: rawHome }) : null;
+  const cwd = rawCwd ? canonicalGuardPath(rawCwd, { home: rawHome, platform }) : null;
   let value = windowsPath(String(file).trim().replace(/\\/g, '/'));
   const user = path.basename(home);
   value = value.replace(HOME_PREFIX_RE, home);
   if (user && value.toLowerCase().startsWith(`~${user.toLowerCase()}`) && /^(?:\/|$)/.test(value.slice(user.length + 1))) {
     value = home + value.slice(user.length + 1);
   }
-  value = toPosix(value);
+  value = msys(toPosix(value));
   let drive = value.match(/^\/([A-Za-z]):(\/.*|)$/);
   const relativeDrive = value.match(/^([A-Za-z]):(?!\/)(.*)$/);
   if (relativeDrive) {
@@ -218,12 +245,12 @@ function realGuardPath(resolved, home) {
   return inHome ? home + target.slice(realHome.length) : target;
 }
 
-export function classifyPath(file, paths, { cwd = null, home = os.homedir() } = {}) {
+export function classifyPath(file, paths, { cwd = null, home = os.homedir(), platform = process.platform } = {}) {
   if (typeof file !== 'string' || !file) return [];
-  const resolved = canonicalGuardPath(file, { cwd, home });
+  const resolved = canonicalGuardPath(file, { cwd, home, platform });
   const candidates = [resolved];
   if (path.isAbsolute(resolved)) {
-    const real = realGuardPath(resolved, canonicalGuardPath(home, { home }));
+    const real = realGuardPath(resolved, canonicalGuardPath(home, { home, platform }));
     if (real && real !== resolved) candidates.push(real);
   }
   const kinds = [];
@@ -239,7 +266,7 @@ export function classifyPath(file, paths, { cwd = null, home = os.homedir() } = 
 const WRITE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const READ_TOOLS = new Set(['Read', 'Grep', 'Glob']);
 
-function signalItem(name, signal, reason) {
+export function signalItem(name, signal, reason) {
   return { name, kind: 'agent-action', signals: [signal], reasons: [reason], action: GUARD_SIGNAL_ACTIONS[signal] };
 }
 
@@ -272,7 +299,7 @@ const BYPASS_FLAGS = new Set([
 const BYPASS_VALUE_FLAGS = new Set(['--permission-mode', '--approval-mode', '-s', '--sandbox']);
 const BYPASS_VALUES = new Set(['bypasspermissions', 'yolo', 'danger-full-access']);
 
-function startsAgentWithoutGuardrails(words) {
+export function startsAgentWithoutGuardrails(words) {
   const agentIndex = words.findIndex((word) => AGENT_PROGRAMS.test(programName(word)) || AGENT_PROGRAMS.test(word));
   if (agentIndex < 0) return false;
   const agent = programName(words[agentIndex]);
@@ -790,7 +817,7 @@ export function guardBashCommand(command, paths, options = {}) {
     if (program === 'cd') {
       const target = words[1] && words[1] !== '-' ? expandHome(toPosix(words[1]), toPosix(options.home || os.homedir())) : toPosix(options.home || os.homedir());
       currentCwd = path.isAbsolute(target) ? path.resolve(target) : currentCwd ? path.resolve(currentCwd, target) : null;
-      const guardTarget = canonicalGuardPath(words[1] && words[1] !== '-' ? words[1] : options.home || os.homedir(), { cwd: guardCwd, home: options.home || os.homedir() });
+      const guardTarget = canonicalGuardPath(words[1] && words[1] !== '-' ? words[1] : options.home || os.homedir(), { cwd: guardCwd, home: options.home || os.homedir(), platform: options.platform });
       guardCwd = currentCwd && path.isAbsolute(guardTarget) ? guardTarget : null;
       movedDirectory = true;
       continue;

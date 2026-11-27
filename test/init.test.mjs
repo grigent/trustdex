@@ -99,8 +99,44 @@ test('uninstall removes only the TrustDex hook', posixOnly, (t) => {
   assert.equal(applyUninstall({ settingsPath: path.join(dir, '.claude/settings.json') }).removed, 0);
 });
 
-test('init refuses Windows, bad options, and unattended runs without --yes', (t) => {
-  assert.throws(() => plan('/tmp/x', { platform: 'win32' }), /Windows/);
+test('on Windows init needs Git Bash and plans Windows paths, both wrappers and a Git Bash hook', () => {
+  assert.throws(() => plan('C:\\Users\\tester', { platform: 'win32' }), /Git Bash/);
+  const p = plan('C:\\Users\\tester', { platform: 'win32', nodePath: 'C:\\Program Files\\nodejs\\node.exe', gitBash: 'C:\\Program Files\\Git\\bin\\bash.exe' });
+  assert.equal(p.installDir, 'C:\\Users\\tester\\.local\\share\\trustdex\\9.9.9');
+  assert.equal(p.wrapper, 'C:\\Users\\tester\\.local\\bin\\trustdex');
+  assert.equal(p.wrapperCmd, 'C:\\Users\\tester\\.local\\bin\\trustdex.cmd');
+  assert.equal(p.settingsPath, 'C:\\Users\\tester\\.claude\\settings.json');
+  assert.equal(p.hookShell, 'bash');
+  assert.ok(p.hookCommand.startsWith("'C:/Program Files/nodejs/node.exe' 'C:/Users/tester/.local/share/trustdex/9.9.9/bin/trustdex.mjs' claude-hook"));
+  assert.match(p.hookCommand, /--protect 'C:\/Users\/tester\/\.local\/bin\/trustdex' --protect 'C:\/Users\/tester\/\.local\/bin\/trustdex\.cmd'/);
+  assert.match(p.hookCommand, /exit 2; }$/);
+  assert.doesNotMatch(p.hookCommand, /\\/);
+  assert.match(describePlan(p), /Git Bash/);
+  assert.match(HOOK_MATCHER, /(^|\|)PowerShell(\||$)/);
+});
+
+test('on Windows the installed hook runs through Git Bash and stops a credential read', { skip: process.platform !== 'win32' }, (t) => {
+  const bash = ['C:\\Program Files\\Git\\bin\\bash.exe', 'C:\\Program Files (x86)\\Git\\bin\\bash.exe'].find((candidate) => fs.existsSync(candidate));
+  if (!bash) return t.skip('Git Bash is not installed');
+  const dir = home(t);
+  const p = planInit({ home: dir, sourceRoot: root, version: '9.9.9', nodePath: process.execPath, platform: 'win32', gitBash: bash });
+  applyInit(p);
+  assert.ok(fs.existsSync(path.join(dir, '.local', 'bin', 'trustdex.cmd')));
+  const [hook] = trustdexHooks(settingsOf(dir));
+  assert.equal(hook.shell, 'bash');
+  for (const input of [
+    { tool_name: 'Read', cwd: dir, tool_input: { file_path: path.join(dir, '.ssh', 'id_rsa') } },
+    { tool_name: 'PowerShell', cwd: dir, tool_input: { command: `Get-Content ${path.join(dir, '.ssh', 'id_rsa')}` } }
+  ]) {
+    const out = spawnSync(bash, ['-c', hook.command], { input: JSON.stringify(input), encoding: 'utf8', env: { ...process.env, USERPROFILE: dir } });
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(JSON.parse(out.stdout).hookSpecificOutput.permissionDecision, 'deny', input.tool_name);
+  }
+  const wrapper = spawnSync('cmd.exe', ['/d', '/c', path.join(dir, '.local', 'bin', 'trustdex.cmd'), '--version'], { encoding: 'utf8' });
+  assert.match(wrapper.stdout, /\d+\.\d+\.\d+/);
+});
+
+test('init refuses bad options and unattended runs without --yes', (t) => {
   assert.throws(() => plan('/tmp/x', { onRisk: 'allow' }), /onRisk/);
   if (process.platform === 'win32') return;
   const dir = home(t);

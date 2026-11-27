@@ -23,10 +23,10 @@ So by default the hook does not turn a risky action into a dialog. It denies the
 | Signal | Level | Examples |
 |---|---|---|
 | `guard-tamper` | BLOCK | changing `~/.claude/settings.json`, project `.claude/settings*.json`, `.mcp.json`, `~/.claude.json`, Codex/Gemini/Cursor agent config, the TrustDex installation, its policy or approval state; agent commands that mention `trustdex allow-once` |
-| `secret-access` | BLOCK | reading or copying SSH private keys, cloud/registry/GitHub tokens (`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config`, ...), agent login files, keychains (`security find-generic-password -w`, `dump-keychain`), browser cookies and saved logins, `gh auth token`, plus any paths in `secretPaths` |
+| `secret-access` | BLOCK | reading or copying SSH private keys, cloud/registry/GitHub tokens (`~/.aws`, `~/.npmrc`, `~/.config/gh/hosts.yml`, `~/.docker/config.json`, `~/.kube/config`, ...), agent login files, keychains (`security find-generic-password -w`, `dump-keychain`), browser cookies and saved logins (also in Chrome, Edge, Brave, and Firefox profiles under Windows `AppData`), Windows Credential Manager and Vault files, `gh auth token`, plus any paths in `secretPaths` |
 | `agent-permission-bypass` | BLOCK | `claude --dangerously-skip-permissions`, `--permission-mode bypassPermissions`, `codex --dangerously-bypass-approvals-and-sandbox` / `--yolo` / `-s danger-full-access` / `approval_policy=never`, `gemini --yolo` / `-y`, `cursor-agent --force`, `aider --yes-always`, `q chat --trust-all-tools`, `amp --dangerously-allow-all` |
 | package install signals | BLOCK / ASK | see [Pre-install package checks](INSTALL_CHECK.md) |
-| `persistence-change` | ASK | launch agents and daemons, `launchctl load/bootstrap`, `crontab`, login items, shell startup files such as `~/.zshrc`, git hooks (`.git/hooks/*`, `git config core.hooksPath`) |
+| `persistence-change` | ASK | launch agents and daemons, `launchctl load/bootstrap`, `crontab`, login items, shell startup files such as `~/.zshrc`, git hooks (`.git/hooks/*`, `git config core.hooksPath`); on Windows, `Run`/`RunOnce` registry keys, scheduled tasks (`schtasks /create`, `Register-ScheduledTask`), new services, the Startup folder, and PowerShell profiles (`$PROFILE`) |
 | `obfuscated-execution` | BLOCK | decoding hidden content and running it: `base64 -d \| sh`, `xxd -r \| python3`, `gunzip \| sh`, `eval "$(... base64 -d)"` |
 | `remote-secret-access` | ASK | over SSH: reading files that usually hold secrets (`.env`, `*.env`, `*.pem`, `*.key`, `id_*`, `credentials`, `*token*`, `*secret*`, `*password*`, `*api_key*`), printing environment variables (`env`, `docker exec ... printenv`), `kubectl get secret`, or copying such files off a server with `scp`/`rsync` |
 | `remote-config-change` | ASK | over SSH: changing or overwriting those files, server settings under `/etc`, `~/.ssh/authorized_keys`, shell startup files, or scheduled jobs (`crontab`) |
@@ -46,7 +46,15 @@ The following stay allowed:
 - SSH tools that use a key without revealing it (`ssh -i`, `scp -i`)
 - ordinary project edits
 
-The hook covers `Bash`, `Read`, `Grep`, `Glob`, `Write`, `Edit`, `MultiEdit`, and `NotebookEdit`.
+The hook covers `Bash`, `PowerShell`, `Read`, `Grep`, `Glob`, `Write`, `Edit`, `MultiEdit`, and `NotebookEdit`.
+
+On Windows, Claude Code can run commands with its `PowerShell` tool instead of Bash. The hook reads those commands too:
+- Cmdlets and their aliases (`Get-Content`/`gc`/`cat`, `Copy-Item`, `Set-Content`, `Out-File`, redirection, `[IO.File]::ReadAllText` and similar .NET calls) and paths built from `$HOME`, `$env:USERPROFILE`, `$env:APPDATA`, `$env:LOCALAPPDATA`, `Join-Path`, or a variable assigned earlier in the same command are checked like the Bash equivalents. Checking that a path exists (`Test-Path`, `Get-Item`) stays quiet.
+- Downloading code and running it (`iwr ... | iex`, `Invoke-Expression (... DownloadString(...))`, `[scriptblock]::Create`) is `pipe-to-shell`, and decoding hidden content to run it (`-EncodedCommand`, `FromBase64String` with `iex`) is `obfuscated-execution`.
+- Programs the command starts (`git`, `npm`, `node -e`, `cmd /c`, `claude ...`) are checked the same way as in Bash, including package installs.
+- A command it cannot parse is denied when it mentions a protected path, a package tool, or a startup or download keyword.
+
+Git Bash spellings of Windows paths (`/c/Users/...`, `/cygdrive/c/...`) are treated as the same path as `C:\Users\...`.
 
 For Bash commands, the hook also looks inside some content that is not written on the command line itself:
 - Nested `sh -c '...'`, `eval`, and `$(...)` are followed.
@@ -94,7 +102,7 @@ The trade-off: a dialog is one tap, and dialogs that appear often get tapped out
 
 ## Setup
 
-On macOS and Linux, `npx trustdex@<version> init` does the steps below for you: it copies that version to `~/.local/share/trustdex/<version>`, adds the wrapper, creates a policy if none exists, and registers the fail-closed hook after backing up your settings. It shows the plan and asks for `yes` first. To set it up by hand:
+On macOS, Linux, and Windows, `npx trustdex@<version> init` does the steps below for you: it copies that version to `~/.local/share/trustdex/<version>`, adds the wrapper, creates a policy if none exists, and registers the fail-closed hook after backing up your settings. It shows the plan and asks for `yes` first. To set it up by hand:
 
 1. Put a reviewed copy of TrustDex somewhere stable. Do not use `npx trustdex`, which would download the gate itself at run time.
 2. Optionally add a small `trustdex` wrapper on your `PATH` so that `trustdex allow-once` is easy to type.
@@ -105,7 +113,7 @@ On macOS and Linux, `npx trustdex@<version> init` does the steps below for you: 
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Bash|PowerShell|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -133,7 +141,31 @@ The running TrustDex copy, the policy file, and the state directory are protecte
 }
 ```
 
-If the hook cannot read its input or configuration, it denies file tools and Bash commands that could be risky rather than failing open. Unrelated tools keep working.
+If the hook cannot read its input or configuration, it denies file tools and Bash or PowerShell commands that could be risky rather than failing open. Unrelated tools keep working.
+
+### Windows
+
+Claude Code on Windows runs hook commands through Git Bash, so `init` needs [Git for Windows](https://git-scm.com/downloads/win). It looks for `bash.exe` in `CLAUDE_CODE_GIT_BASH_PATH` and the usual Git install folders, and stops without changing anything when it finds none. On Windows it:
+
+- installs into `%USERPROFILE%\.local\share\trustdex\<version>` and writes two wrappers, `%USERPROFILE%\.local\bin\trustdex` (for Git Bash) and `trustdex.cmd` (for PowerShell and Command Prompt), and protects both;
+- writes the hook with forward-slash paths and `"shell": "bash"`, so the fail-closed `|| { ...; exit 2; }` part runs in Git Bash;
+- adds `PowerShell` to the matcher.
+
+To type `trustdex allow-once` from PowerShell, add the wrapper folder to your user `PATH` once; `init` prints the command for it. A hand-written Windows hook looks like this:
+
+```json
+{
+  "matcher": "Bash|PowerShell|Read|Grep|Glob|Write|Edit|MultiEdit|NotebookEdit",
+  "hooks": [
+    {
+      "type": "command",
+      "shell": "bash",
+      "command": "'C:/Program Files/nodejs/node.exe' 'C:/Users/you/.local/share/trustdex/<version>/bin/trustdex.mjs' claude-hook --install-policy 'C:/Users/you/.config/trustdex/install-policy.json' --protect 'C:/Users/you/.local/bin/trustdex' --protect 'C:/Users/you/.local/bin/trustdex.cmd' || { echo 'TrustDex could not run, so this action was stopped.' >&2; exit 2; }",
+      "timeout": 60
+    }
+  ]
+}
+```
 
 ## Settings that switch hooks off
 
@@ -154,6 +186,7 @@ These are static checks of what a tool call says it will do:
 - They do not follow code that builds paths or commands at run time, for example a Python script that decodes a hidden path. They do not stop a program that the user has already allowed from misbehaving later.
 - An agent with unrestricted shell access can, in principle, find a way around any check that runs in the same account.
 - Programs that run other files the hook does not recognise as scripts (an executable without a script extension, `make`, `npm run`) are not read, and approvals are not bound to those files.
+- PowerShell checks read the command text. Script files it runs (`& .\x.ps1`, `powershell -File x.ps1`), values computed at run time, and modules that read secrets by themselves are not followed.
 - Server checks see only the command text sent over SSH. A script already on the server, a secret file with an unusual name, or a program that reads secrets by itself are not seen. Give agents server accounts with the least access they need.
 
 Use the hook as one layer next to:

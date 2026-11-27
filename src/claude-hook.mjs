@@ -21,10 +21,11 @@ import nodePath from 'node:path';
 import { guardBashCommand, guardFileTool, guardPaths, toPosix } from './agent-guard.mjs';
 import { actionDigest } from './approvals.mjs';
 import { mentionsPackageTool } from './install-command.mjs';
+import { guardPowerShellCommand } from './powershell-guard.mjs';
 
 const posixPath = nodePath.posix;
 
-export const HOOK_TOOLS =['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
+export const HOOK_TOOLS = ['Bash', 'PowerShell', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 
 // Package findings that an approval may cover by name for a day: they concern one
 // exact package version, not the command around it.
@@ -144,6 +145,10 @@ export function bashApprovalSubject(command, cwd = null) {
 export function approvalSubject(toolName, toolInput, cwd = null) {
   const input = toolInput && typeof toolInput === 'object' ? toolInput : {};
   if (toolName === 'Bash' && typeof input.command === 'string') return bashApprovalSubject(input.command, cwd);
+  // A PowerShell approval covers the same command in the same directory only.
+  if (toolName === 'PowerShell' && typeof input.command === 'string') {
+    return { command: input.command, cwd: typeof cwd === 'string' && cwd ? toPosix(cwd) : null };
+  }
   const fields = APPROVAL_FIELDS[toolName];
   if (!fields) return input;
   return Object.fromEntries(fields.filter((field) => input[field] !== undefined).map((field) => [field, input[field]]));
@@ -160,6 +165,15 @@ export async function evaluateToolCall(input, options = {}) {
     if (typeof command !== 'string' || !command.trim()) return items;
     items.push(...guardBashCommand(command, paths, { cwd, readScript: options.readScript, allowStartupItems: options.policy?.allowStartupItems }));
     items.push(...(await evaluateInstallCommand(command, options)).items);
+  } else if (tool === 'PowerShell') {
+    const command = toolInput.command;
+    if (typeof command !== 'string' || !command.trim()) return items;
+    const guarded = guardPowerShellCommand(command, paths, { cwd, readScript: options.readScript, allowStartupItems: options.policy?.allowStartupItems });
+    items.push(...guarded.items);
+    // External package tools (npm, pip, ...) get the same registry checks as in Bash.
+    for (const external of guarded.externalCommands) {
+      items.push(...(await evaluateInstallCommand(external, options)).items);
+    }
   } else {
     items.push(...guardFileTool(tool, toolInput, paths, { cwd }));
   }
@@ -245,13 +259,17 @@ export async function claudeHookResponse(input, options = {}) {
 
 // Used when the hook cannot evaluate its input or configuration. Unreadable
 // input is denied. A readable call is denied only when it could be risky (a
-// file tool or a Bash command), so a broken policy file stops risky actions but
-// not unrelated tools.
+// file tool, or a Bash or PowerShell command), so a broken policy file stops
+// risky actions but not unrelated tools.
 export function claudeHookFailure(input = null) {
   if (input && typeof input === 'object' && typeof input.tool_name === 'string') {
-    if (!['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(input.tool_name)) return null;
+    if (!HOOK_TOOLS.includes(input.tool_name)) return null;
     if (input.tool_name === 'Bash' && !mentionsPackageTool(input.tool_input?.command) &&
         !/[~/]|\$HOME|security|launchctl|crontab|claude|codex|gemini/i.test(String(input.tool_input?.command || ''))) {
+      return null;
+    }
+    if (input.tool_name === 'PowerShell' && !mentionsPackageTool(input.tool_input?.command) &&
+        !/[~/\\:]|\$HOME|\$env:|\$profile|claude|codex|gemini|trustdex|schtasks|scheduledtask|invoke-expression|\biex\b|-enc/i.test(String(input.tool_input?.command || ''))) {
       return null;
     }
   }
