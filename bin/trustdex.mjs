@@ -1206,11 +1206,35 @@ async function main() {
     // Bash where HOME is /c/Users/<name>.
     const windows = process.platform === 'win32';
     const home = windows ? os.homedir() : process.env.HOME || os.homedir();
+    // Both installing and removing the hook change Claude Code settings, so both
+    // need a person at a terminal (or --yes); --dry-run never writes anything.
+    const confirmed = async (what) => {
+      if (hasFlag(args, '--yes')) return true;
+      if (!process.stdin.isTTY || !process.stdout.isTTY) {
+        throw new Error(`${what} changes Claude Code settings; run it yourself in a terminal, or pass --yes.`);
+      }
+      process.stdout.write('\nType "yes" to continue: ');
+      const answer = await new Promise((resolve) => {
+        process.stdin.setEncoding('utf8');
+        process.stdin.once('data', (data) => resolve(String(data).trim()));
+      });
+      process.stdin.pause();
+      if (answer.toLowerCase() === 'yes') return true;
+      console.log('Nothing was changed.');
+      process.exitCode = 1;
+      return false;
+    };
     if (hasFlag(args, '--uninstall')) {
-      const result = applyUninstall({ settingsPath: path.join(home, '.claude', 'settings.json') });
-      console.log(result.removed
-        ? `Removed the TrustDex hook from Claude Code settings (backup: ${result.backupPath}). The copied files under ~/.local/share/trustdex are left in place.`
-        : 'No TrustDex hook was found in Claude Code settings.');
+      const settingsPath = path.join(home, '.claude', 'settings.json');
+      const found = applyUninstall({ settingsPath, dryRun: true }).removed;
+      if (!found) {
+        console.log('No TrustDex hook was found in Claude Code settings.');
+        return;
+      }
+      console.log(`TrustDex will remove its hook from ${settingsPath} (backed up first; other settings and hooks are kept).`);
+      if (hasFlag(args, '--dry-run') || !(await confirmed('init --uninstall'))) return;
+      const result = applyUninstall({ settingsPath });
+      console.log(`Removed the TrustDex hook from Claude Code settings (backup: ${result.backupPath}). The copied files under ~/.local/share/trustdex are left in place.`);
       return;
     }
     const plan = planInit({
@@ -1220,22 +1244,7 @@ async function main() {
     });
     console.log(describePlan(plan));
     if (hasFlag(args, '--dry-run')) return;
-    if (!hasFlag(args, '--yes')) {
-      if (!process.stdin.isTTY || !process.stdout.isTTY) {
-        throw new Error('init changes Claude Code settings; run it yourself in a terminal, or pass --yes.');
-      }
-      process.stdout.write('\nType "yes" to continue: ');
-      const answer = await new Promise((resolve) => {
-        process.stdin.setEncoding('utf8');
-        process.stdin.once('data', (data) => resolve(String(data).trim()));
-      });
-      process.stdin.pause();
-      if (answer.toLowerCase() !== 'yes') {
-        console.log('Nothing was changed.');
-        process.exitCode = 1;
-        return;
-      }
-    }
+    if (!(await confirmed('init'))) return;
     const result = applyInit(plan);
     console.log([
       '',

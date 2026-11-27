@@ -31,7 +31,7 @@ Running Claude Code in auto or bypass mode? Add a checkpoint that stops risky ac
 npx trustdex@0.22.0 init
 ```
 
-It shows what it will change and asks for `yes`. It copies TrustDex to `~/.local/share/trustdex/<version>`, so the hook never downloads code at run time. It also backs up `~/.claude/settings.json` and keeps your other settings and hooks. Start a new Claude Code session afterwards. `--dry-run` only shows the plan, `--strict` denies risky actions instead of asking, and `trustdex init --uninstall` removes the hook. It sets up macOS, Linux, and Windows; on Windows it needs Git for Windows, because Claude Code runs hooks through Git Bash there (see [the hook guide](docs/CLAUDE_HOOK.md#windows)).
+It shows what it will change and asks for `yes`. It copies TrustDex to `~/.local/share/trustdex/<version>`, so the hook never downloads code at run time. It also backs up `~/.claude/settings.json` and keeps your other settings and hooks. Start a new Claude Code session afterwards. `--dry-run` only shows the plan, `--strict` denies risky actions instead of asking, and `trustdex init --uninstall` removes the hook after the same `yes`. The hook stops agents from running `init` themselves. It sets up macOS, Linux, and Windows; on Windows it needs Git for Windows, because Claude Code runs hooks through Git Bash there (see [the hook guide](docs/CLAUDE_HOOK.md#windows)).
 
 What a stopped action looks like to the agent:
 

@@ -31,7 +31,7 @@ Claude Code를 자동 모드나 확인 없는 모드로 쓰시나요? 위험한 
 npx trustdex@0.22.0 init
 ```
 
-무엇을 바꿀지 보여 주고 `yes`를 입력해야 진행합니다. TrustDex를 `~/.local/share/trustdex/<버전>`에 복사해 두므로, 훅이 실행 중에 코드를 내려받지 않습니다. `~/.claude/settings.json`은 먼저 백업하고, 다른 설정과 훅은 그대로 둡니다. 끝나면 Claude Code 세션을 새로 여세요. `--dry-run`은 계획만 보여 주고, `--strict`는 위험한 행동을 묻지 않고 거부합니다. `trustdex init --uninstall`로 훅을 뺄 수 있습니다. macOS, Linux, 윈도우를 설정합니다. 윈도우의 Claude Code는 훅을 Git Bash로 실행하므로 Git for Windows가 있어야 합니다([훅 안내](docs/CLAUDE_HOOK.ko.md#윈도우) 참고).
+무엇을 바꿀지 보여 주고 `yes`를 입력해야 진행합니다. TrustDex를 `~/.local/share/trustdex/<버전>`에 복사해 두므로, 훅이 실행 중에 코드를 내려받지 않습니다. `~/.claude/settings.json`은 먼저 백업하고, 다른 설정과 훅은 그대로 둡니다. 끝나면 Claude Code 세션을 새로 여세요. `--dry-run`은 계획만 보여 주고, `--strict`는 위험한 행동을 묻지 않고 거부합니다. `trustdex init --uninstall`로 훅을 뺄 수 있고, 이때도 `yes`를 받습니다. 에이전트가 `init`을 직접 실행하는 것은 훅이 막습니다. macOS, Linux, 윈도우를 설정합니다. 윈도우의 Claude Code는 훅을 Git Bash로 실행하므로 Git for Windows가 있어야 합니다([훅 안내](docs/CLAUDE_HOOK.ko.md#윈도우) 참고).
 
 에이전트가 받는 멈춤 안내는 이렇게 생겼습니다.
 

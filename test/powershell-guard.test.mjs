@@ -138,6 +138,18 @@ test('agents started from PowerShell without guardrails are blocked', () => {
   assert.deepEqual(ps("codex --sandbox danger-full-access 'fix it'"), ['agent-permission-bypass']);
 });
 
+test('agents cannot install, replace or remove the TrustDex hook from PowerShell', () => {
+  for (const command of [
+    'trustdex init --uninstall --yes',
+    String.raw`& "$env:USERPROFILE\.local\bin\trustdex.cmd" init --uninstall --yes`,
+    String.raw`& 'C:\Program Files\nodejs\node.exe' 'C:\Users\tester\.local\share\trustdex\1.0.0\bin\trustdex.mjs' init --strict --yes`,
+    'npx.cmd --yes trustdex@1.0.0 init --yes'
+  ]) {
+    assert.ok(ps(command).includes('guard-tamper'), command);
+  }
+  assert.deepEqual(ps('trustdex init --dry-run'), []);
+});
+
 test('a PowerShell command that cannot be parsed is blocked only when it mentions protected things', () => {
   assert.deepEqual(ps(String.raw`Get-Content 'C:\Users\tester\.ssh\id_rsa`), ['unparseable-guarded-command']);
   assert.deepEqual(ps("Write-Output 'unterminated"), []);

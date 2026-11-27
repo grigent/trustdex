@@ -152,12 +152,13 @@ export function applyInit(plan, { now = Date.now() } = {}) {
   return { backupPath, policyCreated };
 }
 
-export function applyUninstall({ settingsPath, now = Date.now() }) {
+// With dryRun it only counts the TrustDex hooks it would remove and writes nothing.
+export function applyUninstall({ settingsPath, now = Date.now(), dryRun = false }) {
   const { settings, existed } = readSettings(settingsPath);
   if (!existed) return { removed: 0, backupPath: null };
   const before = (settings.hooks?.PreToolUse || []).flatMap((group) => group.hooks || [])
     .filter(isTrustdexHook).length;
-  if (!before) return { removed: 0, backupPath: null };
+  if (!before || dryRun) return { removed: before, backupPath: null };
   const backupPath = backup(settingsPath, now);
   const hooks = { ...settings.hooks, PreToolUse: withoutTrustdexHooks(settings.hooks.PreToolUse) };
   if (!hooks.PreToolUse.length) delete hooks.PreToolUse;
